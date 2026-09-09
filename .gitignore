@@ -95,3 +95,8 @@ packages/protocol/src/generated/validation/*.aot.ts
 packages/desktop/.cache/
 packages/desktop/src-tauri/resources/managed-runtime/
 app.json
+
+# Python build artifacts (components/beads-central-src)
+**/*.egg-info/
+**/__pycache__/
+*.pyc
