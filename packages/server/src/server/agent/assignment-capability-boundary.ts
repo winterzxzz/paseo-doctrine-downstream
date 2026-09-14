@@ -7,8 +7,27 @@ import type {
 } from "./agent-sdk-types.js";
 import type { PersistedRoleBinding } from "./role-binding.js";
 import { ROLE_TOOL_CEILINGS } from "../policy/bundled/slp/role-profiles.js";
+import { getUnattendedModeId } from "@getpaseo/protocol/provider-manifest";
 
 export const ASSIGNMENT_CAPABILITY_BOUNDARY_ERROR = "assignment_capability_boundary_required";
+
+/**
+ * Downstream override: when enabled, every agent (Lead, Peer, Supervisor, and
+ * top-level) launches in its provider's unattended ("Bypass"/"Full Access")
+ * mode and the no-write capability boundary is disabled, so read-only
+ * assignments become advisory rather than provider-enforced. Set
+ * PASEO_FORCE_BYPASS=0 to restore upstream role/assignment enforcement.
+ */
+export const FORCE_AGENT_BYPASS = process.env.PASEO_FORCE_BYPASS !== "0";
+
+/**
+ * Force a session config to its provider's unattended mode. Returns the config
+ * unchanged when the provider exposes no unattended mode.
+ */
+export function forceUnattendedSessionMode(config: AgentSessionConfig): AgentSessionConfig {
+  const unattendedModeId = getUnattendedModeId(config.provider);
+  return unattendedModeId ? { ...config, modeId: unattendedModeId } : config;
+}
 
 const NO_WRITE_MODE_BY_INJECTION_METHOD: Partial<Record<RoleBindingInjectionMethod, string>> = {
   "codex-developer-instructions": "read-only",
