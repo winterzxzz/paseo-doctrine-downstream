@@ -1,0 +1,73 @@
+name: SLP Blueprint site (GitHub Pages)
+
+# Only runs for this one directory, so it never interferes with the existing Paseo CI.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "slp-blueprint-site/**"
+      - ".github/workflows/slp-site-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: slp-site-pages
+  # A queued run must not cancel a deploy that is already publishing.
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # Forks should not try to publish this site to their own Pages.
+    if: github.repository == 'winterzxzz/paseo-doctrine-downstream'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: slp-blueprint-site
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: slp-blueprint-site/package-lock.json
+
+      - uses: actions/configure-pages@v5
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      # GitHub Pages project sites serve under /<repo>, so the app needs that prefix.
+      - name: Build static export
+        env:
+          NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
+        run: npm run build
+
+      # Cheap regression test for the class of bug where an internal link skips basePath.
+      - name: Assert every internal link carries the basePath
+        run: |
+          unprefixed=$(find out -name '*.html' -exec grep -oh 'href="/[a-z][a-z-]*/[^"]*"' {} + \
+            | grep -v "/${{ github.event.repository.name }}/" || true)
+          if [ -n "$unprefixed" ]; then
+            echo "Internal links missing basePath:"; echo "$unprefixed" | sort -u; exit 1
+          fi
+          echo "All internal links carry the basePath."
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: slp-blueprint-site/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

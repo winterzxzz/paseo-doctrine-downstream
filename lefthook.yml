@@ -9,6 +9,10 @@ pre-commit:
       run: npm run format:check:files -- {staged_files}
     - name: lint
       glob: "*.{js,jsx,ts,tsx}"
+      exclude:
+        # Standalone app with its own lockfile and CI; oxlint ignores it, and passing
+        # only ignored paths makes oxlint exit non-zero on "no files found".
+        - "slp-blueprint-site/**"
       run: npm run lint -- {staged_files}
     - name: typecheck
       run: npm run typecheck
