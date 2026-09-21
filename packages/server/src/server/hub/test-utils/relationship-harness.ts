@@ -1421,6 +1421,7 @@ export class HubRelationshipHarness {
       hubRelationshipClock: this.clock,
       hubRelationshipRetryPolicy: this.clock,
       createHubDaemonId: () => "daemon-test",
+      trustedSembleRuntime: null,
     });
     await this.daemon.start();
     const target = this.daemon.getListenTarget();

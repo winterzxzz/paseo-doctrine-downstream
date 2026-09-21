@@ -3,12 +3,36 @@ import type { AgentSnapshotPayload, CreateAgentRequestMessage } from "@getpaseo/
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { encodeImages } from "@/utils/encode-images";
 import type { UserMessageImageAttachment } from "@/types/stream";
-import type { AssignmentEnvelope } from "@getpaseo/protocol/assignment-contract";
+import type {
+  AssignmentEffectClass,
+  AssignmentEnvelope,
+} from "@getpaseo/protocol/assignment-contract";
+import { buildAssignmentEnvelope } from "@/workspace-protocol/assignment-envelope";
 import type { PaseoRoleId } from "@getpaseo/protocol/role-binding";
 
 export interface WorkspaceDraftAgentRoleFields {
   roleId?: PaseoRoleId;
   assignment?: AssignmentEnvelope;
+}
+
+export function buildRoleCreateFields(input: {
+  roleId: PaseoRoleId | null | undefined;
+  effectClass: AssignmentEffectClass;
+  objective: string;
+  cwd: string;
+  beadsIssueIds: readonly string[];
+}): WorkspaceDraftAgentRoleFields {
+  if (!input.roleId) return {};
+  return {
+    roleId: input.roleId,
+    assignment: buildAssignmentEnvelope({
+      roleId: input.roleId,
+      effectClass: input.effectClass,
+      objective: input.objective,
+      cwd: input.cwd,
+      beadsIssueIds: input.beadsIssueIds,
+    }),
+  };
 }
 
 export interface WorkspaceDraftAgentRequest {

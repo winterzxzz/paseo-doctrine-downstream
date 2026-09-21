@@ -85,8 +85,10 @@ import { useProjectIcons } from "@/projects/icons";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
 import type { ComposerAttachment } from "@/attachments/types";
 import { useDraftWorkspaceAttachmentScopeKey } from "@/attachments/workspace-attachments-store";
-import { requestWorkspaceDraftAgent } from "@/composer/draft/create-agent-request";
-import { buildRoleCreateFields } from "@/composer/draft/workspace-tab";
+import {
+  buildRoleCreateFields,
+  requestWorkspaceDraftAgent,
+} from "@/composer/draft/create-agent-request";
 import { buildWorkspaceDraftAgentConfig } from "@/screens/workspace/workspace-draft-agent-config";
 import type { MessagePayload } from "@/composer/types";
 import type { UserComposerAttachment } from "@/attachments/types";

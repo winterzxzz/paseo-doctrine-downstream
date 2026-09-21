@@ -282,7 +282,8 @@ describe("the repository's own CHANGELOG.md", () => {
   it("parses every release heading", () => {
     expect(releases.length).toBeGreaterThan(50);
     for (const release of releases) {
-      expect(release.version).toMatch(/^\d+\.\d+\.\d+/);
+      // Downstream keeps upstream entries under "Upstream X.Y.Z" headings beside its own releases.
+      expect(release.version).toMatch(/^(?:Upstream )?\d+\.\d+\.\d+/);
       expect(release.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(release.sections.length).toBeGreaterThan(0);
     }

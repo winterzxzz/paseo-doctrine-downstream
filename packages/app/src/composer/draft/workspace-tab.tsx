@@ -26,7 +26,10 @@ import type { Agent } from "@/stores/session-store";
 import { useWorkspaceFields } from "@/stores/session-store-hooks";
 import { useWorkspaceDraftSubmissionStore } from "@/stores/workspace-draft-submission-store";
 import { useAgentControlCommandCenterActions } from "@/command-center/agent-control-registration";
-import { requestWorkspaceDraftAgent } from "@/composer/draft/create-agent-request";
+import {
+  buildRoleCreateFields,
+  requestWorkspaceDraftAgent,
+} from "@/composer/draft/create-agent-request";
 import type { WorkspaceFileOpenRequest } from "@/workspace/file-open";
 import { shouldAutoFocusWorkspaceDraftComposer } from "@/screens/workspace/workspace-draft-pane-focus";
 import {
@@ -59,9 +62,7 @@ import {
   workspaceProtocolAdmissionMessageKey,
   WorkspaceProtocolCreateAdmissionError,
 } from "@/workspace-protocol/create-admission";
-import { buildAssignmentEnvelope } from "@/workspace-protocol/assignment-envelope";
 import { useIssuesQuery } from "@/issues/data";
-import type { AssignmentEnvelope } from "@getpaseo/protocol/assignment-contract";
 import { openWorkspaceChanges } from "@/workspace-tabs/open-supporting-view";
 import { useSettings } from "@/hooks/use-settings";
 
@@ -153,29 +154,6 @@ function resolveDraftModeId(input: {
     return reconciled;
   }
   return null;
-}
-
-export function buildRoleCreateFields(input: {
-  roleId: import("@getpaseo/protocol/role-binding").PaseoRoleId | null | undefined;
-  effectClass: import("@getpaseo/protocol/assignment-contract").AssignmentEffectClass;
-  objective: string;
-  cwd: string;
-  beadsIssueIds: readonly string[];
-}): {
-  roleId?: import("@getpaseo/protocol/role-binding").PaseoRoleId;
-  assignment?: AssignmentEnvelope;
-} {
-  if (!input.roleId) return {};
-  return {
-    roleId: input.roleId,
-    assignment: buildAssignmentEnvelope({
-      roleId: input.roleId,
-      effectClass: input.effectClass,
-      objective: input.objective,
-      cwd: input.cwd,
-      beadsIssueIds: input.beadsIssueIds,
-    }),
-  };
 }
 
 interface DraftRoleIntent {

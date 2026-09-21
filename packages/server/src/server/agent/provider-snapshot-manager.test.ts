@@ -444,6 +444,8 @@ describe("ProviderSnapshotManager public surface", () => {
         copilot: { enabled: false },
         opencode: { enabled: false },
         pi: { enabled: false },
+        omp: { enabled: false },
+        "gemini-antigravity": { enabled: false },
       },
       extraClients: { codex: createExtraClient("codex", { isAvailable }) },
     });
@@ -589,6 +591,8 @@ describe("ProviderSnapshotManager public surface", () => {
         copilot: { enabled: false },
         opencode: { enabled: false },
         pi: { enabled: false },
+        omp: { enabled: false },
+        "gemini-antigravity": { enabled: false },
       },
       extraClients: { codex: createExtraClient("codex", { isAvailable }) },
     });
@@ -615,6 +619,8 @@ describe("ProviderSnapshotManager public surface", () => {
         copilot: { enabled: false },
         opencode: { enabled: false },
         pi: { enabled: false },
+        omp: { enabled: false },
+        "gemini-antigravity": { enabled: false },
       },
       extraClients: {
         codex: createExtraClient("codex", { isAvailable: vi.fn(waitUntilAborted) }),
@@ -644,6 +650,8 @@ describe("ProviderSnapshotManager public surface", () => {
         copilot: { enabled: false },
         opencode: { enabled: false },
         pi: { enabled: false },
+        omp: { enabled: false },
+        "gemini-antigravity": { enabled: false },
       },
       extraClients: {
         codex: createExtraClient("codex", {
@@ -839,6 +847,8 @@ describe("ProviderSnapshotManager public surface", () => {
         copilot: { enabled: false },
         opencode: { enabled: false },
         pi: { enabled: false },
+        omp: { enabled: false },
+        "gemini-antigravity": { enabled: false },
       },
       extraClients: { codex: createExtraClient("codex", { isAvailable }) },
     });
@@ -867,6 +877,8 @@ describe("ProviderSnapshotManager public surface", () => {
         copilot: { enabled: false },
         opencode: { enabled: false },
         pi: { enabled: false },
+        omp: { enabled: false },
+        "gemini-antigravity": { enabled: false },
       },
       extraClients: { codex: createExtraClient("codex", { isAvailable }) },
     });
@@ -1326,6 +1338,8 @@ describe("ProviderSnapshotManager public surface", () => {
         copilot: { enabled: false },
         opencode: { enabled: false },
         pi: { enabled: false },
+        omp: { enabled: false },
+        "gemini-antigravity": { enabled: false },
       },
       extraClients: {
         codex: createExtraClient("codex", {
@@ -1406,6 +1420,8 @@ describe("ProviderSnapshotManager public surface", () => {
         copilot: { enabled: false },
         opencode: { enabled: false },
         pi: { enabled: false },
+        omp: { enabled: false },
+        "gemini-antigravity": { enabled: false },
       },
       extraClients: {
         codex: createExtraClient("codex", {
@@ -1476,6 +1492,8 @@ describe("ProviderSnapshotManager public surface", () => {
         copilot: { enabled: false },
         opencode: { enabled: false },
         pi: { enabled: false },
+        omp: { enabled: false },
+        "gemini-antigravity": { enabled: false },
       },
       extraClients: {
         codex: createExtraClient("codex", {
@@ -1546,6 +1564,8 @@ describe("ProviderSnapshotManager public surface", () => {
         },
         opencode: { enabled: false },
         pi: { enabled: false },
+        omp: { enabled: false },
+        "gemini-antigravity": { enabled: false },
       },
       extraClients: {
         cursor: createExtraClient("cursor", {
@@ -1600,6 +1620,8 @@ describe("ProviderSnapshotManager applyMutableProviderConfig", () => {
         copilot: { enabled: false },
         opencode: { enabled: false },
         pi: { enabled: false },
+        omp: { enabled: false },
+        "gemini-antigravity": { enabled: false },
       },
     });
     try {
@@ -1660,6 +1682,8 @@ describe("ProviderSnapshotManager applyMutableProviderConfig", () => {
         copilot: { enabled: false },
         opencode: { enabled: false },
         pi: { enabled: false },
+        omp: { enabled: false },
+        "gemini-antigravity": { enabled: false },
       },
     });
     try {
@@ -1686,6 +1710,8 @@ describe("ProviderSnapshotManager applyMutableProviderConfig", () => {
         copilot: { enabled: false },
         opencode: { enabled: false },
         pi: { enabled: false },
+        omp: { enabled: false },
+        "gemini-antigravity": { enabled: false },
       },
     });
     try {
@@ -1733,6 +1759,7 @@ describe("ProviderSnapshotManager applyMutableProviderConfig", () => {
       copilot: { enabled: false },
       opencode: { enabled: false },
       pi: { enabled: false },
+      "gemini-antigravity": { enabled: false },
       omp: { enabled: false },
     };
     const manager = new ProviderSnapshotManager({
@@ -1784,6 +1811,7 @@ describe("ProviderSnapshotManager applyMutableProviderConfig", () => {
       copilot: { enabled: false },
       opencode: { enabled: false },
       pi: { enabled: false },
+      "gemini-antigravity": { enabled: false },
       omp: { enabled: false },
     };
     const manager = new ProviderSnapshotManager({
@@ -1838,6 +1866,7 @@ describe("ProviderSnapshotManager applyMutableProviderConfig", () => {
       copilot: { enabled: false },
       opencode: { enabled: false },
       pi: { enabled: false },
+      "gemini-antigravity": { enabled: false },
       omp: { enabled: false },
     };
     const manager = new ProviderSnapshotManager({
@@ -1981,6 +2010,7 @@ describe("ProviderSnapshotManager lifecycle", () => {
       omp: { enabled: false },
       opencode: { enabled: false },
       pi: { enabled: false },
+      "gemini-antigravity": { enabled: false },
     });
     const manager = new ProviderSnapshotManager({
       logger: createTestLogger(),
@@ -2034,6 +2064,8 @@ describe("ProviderSnapshotManager lifecycle", () => {
         copilot: { enabled: false },
         opencode: { enabled: false },
         pi: { enabled: false },
+        omp: { enabled: false },
+        "gemini-antigravity": { enabled: false },
       },
     });
     try {
@@ -2061,6 +2093,8 @@ describe("ProviderSnapshotManager lifecycle", () => {
         copilot: { enabled: false },
         opencode: { enabled: false },
         pi: { enabled: false },
+        omp: { enabled: false },
+        "gemini-antigravity": { enabled: false },
       },
     });
     const listener = vi.fn();
@@ -2264,6 +2298,8 @@ describe("ProviderSnapshotManager cwd routing", () => {
         copilot: { enabled: false },
         opencode: { enabled: false },
         pi: { enabled: false },
+        omp: { enabled: false },
+        "gemini-antigravity": { enabled: false },
       },
     });
     try {
@@ -2291,6 +2327,8 @@ describe("ProviderSnapshotManager cwd routing", () => {
         copilot: { enabled: false },
         opencode: { enabled: false },
         pi: { enabled: false },
+        omp: { enabled: false },
+        "gemini-antigravity": { enabled: false },
       },
     });
     try {
@@ -2372,6 +2410,8 @@ describe("ProviderSnapshotManager cwd routing", () => {
           copilot: { enabled: false },
           opencode: { enabled: false },
           pi: { enabled: false },
+          omp: { enabled: false },
+          "gemini-antigravity": { enabled: false },
         },
       });
       try {
@@ -2508,6 +2548,8 @@ describe("provider-owned catalogue identity", () => {
     copilot: { enabled: false },
     opencode: { enabled: false },
     pi: { enabled: false },
+    omp: { enabled: false },
+    "gemini-antigravity": { enabled: false },
   };
 
   test("shares effective runtime/configuration keys, preserves targets, and isolates provider identities", async () => {
@@ -3062,6 +3104,7 @@ test("an unchanged provider publishes a pending key failure after an unrelated c
     copilot: { enabled: false },
     opencode: { enabled: false },
     pi: { enabled: false },
+    "gemini-antigravity": { enabled: false },
     omp: { enabled: false },
   };
   const manager = new ProviderSnapshotManager({
