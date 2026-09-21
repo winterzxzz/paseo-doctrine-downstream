@@ -41,6 +41,7 @@ import {
   currentAddProjectPage,
   moveAddProjectSelection,
   openAddProjectFlow,
+  openDirectoryBrowsePage,
   openDirectorySearchPage,
   openGithubLocationPage,
   openGithubSearchPage,
@@ -59,12 +60,18 @@ import {
   buildAddProjectMethods,
   addProjectMethodEmptyText,
   buildCloneLocationOptions,
+  buildDirectoryBrowseEntries,
   buildManualGithubRepositoryChoices,
+  filterDirectoryBrowseEntries,
   buildSuggestedParentDirectories,
   filterAddProjectHosts,
   joinDirectoryPath,
+  parentDirectory,
   pathBaseName,
+  FILESYSTEM_ROOT,
+  HOME_DIRECTORY,
   type AddProjectMethodId,
+  type DirectoryBrowseEntry,
 } from "@/add-project-flow/options";
 import {
   buildProjectPickerOptions,
@@ -137,6 +144,7 @@ const foregroundMutedColorMapping = (theme: Theme) => ({ color: theme.colors.for
 
 const lastCloneParentByHost = new Map<string, string>();
 const EMPTY_PATHS: string[] = [];
+const EMPTY_BROWSE_ENTRIES: DirectoryBrowseEntry[] = [];
 const NAVIGATION_HINT_KEYS = ["Up", "Down"];
 const SELECT_HINT_KEYS = ["Enter"];
 const ESCAPE_HINT_KEYS = ["Esc"];
@@ -182,6 +190,9 @@ function progressText(page: AddProjectPage): string {
 
 function emptyText(page: AddProjectPage, host: AddProjectHost | null): string {
   if (page.kind === "host") return "No connected hosts";
+  if (page.kind === "directory-browse") {
+    return page.query.trim() ? "No matching folders" : "No folders here";
+  }
   if (page.kind === "github-search") return "Enter a GitHub URL or owner/repo";
   if (page.kind === "method") return addProjectMethodEmptyText(host);
   return "No matching options";
@@ -190,6 +201,7 @@ function emptyText(page: AddProjectPage, host: AddProjectHost | null): string {
 interface QueryErrorInput {
   searchesDirectories: boolean;
   directoryFailed: boolean;
+  browseFailed: boolean;
   githubFailed: boolean;
   githubAvailable: boolean | null;
   githubError: string | null;
@@ -197,6 +209,7 @@ interface QueryErrorInput {
 
 function queryErrorText(input: QueryErrorInput): string | null {
   if (input.searchesDirectories && input.directoryFailed) return "Unable to search directories";
+  if (input.browseFailed) return "Unable to list this folder";
   if (input.githubFailed) return "Unable to search GitHub repositories";
   if (input.githubError) return input.githubError;
   if (input.githubAvailable === false) return input.githubError ?? "GitHub search is unavailable";
@@ -215,6 +228,8 @@ function pageTitle(page: AddProjectPage): string {
       return "Add project";
     case "directory-search":
       return "Search for directory";
+    case "directory-browse":
+      return "Browse folders";
     case "github-search":
       return "Clone from GitHub";
     case "github-location":
@@ -234,6 +249,8 @@ function pagePlaceholder(page: AddProjectInputPage): string {
       return "Search hosts...";
     case "directory-search":
       return "Search directories or enter a path...";
+    case "directory-browse":
+      return "Filter this folder...";
     case "github-search":
       return "Search or enter a GitHub repository...";
     case "github-location":
@@ -301,6 +318,60 @@ function FlowHint({ keys, action }: { keys: string[]; action: string }) {
       <Text style={styles.footerAction}>{action}</Text>
     </View>
   );
+}
+
+interface BrowseRowsInput {
+  page: Extract<AddProjectPage, { kind: "directory-browse" }>;
+  entries: DirectoryBrowseEntry[];
+  openDirectory: (directoryPath: string) => void;
+  addDirectory: (directoryPath: string) => void;
+}
+
+function buildBrowseRows(input: BrowseRowsInput): FlowRowOption[] {
+  const { page } = input;
+  const parent = parentDirectory(page.directoryPath);
+  const isFiltering = page.query.trim().length > 0;
+  const navigation: FlowRowOption[] = [
+    {
+      id: `add:${page.directoryPath}`,
+      title: "Add this folder",
+      subtitle: shortenPath(page.directoryPath),
+      icon: Plus,
+      testID: "add-project-flow-browse-add",
+      select: () => input.addDirectory(page.directoryPath),
+    },
+  ];
+  if (!isFiltering && parent) {
+    navigation.push({
+      id: `parent:${parent}`,
+      title: "..",
+      subtitle: shortenPath(parent),
+      icon: ArrowLeft,
+      testID: "add-project-flow-browse-parent",
+      select: () => input.openDirectory(parent),
+    });
+  }
+  if (!isFiltering && page.directoryPath === HOME_DIRECTORY) {
+    navigation.push({
+      id: `root:${FILESYSTEM_ROOT}`,
+      title: FILESYSTEM_ROOT,
+      subtitle: "Browse from the filesystem root",
+      icon: HardDrive,
+      testID: "add-project-flow-browse-root",
+      select: () => input.openDirectory(FILESYSTEM_ROOT),
+    });
+  }
+  return [
+    ...navigation,
+    ...input.entries.map<FlowRowOption>((entry) => ({
+      id: entry.path,
+      title: entry.label,
+      subtitle: null,
+      icon: Folder,
+      testID: pathTestId(entry.path),
+      select: () => input.openDirectory(entry.path),
+    })),
+  ];
 }
 
 function setPageStatus(
@@ -434,6 +505,36 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
     retry: false,
     staleTimeMs: 15_000,
   });
+  const browsedDirectory = page.kind === "directory-browse" ? page.directoryPath : null;
+  // Browsing asks the host for the contents of one directory, which it answers from a single
+  // readdir instead of walking the home tree the way the fuzzy search does. The typed filter then
+  // narrows that answer here: sending it to the host would turn every keystroke back into a
+  // subtree walk, which is the slowness Browse exists to avoid.
+  const browseQuery = useFetchQuery({
+    queryKey: ["add-project-flow-browse", hostId, browsedDirectory],
+    queryFn: async () => {
+      if (!client || !browsedDirectory) {
+        return { directoryPath: browsedDirectory, paths: [] as string[] };
+      }
+      const payload = await client.getDirectorySuggestions({
+        cwd: browsedDirectory,
+        query: "",
+        includeDirectories: true,
+        includeFiles: false,
+        limit: 100,
+      });
+      return {
+        directoryPath: browsedDirectory,
+        paths:
+          payload.entries?.flatMap((entry) => (entry.kind === "directory" ? [entry.path] : [])) ??
+          [],
+      };
+    },
+    enabled: Boolean(client && browsedDirectory),
+    dataShape: "value",
+    retry: false,
+    staleTimeMs: 15_000,
+  });
   const githubQuery = useFetchQuery({
     queryKey: ["add-project-flow-github", hostId, debouncedQuery],
     queryFn: async () => {
@@ -472,7 +573,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
   );
 
   const openAddedProject = useCallback(
-    async (path: string, sourceKind: "directory-search" | "method") => {
+    async (path: string, sourceKind: "directory-search" | "directory-browse" | "method") => {
       if (!hostId || submissionInFlightRef.current) return;
       submissionInFlightRef.current = true;
       setState((current) =>
@@ -525,19 +626,46 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
       if (method === "directory-search") {
         setState((current) => openDirectorySearchPage(current, hostId));
       } else if (method === "browse") {
-        void browse();
+        if (host?.canBrowse) {
+          void browse();
+        } else {
+          setState((current) => openDirectoryBrowsePage(current, hostId, HOME_DIRECTORY));
+        }
       } else if (method === "github") {
         setState((current) => openGithubSearchPage(current, hostId));
       } else {
         setState((current) => openNewDirectoryParentPage(current, hostId));
       }
     },
-    [browse, hostId],
+    [browse, host?.canBrowse, hostId],
   );
 
   const directoryPaths = useMemo(
     () => (directoryQuery.data?.query === query ? directoryQuery.data.paths : EMPTY_PATHS),
     [directoryQuery.data, query],
+  );
+  const browseEntries = useMemo(() => {
+    if (page.kind !== "directory-browse") return EMPTY_BROWSE_ENTRIES;
+    const browsed = browseQuery.data;
+    if (browsed?.directoryPath !== page.directoryPath) return EMPTY_BROWSE_ENTRIES;
+    return filterDirectoryBrowseEntries(
+      buildDirectoryBrowseEntries({
+        directoryPath: page.directoryPath,
+        relativePaths: browsed.paths,
+      }),
+      page.query,
+    );
+  }, [browseQuery.data, page]);
+  const openBrowsedDirectory = useCallback(
+    (directoryPath: string) => {
+      if (!hostId) return;
+      setState((current) => openDirectoryBrowsePage(current, hostId, directoryPath));
+    },
+    [hostId],
+  );
+  const addBrowsedDirectory = useCallback(
+    (directoryPath: string) => void openAddedProject(directoryPath, "directory-browse"),
+    [openAddedProject],
   );
   const pathOptions = useMemo(
     () =>
@@ -637,6 +765,14 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
         };
       });
     }
+    if (page.kind === "directory-browse") {
+      return buildBrowseRows({
+        page,
+        entries: browseEntries,
+        openDirectory: openBrowsedDirectory,
+        addDirectory: addBrowsedDirectory,
+      });
+    }
     if (page.kind === "github-search") {
       const search = githubQuery.data?.query === page.query ? githubQuery.data.payload : null;
       const repositories = search?.repositories ?? [];
@@ -701,12 +837,15 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
     }
     return [];
   }, [
+    addBrowsedDirectory,
+    browseEntries,
     cloneRepository,
     directoryPaths,
     githubQuery.data,
     host,
     onClose,
     openAddedProject,
+    openBrowsedDirectory,
     page,
     pathOptions,
     recommendedPaths,
@@ -831,12 +970,16 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
       : null;
   const loading =
     (searchesDirectories && (query !== debouncedQuery || directoryQuery.isFetching)) ||
+    (page.kind === "directory-browse" &&
+      browseQuery.isFetching &&
+      browseQuery.data?.directoryPath !== page.directoryPath) ||
     (page.kind === "github-search" &&
       host?.canSearchGithubRepositories === true &&
       (query !== debouncedQuery || githubQuery.isFetching));
   const queryError = queryErrorText({
     searchesDirectories,
     directoryFailed: directoryQuery.isError,
+    browseFailed: page.kind === "directory-browse" && browseQuery.isError,
     githubFailed: page.kind === "github-search" && githubQuery.isError,
     githubAvailable: currentGithubSearch?.available ?? null,
     githubError: currentGithubSearch?.error ?? null,

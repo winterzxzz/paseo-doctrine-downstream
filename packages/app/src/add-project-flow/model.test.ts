@@ -6,6 +6,7 @@ import {
   moveAddProjectActiveIndex,
   moveAddProjectSelection,
   openAddProjectFlow,
+  openDirectoryBrowsePage,
   openDirectorySearchPage,
   openGithubLocationPage,
   openNewDirectoryNamePage,
@@ -19,7 +20,9 @@ import {
   addProjectMethodEmptyText,
   buildAddProjectMethods,
   buildCloneLocationOptions,
+  buildDirectoryBrowseEntries,
   buildManualGithubRepositoryChoices,
+  filterDirectoryBrowseEntries,
 } from "./options";
 
 const HOST: AddProjectHost = {
@@ -110,6 +113,71 @@ describe("Add Project navigation", () => {
   });
 });
 
+describe("Add Project browsing", () => {
+  it("descends into a folder as a new page so Back climbs one level", () => {
+    let state = openAddProjectFlow({ hosts: [HOST] });
+    state = openDirectoryBrowsePage(state, HOST.serverId, "~");
+    state = openDirectoryBrowsePage(state, HOST.serverId, "~/dev");
+
+    expect(currentAddProjectPage(state)).toMatchObject({
+      kind: "directory-browse",
+      directoryPath: "~/dev",
+      query: "",
+    });
+
+    state = backAddProjectPage(state) ?? state;
+    expect(currentAddProjectPage(state)).toMatchObject({
+      kind: "directory-browse",
+      directoryPath: "~",
+    });
+  });
+
+  it("keeps a filter typed in one folder out of the folder above it", () => {
+    let state = openAddProjectFlow({ hosts: [HOST] });
+    state = openDirectoryBrowsePage(state, HOST.serverId, "~");
+    state = setAddProjectPageInput(state, "dev");
+    state = openDirectoryBrowsePage(state, HOST.serverId, "~/dev");
+
+    expect(currentAddProjectPage(state)).toMatchObject({ query: "" });
+    expect(backAddProjectPage(state)).toMatchObject({
+      pages: [expect.anything(), expect.objectContaining({ query: "dev" })],
+    });
+  });
+
+  it("resolves host-relative entries against the browsed directory", () => {
+    expect(
+      buildDirectoryBrowseEntries({
+        directoryPath: "~/dev",
+        relativePaths: ["paseo", "./tools", "nested/project", "paseo", "", "."],
+      }),
+    ).toEqual([
+      { path: "~/dev/paseo", label: "paseo" },
+      { path: "~/dev/tools", label: "tools" },
+      { path: "~/dev/nested/project", label: "nested/project" },
+    ]);
+  });
+
+  it("narrows the listed folder by name without asking the host again", () => {
+    const entries = buildDirectoryBrowseEntries({
+      directoryPath: "~/dev",
+      relativePaths: ["paseo", "Paseo-Fork", "tools"],
+    });
+
+    expect(filterDirectoryBrowseEntries(entries, "  PASEO ")).toEqual([
+      { path: "~/dev/paseo", label: "paseo" },
+      { path: "~/dev/Paseo-Fork", label: "Paseo-Fork" },
+    ]);
+    expect(filterDirectoryBrowseEntries(entries, "   ")).toEqual(entries);
+    expect(filterDirectoryBrowseEntries(entries, "missing")).toEqual([]);
+  });
+
+  it("joins entries under the filesystem root without doubling the separator", () => {
+    expect(buildDirectoryBrowseEntries({ directoryPath: "/", relativePaths: ["Volumes"] })).toEqual(
+      [{ path: "/Volumes", label: "Volumes" }],
+    );
+  });
+});
+
 describe("Add Project options", () => {
   it("hides every mutating method when the host lacks stable project identity", () => {
     const outdatedHost = { ...HOST, canAddProject: false };
@@ -118,7 +186,7 @@ describe("Add Project options", () => {
     expect(addProjectMethodEmptyText(outdatedHost)).toBe("Update the host to use Add Project.");
   });
 
-  it("keeps host-upgrade methods discoverable while hiding local-only Browse", () => {
+  it("keeps host-upgrade methods discoverable and Browse available without Finder", () => {
     expect(
       buildAddProjectMethods({
         ...HOST,
@@ -128,6 +196,11 @@ describe("Add Project options", () => {
         canCreateDirectory: false,
       }),
     ).toEqual([
+      {
+        id: "browse",
+        label: "Browse",
+        description: "Open a folder on Local",
+      },
       {
         id: "directory-search",
         label: "Search for directory",

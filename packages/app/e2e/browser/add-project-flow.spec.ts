@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { test, expect } from "../support/fixtures";
 import {
   addProjectFlow,
   addProjectFlowBack,
+  addProjectFlowBrowseAdd,
+  addProjectFlowBrowseEntry,
+  addProjectFlowBrowseParent,
   addProjectFlowHost,
   addProjectFlowInput,
   addProjectFlowMethod,
@@ -221,6 +224,7 @@ test.describe("Add Project command-center flow", () => {
     await gotoAppShell(page);
     await openAddProjectFlow(page);
 
+    await page.keyboard.press("ArrowDown");
     await page.keyboard.press("Enter");
     await expectAddProjectPage(page, "directory-search");
     await page.keyboard.type(projectPickerFixture.fuzzyQuery);
@@ -238,6 +242,43 @@ test.describe("Add Project command-center flow", () => {
       projectPath: projectPickerFixture.projectPath,
     });
     await expectProjectHasNoWorkspaces(projectId);
+  });
+
+  test("Browse walks the host's folders and adds the one it lands in", async ({
+    page,
+    projectPickerFixture,
+  }) => {
+    const segments = path
+      .relative(homedir(), projectPickerFixture.projectPath)
+      .split(path.sep)
+      .filter((segment) => segment.length > 0);
+    const browsePaths = segments.map(
+      (_segment, index) => `~/${segments.slice(0, index + 1).join("/")}`,
+    );
+
+    await gotoAppShell(page);
+    await openAddProjectFlow(page);
+    await chooseAddProjectMethod(page, "browse");
+
+    for (const browsePath of browsePaths) {
+      await addProjectFlowBrowseEntry(page, browsePath).click({ timeout: 30_000 });
+    }
+    await expect(addProjectFlowBrowseAdd(page)).toContainText(projectPickerFixture.projectName);
+
+    await addProjectFlowBrowseParent(page).click();
+    await expect(addProjectFlowBrowseAdd(page)).toContainText(segments.at(-2) ?? "");
+    await addProjectFlowBrowseEntry(page, browsePaths.at(-1) ?? "").click();
+
+    await addProjectFlowBrowseAdd(page).click();
+
+    const projectId = await expectOpenedProject(page, projectPickerFixture.projectName);
+    projectPickerFixture.rememberProjectId(projectId);
+    await expectNewWorkspaceForAddedProject(page, {
+      serverId: getServerId(),
+      projectId,
+      projectName: projectPickerFixture.projectName,
+      projectPath: projectPickerFixture.projectPath,
+    });
   });
 
   test("a complete repository URL remains selectable without a GitHub search result", async ({
