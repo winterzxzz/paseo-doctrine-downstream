@@ -100,3 +100,7 @@ app.json
 **/*.egg-info/
 **/__pycache__/
 *.pyc
+
+# Local daemon state written when a daemon runs with its home at the repo root
+/config.json
+/server-id
