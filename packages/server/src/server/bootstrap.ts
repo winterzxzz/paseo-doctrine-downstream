@@ -1,3 +1,4 @@
+import { describeHookWorkspace } from "./plugins/lifecycle/index.js";
 import express from "express";
 import { createServer as createHTTPServer } from "http";
 import { constants, existsSync, unlinkSync } from "fs";
@@ -226,6 +227,7 @@ import { ScriptHealthMonitor } from "./script-health-monitor.js";
 import { createScriptStatusEmitter } from "./script-status-projection.js";
 import { WorkspaceScriptRuntimeStore } from "./workspace-script-runtime-store.js";
 import { createWorkspaceScriptsService } from "./session/workspace-scripts/workspace-scripts-service.js";
+import { assertWorkspaceAutomationAllowedForWorkspace } from "./workspace-automation-gate.js";
 import { spawnWorkspaceScript } from "./worktree-bootstrap.js";
 import {
   createManagedProcessRegistry,
@@ -707,6 +709,7 @@ export async function createPaseoDaemon(
   const browserToolsBroker = new BrowserToolsBroker({});
   const pluginRuntime = new PluginService(logger, daemonConfigStore, daemonVersion, {
     managedSources: new ManagedPluginSources(config.paseoHome),
+    settingsDirectory: path.join(config.paseoHome, "plugin-settings"),
   });
 
   const serverId = getOrCreateServerId(config.paseoHome, { logger });
@@ -1039,7 +1042,15 @@ export async function createPaseoDaemon(
       forgeOverrides: { github },
     },
   });
+  workspaceRegistry.subscribeToMutations((mutation) => {
+    if (mutation.kind === "archive" && mutation.workspace) {
+      pluginRuntime.emit("workspace.archived", {
+        workspace: describeHookWorkspace(mutation.workspace),
+      });
+    }
+  });
   const workspaceProvisioning = createWorkspaceProvisioningService({
+    lifecycle: pluginRuntime,
     serverId,
     projectRegistry,
     workspaceRegistry,
@@ -1082,6 +1093,7 @@ export async function createPaseoDaemon(
   );
   const agentManager = new AgentManager({
     durableTimelineStore: timelineStore,
+    pluginLifecycle: pluginRuntime,
     clients: initialAgentManagerState.clients,
     providerDefinitions: initialAgentManagerState.providerDefinitions,
     registry: agentStorage,
@@ -1101,6 +1113,13 @@ export async function createPaseoDaemon(
     }),
     logger,
   });
+  const syncPluginProviders = () => {
+    agentManager.updateProviderRegistry(
+      providerSnapshotManager.replacePluginProviders(pluginRuntime.getProviderRegistrations()),
+    );
+  };
+  const unsubscribePluginProviders =
+    pluginRuntime.subscribeProviderRegistrations(syncPluginProviders);
 
   const detachAgentStoragePersistence = attachAgentStoragePersistence(
     logger,
@@ -1307,6 +1326,8 @@ export async function createPaseoDaemon(
         cacheWorkspaceSetupSnapshot: () => {},
         startWorkspaceSetup: (workspaceId, operation) =>
           workspaceSetupRuntime.start(workspaceId, operation),
+        assertWorkspaceAutomationAllowed: (guardedWorkspaceId) =>
+          assertWorkspaceAutomationAllowedForWorkspace(workspaceRegistry, guardedWorkspaceId),
         emit: emitExternalSessionMessage,
         sessionLogger: logger,
         terminalManager,
@@ -1365,6 +1386,8 @@ export async function createPaseoDaemon(
         killTerminalsForWorkspace: (workspaceIdToKill) =>
           killTerminalsForWorkspace({ terminalManager, sessionLogger: logger }, workspaceIdToKill),
         stopWorkspaceSetup: (workspaceIdToStop) => workspaceSetupRuntime.stop(workspaceIdToStop),
+        assertWorkspaceAutomationAllowed: (guardedWorkspaceId) =>
+          assertWorkspaceAutomationAllowedForWorkspace(workspaceRegistry, guardedWorkspaceId),
         sessionLogger: logger,
       },
       { scope: { kind: "workspace", workspaceId }, requestId },
@@ -1490,6 +1513,8 @@ export async function createPaseoDaemon(
             workspaceIdToKill,
           ),
         stopWorkspaceSetup: (workspaceIdToStop) => workspaceSetupRuntime.stop(workspaceIdToStop),
+        assertWorkspaceAutomationAllowed: (guardedWorkspaceId) =>
+          assertWorkspaceAutomationAllowedForWorkspace(workspaceRegistry, guardedWorkspaceId),
         sessionLogger: logger,
       },
       {
@@ -1638,6 +1663,8 @@ export async function createPaseoDaemon(
       // status updates fan out to every connected client.
       emit: (message) => wsServer?.broadcast(wrapSessionMessage(message)),
       spawnWorkspaceScript,
+      assertAutomationAllowed: (workspaceId) =>
+        assertWorkspaceAutomationAllowedForWorkspace(workspaceRegistry, workspaceId),
       globalServicePorts: loadPersistedConfig(config.paseoHome).worktrees?.servicePorts,
     }),
     markWorkspaceArchiving: markWorkspaceArchivingExternal,
@@ -1992,6 +2019,7 @@ export async function createPaseoDaemon(
       speechService.start();
       scriptHealthMonitor.start();
     } catch (error) {
+      unsubscribePluginProviders();
       await pluginRuntime.stopAllPlugins().catch(() => undefined);
       await serviceProxy.stopStandalone().catch(() => undefined);
       await agentProviderRuntime.shutdown().catch(() => undefined);
@@ -2015,6 +2043,7 @@ export async function createPaseoDaemon(
     };
 
     await attempt("plugins", () => pluginRuntime.stopAllPlugins());
+    await attempt("plugin-providers", () => unsubscribePluginProviders());
     await attempt("agent-event-policies", () => eventPolicyRuntime.stop());
     await attempt("pending-coordination-signals", () => stopPendingCoordinationSignalDeliveries());
     await attempt("hub-relationships", () => hubRelationships.stop());

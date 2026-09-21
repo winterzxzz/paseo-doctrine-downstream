@@ -115,7 +115,6 @@ interface AgentInputDraftComposerOptions {
   initialValues?: CreateAgentInitialValues;
   initialFeatureValues?: Record<string, unknown>;
   isVisible?: boolean;
-  onlineServerIds?: string[];
   lockedWorkingDir?: string;
   beadsIssueOptions?: readonly BeadsIssueGrantOption[];
   initialRoleId?: PaseoRoleId | null;
@@ -222,12 +221,13 @@ function useBeadsIssueGrantControl(
 export function useAgentInputDraft(input: UseAgentInputDraftInput): AgentInputDraft {
   const composerOptions = input.composer ?? null;
   const initialRoleState = resolveInitialRoleState(composerOptions);
+  const workingDir = composerOptions?.lockedWorkingDir?.trim() || "";
   const formState = useAgentFormState({
-    initialServerId: composerOptions?.initialServerId ?? null,
+    workingDir,
+    serverId: composerOptions?.initialServerId ?? null,
     initialValues: composerOptions?.initialValues,
     isVisible: composerOptions?.isVisible ?? false,
     isCreateFlow: true,
-    onlineServerIds: composerOptions?.onlineServerIds ?? [],
   });
   const roleProfiles = useRoleProfiles(formState.selectedServerId);
   const draftKey = useMemo(
@@ -379,17 +379,6 @@ export function useAgentInputDraft(input: UseAgentInputDraftInput): AgentInputDr
     };
   }, [draftKey, publishTextReplacement]);
 
-  const lockedWorkingDir = composerOptions?.lockedWorkingDir?.trim() ?? "";
-  useEffect(() => {
-    if (!composerOptions || !lockedWorkingDir) {
-      return;
-    }
-    if (formState.workingDir.trim() === lockedWorkingDir) {
-      return;
-    }
-    formState.setWorkingDir(lockedWorkingDir);
-  }, [composerOptions, formState, lockedWorkingDir]);
-
   const providerSelection = useMemo<ProviderSelectionState>(
     () => ({
       provider: formState.selectedProvider,
@@ -419,7 +408,6 @@ export function useAgentInputDraft(input: UseAgentInputDraftInput): AgentInputDr
     [effectiveModelId, providerSelection],
   );
 
-  const workingDir = lockedWorkingDir || formState.workingDir;
   const allProviderEntries = formState.allProviderEntries;
   const selectedProvider = formState.selectedProvider;
   const setModeFromUser = formState.setModeFromUser;
