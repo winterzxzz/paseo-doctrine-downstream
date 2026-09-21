@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.8.0-paseo.58 - 2026-09-21
+
+Bản này tích hợp upstream Paseo `v0.8.0` vào downstream line và chuyển base version lên `0.8.0`.
+Base mới là điều kiện để plugin khai báo `requirements.paseo: ">=0.8.0"` load được: daemon so
+stable core `0.8.0` của `0.8.0-paseo.58` với range của plugin.
+
+### Changed
+
+- Merge upstream `v0.8.0` (92 commit từ `v0.7.2`); chi tiết upstream nằm ở mục `Upstream 0.8.0` bên dưới.
+- Agent reload dùng flow close-before-resume của upstream. Role binding vẫn resolve được trong lúc
+  session thay thế đang mở, nên tool catalog giữ nguyên role ceiling.
+- `ProviderSnapshotManager` dùng generation model của upstream; role-binding support gắn vào từng
+  generation entry và thay đổi `roleBinding` override làm mới provider definition.
+- Sidebar dùng `sidebar-nav` model có thể sắp xếp/ẩn của upstream; Topology, Rooms và Councils là
+  builtin row của downstream trong model đó.
+- `paseo plugin status` theo upstream: gộp vào `paseo plugin ls`; `status` còn là hidden alias.
+- Background create-agent path của New workspace mang theo role fields (`roleId`, `assignment`).
+
+### Preserved downstream contracts
+
+- Role binding, launch contract, role-scoped Paseo tool policy và mutating-Peer grant verification
+  vẫn là authority trong `AgentManager`; plugin lifecycle hooks của upstream chạy quanh các bước đó.
+- Guided Hub starter vẫn fail-closed với `HUB_FOUNDATION_ADMISSION_REQUIRED`.
+- Bundled policy plugin ID được từ chối trước plugin compatibility check mới.
+- Workspace packages vẫn `private`, internal dependency range vẫn `*`, license vẫn AGPL-3.0.
+
+### Verification
+
+- `npm run build:server`, `npm run typecheck`, `npm run lint`, `npm run format` pass trên merge commit.
+- Focused suites pass: server agent-manager (212), provider-snapshot-manager (91), plugins, agent-prompt,
+  session, authorization, mcp-server, timeline-projection; client (148); CLI plugin + hub init (14);
+  app directory-sync, draft create-flow, input-draft live, sidebar-nav model, providers-section, i18n.
+- Full suite, portable qualification và Nix hash (`nix/npm-deps.hash`) chưa chạy local; phải qua CI.
+
 ## Upstream 0.8.0 - 2026-09-10
 
 Paseo 0.8 adds plugin header buttons, custom providers, and richer chat components, alongside fixes for desktop updates and mobile keyboards.
