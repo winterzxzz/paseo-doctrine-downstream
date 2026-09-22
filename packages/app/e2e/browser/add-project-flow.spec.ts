@@ -225,9 +225,9 @@ test.describe("Add Project command-center flow", () => {
     await gotoAppShell(page);
     await openAddProjectFlow(page);
 
-    await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("Enter");
-    await expectAddProjectPage(page, "directory-search");
+    // Which methods the host offers depends on whether it can open a chooser of its own, so this
+    // reaches the search page by name rather than by counting rows.
+    await chooseAddProjectMethod(page, "directory-search");
     await page.keyboard.type(projectPickerFixture.fuzzyQuery);
     await expect(addProjectFlow(page)).toContainText(projectPickerFixture.projectName, {
       timeout: 30_000,
@@ -260,7 +260,7 @@ test.describe("Add Project command-center flow", () => {
 
     await gotoAppShell(page);
     await openAddProjectFlow(page);
-    await chooseAddProjectMethod(page, "browse");
+    await chooseAddProjectMethod(page, "browse-folders");
 
     for (const browsePath of browsePaths.slice(0, -1)) {
       await addProjectFlowBrowseOpen(page, browsePath).click({ timeout: 30_000 });

@@ -177,6 +177,7 @@ function FlowBackButton({ onPress }: { onPress: () => void }) {
 function methodIcon(method: AddProjectMethodId): FlowRowOption["icon"] {
   if (method === "github") return Github;
   if (method === "browse") return FolderOpen;
+  if (method === "browse-folders") return Folder;
   if (method === "new-directory") return FolderPlus;
   return Search;
 }
@@ -187,7 +188,8 @@ function directoryOptionSubtitle(option: ProjectPickerOption, shortPath: string)
   return option.path;
 }
 
-function progressText(page: AddProjectPage): string {
+function progressText(page: AddProjectPage, hostPickerOpen: boolean): string {
+  if (hostPickerOpen) return "Waiting for the folder chooser on the host...";
   if (page.kind === "github-location") return "Cloning project...";
   if (page.kind === "new-directory-name") return "Creating directory...";
   return "Adding project...";
@@ -425,6 +427,9 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
   const githubSearchByHost = useHostFeatureMap(hostIds, "workspaceGithubRepositorySearch");
   // COMPAT(projectCreateDirectory): added in v0.1.108, remove gate after 2027-01-15.
   const createDirectoryByHost = useHostFeatureMap(hostIds, "projectCreateDirectory");
+  // COMPAT(hostDirectoryPicker): added in v0.8, remove gate after 2027-09-22. The daemon only
+  // advertises it to a client on its own machine, so no extra locality check belongs here.
+  const hostDirectoryPickerByHost = useHostFeatureMap(hostIds, "hostDirectoryPicker");
   const localServerId = useLocalDaemonServerId();
   const availableHosts = useMemo<AddProjectHost[]>(
     () =>
@@ -439,6 +444,8 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
             label: host.label,
             canAddProject,
             canBrowse: canAddProject && getIsElectronRuntime() && localServerId === host.serverId,
+            canPickHostDirectory:
+              canAddProject && hostDirectoryPickerByHost.get(host.serverId) === true,
             canCloneGithubRepositories: githubCloneByHost.get(host.serverId) === true,
             canSearchGithubRepositories: githubSearchByHost.get(host.serverId) === true,
             canCreateDirectory: createDirectoryByHost.get(host.serverId) === true,
@@ -449,6 +456,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
       connectionStatuses,
       createDirectoryByHost,
       githubCloneByHost,
+      hostDirectoryPickerByHost,
       githubSearchByHost,
       hosts,
       localServerId,
@@ -487,6 +495,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
   const pageInputValueRef = useRef(page.kind === "method" ? "" : pageInput(page));
   pageInputValueRef.current = page.kind === "method" ? "" : pageInput(page);
   const [debouncedQuery, setDebouncedQuery] = useState(query);
+  const [hostPickerOpen, setHostPickerOpen] = useState(false);
 
   useEffect(() => {
     setState((current) =>
@@ -631,6 +640,37 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
     [hostId, openNewWorkspaceForProject, openProject],
   );
 
+  const pickOnHost = useCallback(async () => {
+    if (!client || browseInFlightRef.current) return;
+    browseInFlightRef.current = true;
+    setHostPickerOpen(true);
+    setState((current) => setPageStatus(current, "method", { isSubmitting: true, error: null }));
+    try {
+      const payload = await client.pickHostDirectory({ title: "Choose a folder for Paseo" });
+      setHostPickerOpen(false);
+      if (payload.path) {
+        await openAddedProject(payload.path, "method");
+        return;
+      }
+      setState((current) =>
+        setPageStatus(current, "method", {
+          isSubmitting: false,
+          error: payload.cancelled ? null : (payload.error ?? "Unable to open the folder chooser"),
+        }),
+      );
+    } catch {
+      setState((current) =>
+        setPageStatus(current, "method", {
+          isSubmitting: false,
+          error: "Unable to open the folder chooser",
+        }),
+      );
+    } finally {
+      setHostPickerOpen(false);
+      browseInFlightRef.current = false;
+    }
+  }, [client, openAddedProject]);
+
   const browse = useCallback(async () => {
     if (!hostId || !isLocalDaemon || browseInFlightRef.current) return;
     browseInFlightRef.current = true;
@@ -652,18 +692,17 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
       if (method === "directory-search") {
         setState((current) => openDirectorySearchPage(current, hostId));
       } else if (method === "browse") {
-        if (host?.canBrowse) {
-          void browse();
-        } else {
-          setState((current) => openDirectoryBrowsePage(current, hostId, HOME_DIRECTORY));
-        }
+        if (host?.canBrowse) void browse();
+        else void pickOnHost();
+      } else if (method === "browse-folders") {
+        setState((current) => openDirectoryBrowsePage(current, hostId, HOME_DIRECTORY));
       } else if (method === "github") {
         setState((current) => openGithubSearchPage(current, hostId));
       } else {
         setState((current) => openNewDirectoryParentPage(current, hostId));
       }
     },
-    [browse, host?.canBrowse, hostId],
+    [browse, host?.canBrowse, hostId, pickOnHost],
   );
 
   const directoryPaths = useMemo(
@@ -1107,7 +1146,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
             ) : null}
             {isSubmitting ? (
               <Text style={styles.stateText} testID="add-project-flow-progress">
-                {progressText(page)}
+                {progressText(page, hostPickerOpen)}
               </Text>
             ) : null}
             {!isSubmitting && page.error ? (

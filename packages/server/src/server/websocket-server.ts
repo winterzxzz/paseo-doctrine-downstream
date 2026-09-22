@@ -1622,6 +1622,7 @@ export class VoiceAssistantWebSocketServer {
       this.externalSessionsByKey.set(sessionKey, connection);
     }
     pending.identity.sessionId = connection.session.getSessionId();
+    connection.session.setConnectedFromHostMachine(isHostMachinePeer(pending.identity));
     this.syncBrowserToolsClientRegistration(connection);
     this.sendToClient(ws, this.createServerInfoMessage(connection.session));
     connection.connectionLogger.info(
@@ -1666,6 +1667,7 @@ export class VoiceAssistantWebSocketServer {
     existing.sockets.add(ws);
     this.sessions.set(ws, existing);
     pending.identity.sessionId = existing.session.getSessionId();
+    existing.session.setConnectedFromHostMachine(isHostMachinePeer(pending.identity));
     this.syncBrowserToolsClientRegistration(existing);
     this.sendToClient(ws, this.createServerInfoMessage(existing.session));
     pending.connectionLogger.info(
@@ -1812,6 +1814,8 @@ export class VoiceAssistantWebSocketServer {
         workspaceGithubRepositorySearch: true,
         // COMPAT(projectCreateDirectory): added in v0.1.108, remove gate after 2027-01-15.
         projectCreateDirectory: true,
+        // COMPAT(hostDirectoryPicker): added in v0.8, remove gate after 2027-09-22.
+        ...(session.canOpenHostDialogs() ? { hostDirectoryPicker: true } : {}),
         // COMPAT(commitsList): added in v0.1.110, remove gate after 2027-01-16.
         commitsList: true,
         // COMPAT(commitBaseClassification): added in v0.2.0, remove gate after 2027-01-23.
@@ -2840,6 +2844,12 @@ function toConnectionLogFields(identity: WebSocketConnectionIdentity): Record<st
     ...(identity.sessionId ? { sessionId: identity.sessionId } : {}),
     ...(identity.appVersion ? { appVersion: identity.appVersion } : {}),
   };
+}
+
+// Only a client on the daemon's own machine can see a dialog the daemon opens. Relay and hub
+// connections reach the daemon from elsewhere even when their socket looks local.
+function isHostMachinePeer(identity: WebSocketConnectionIdentity): boolean {
+  return identity.transport === "direct" && identity.peer !== "external";
 }
 
 function resolveConnectionPeer(

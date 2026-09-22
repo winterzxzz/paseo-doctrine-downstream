@@ -2535,6 +2535,15 @@ export const CheckoutPrMergeRequestSchema = z.object({
   requestId: z.string(),
 });
 
+// The daemon opens its host's own folder chooser and answers with the picked path. Browsers
+// cannot: their directory picker yields a handle without a filesystem path, so a web client has
+// no way to name the folder to the daemon.
+export const HostDialogPickDirectoryRequestSchema = z.object({
+  type: z.literal("host.dialog.pick_directory.request"),
+  title: z.string().optional(),
+  requestId: z.string(),
+});
+
 export const CheckoutForgeSetAutoMergeRequestSchema = z.object({
   type: z.literal("checkout.forge.set_auto_merge.request"),
   cwd: z.string(),
@@ -3534,6 +3543,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   CheckoutPrCreateRequestSchema,
   CheckoutPrMergeRequestSchema,
   CheckoutForgeSetAutoMergeRequestSchema,
+  HostDialogPickDirectoryRequestSchema,
   CheckoutGithubSetAutoMergeRequestSchema,
   CheckoutCommitsListRequestSchema,
   CheckoutCommitFileDiffRequestSchema,
@@ -3919,6 +3929,10 @@ export const ServerInfoStatusPayloadSchema = z
         workspaceGithubRepositorySearch: z.boolean().optional(),
         // COMPAT(projectCreateDirectory): added in v0.1.108, remove gate after 2027-01-15.
         projectCreateDirectory: z.boolean().optional(),
+        // COMPAT(hostDirectoryPicker): added in v0.8, remove gate after 2027-09-22. Advertised
+        // only to a client on the daemon's own machine: the dialog opens there, so a remote
+        // client would be told to look at a screen it cannot see.
+        hostDirectoryPicker: z.boolean().optional(),
         // COMPAT(projectList): added in v0.2.4, drop the gate when floor >= v0.2.4.
         projectList: z.boolean().optional(),
         // COMPAT(commitsList): added in v0.1.110, remove gate after 2027-01-16.
@@ -5753,6 +5767,16 @@ export const CheckoutPrMergeResponseSchema = z.object({
   }),
 });
 
+export const HostDialogPickDirectoryResponseSchema = z.object({
+  type: z.literal("host.dialog.pick_directory.response"),
+  payload: z.object({
+    path: z.string().nullable(),
+    cancelled: z.boolean(),
+    error: z.string().nullable(),
+    requestId: z.string(),
+  }),
+});
+
 export const CheckoutForgeSetAutoMergeResponseSchema = z.object({
   type: z.literal("checkout.forge.set_auto_merge.response"),
   payload: z.object({
@@ -7182,6 +7206,7 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   CheckoutPrCreateResponseSchema,
   CheckoutPrMergeResponseSchema,
   CheckoutForgeSetAutoMergeResponseSchema,
+  HostDialogPickDirectoryResponseSchema,
   CheckoutGithubSetAutoMergeResponseSchema,
   CheckoutCommitsListResponseSchema,
   CheckoutCommitFileDiffResponseSchema,
@@ -7575,6 +7600,8 @@ export type CheckoutPrCreateResponse = z.infer<typeof CheckoutPrCreateResponseSc
 export type CheckoutPrMergeRequest = z.infer<typeof CheckoutPrMergeRequestSchema>;
 export type CheckoutPrMergeResponse = z.infer<typeof CheckoutPrMergeResponseSchema>;
 export type CheckoutPrMergeMethod = z.infer<typeof CheckoutPrMergeRequestSchema>["mergeMethod"];
+export type HostDialogPickDirectoryRequest = z.infer<typeof HostDialogPickDirectoryRequestSchema>;
+export type HostDialogPickDirectoryResponse = z.infer<typeof HostDialogPickDirectoryResponseSchema>;
 export type CheckoutForgeSetAutoMergeRequest = z.infer<
   typeof CheckoutForgeSetAutoMergeRequestSchema
 >;

@@ -10,12 +10,18 @@ export type AddProjectFlowPage =
   | "new-directory-parent"
   | "new-directory-name";
 
-export type AddProjectMethod = "directory-search" | "browse" | "github" | "new-directory";
+export type AddProjectMethod =
+  | "directory-search"
+  | "browse"
+  | "browse-folders"
+  | "github"
+  | "new-directory";
 
-// Browse opens the host-backed folder browser everywhere except the desktop app, where the
-// Electron runtime hands the choice to Finder instead of pushing a page.
+// Browse hands off to the host's own chooser and pushes no page, so callers that pick it pass
+// expectPage: false.
 const METHOD_DESTINATIONS: Record<AddProjectMethod, AddProjectFlowPage> = {
-  browse: "directory-browse",
+  browse: "method",
+  "browse-folders": "directory-browse",
   "directory-search": "directory-search",
   github: "github-search",
   "new-directory": "new-directory-parent",

@@ -6,7 +6,12 @@ import {
 import { shortenPath } from "@/utils/shorten-path";
 import type { AddProjectHost, GithubRepositoryChoice } from "./model";
 
-export type AddProjectMethodId = "directory-search" | "browse" | "github" | "new-directory";
+export type AddProjectMethodId =
+  | "directory-search"
+  | "browse"
+  | "browse-folders"
+  | "github"
+  | "new-directory";
 
 export interface AddProjectMethodOption {
   id: AddProjectMethodId;
@@ -36,12 +41,21 @@ export function filterAddProjectHosts(hosts: AddProjectHost[], query: string): A
 export function buildAddProjectMethods(host: AddProjectHost): AddProjectMethodOption[] {
   if (!host.canAddProject) return [];
   const options: AddProjectMethodOption[] = [];
+  // The host's own chooser is the first option whenever it can reach a screen: on the desktop app
+  // Electron opens it, and a client sitting at the host's machine has the daemon open it there.
+  if (host.canBrowse || host.canPickHostDirectory) {
+    options.push({
+      id: "browse",
+      label: "Browse",
+      description: host.canBrowse
+        ? "Choose or create a directory in Finder"
+        : `Choose a folder in a window on ${host.label}`,
+    });
+  }
   options.push({
-    id: "browse",
-    label: "Browse",
-    description: host.canBrowse
-      ? "Choose or create a directory in Finder"
-      : `Open a folder on ${host.label}`,
+    id: "browse-folders",
+    label: "Browse folders",
+    description: `Step through the folders on ${host.label}`,
   });
   options.push({
     id: "directory-search",

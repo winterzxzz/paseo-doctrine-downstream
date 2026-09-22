@@ -30,6 +30,7 @@ const HOST: AddProjectHost = {
   label: "Local",
   canAddProject: true,
   canBrowse: true,
+  canPickHostDirectory: false,
   canCloneGithubRepositories: true,
   canSearchGithubRepositories: true,
   canCreateDirectory: true,
@@ -197,9 +198,9 @@ describe("Add Project options", () => {
       }),
     ).toEqual([
       {
-        id: "browse",
-        label: "Browse",
-        description: "Open a folder on Local",
+        id: "browse-folders",
+        label: "Browse folders",
+        description: "Step through the folders on Local",
       },
       {
         id: "directory-search",
@@ -219,6 +220,27 @@ describe("Add Project options", () => {
         disabled: true,
       },
     ]);
+  });
+
+  it("offers the host's own chooser only where a window can reach someone", () => {
+    const withoutScreen = { ...HOST, canBrowse: false, canPickHostDirectory: false };
+    const viaDaemon = { ...HOST, canBrowse: false, canPickHostDirectory: true };
+    const viaFinder = { ...HOST, canBrowse: true, canPickHostDirectory: false };
+
+    expect(buildAddProjectMethods(withoutScreen).map((method) => method.id)).not.toContain(
+      "browse",
+    );
+    expect(buildAddProjectMethods(viaDaemon)[0]).toEqual({
+      id: "browse",
+      label: "Browse",
+      description: "Choose a folder in a window on Local",
+    });
+    expect(buildAddProjectMethods(viaFinder)[0]).toEqual({
+      id: "browse",
+      label: "Browse",
+      description: "Choose or create a directory in Finder",
+    });
+    expect(buildAddProjectMethods(withoutScreen)[0]?.id).toBe("browse-folders");
   });
 
   it("offers manual URL and protocol-specific owner/repo clone choices", () => {
