@@ -82,6 +82,10 @@ export function addProjectFlowBrowseEntry(page: Page, pathname: string): Locator
   return page.getByTestId(`add-project-flow-path-${encodeURIComponent(pathname)}`);
 }
 
+export function addProjectFlowBrowseOpen(page: Page, pathname: string): Locator {
+  return page.getByTestId(`add-project-flow-browse-open-${encodeURIComponent(pathname)}`);
+}
+
 export function addProjectFlowBrowseAdd(page: Page): Locator {
   return page.getByTestId("add-project-flow-browse-add");
 }

@@ -8,6 +8,7 @@ import {
   addProjectFlowBack,
   addProjectFlowBrowseAdd,
   addProjectFlowBrowseEntry,
+  addProjectFlowBrowseOpen,
   addProjectFlowBrowseParent,
   addProjectFlowHost,
   addProjectFlowInput,
@@ -244,7 +245,7 @@ test.describe("Add Project command-center flow", () => {
     await expectProjectHasNoWorkspaces(projectId);
   });
 
-  test("Browse walks the host's folders and adds the one it lands in", async ({
+  test("Browse opens folders from the chevron and adds the folder a row names", async ({
     page,
     projectPickerFixture,
   }) => {
@@ -255,21 +256,22 @@ test.describe("Add Project command-center flow", () => {
     const browsePaths = segments.map(
       (_segment, index) => `~/${segments.slice(0, index + 1).join("/")}`,
     );
+    const projectBrowsePath = browsePaths.at(-1) ?? "";
 
     await gotoAppShell(page);
     await openAddProjectFlow(page);
     await chooseAddProjectMethod(page, "browse");
 
-    for (const browsePath of browsePaths) {
-      await addProjectFlowBrowseEntry(page, browsePath).click({ timeout: 30_000 });
+    for (const browsePath of browsePaths.slice(0, -1)) {
+      await addProjectFlowBrowseOpen(page, browsePath).click({ timeout: 30_000 });
     }
-    await expect(addProjectFlowBrowseAdd(page)).toContainText(projectPickerFixture.projectName);
-
-    await addProjectFlowBrowseParent(page).click();
     await expect(addProjectFlowBrowseAdd(page)).toContainText(segments.at(-2) ?? "");
-    await addProjectFlowBrowseEntry(page, browsePaths.at(-1) ?? "").click();
 
-    await addProjectFlowBrowseAdd(page).click();
+    await addProjectFlowBrowseOpen(page, projectBrowsePath).click({ timeout: 30_000 });
+    await expect(addProjectFlowBrowseAdd(page)).toContainText(projectPickerFixture.projectName);
+    await addProjectFlowBrowseParent(page).click();
+
+    await addProjectFlowBrowseEntry(page, projectBrowsePath).click({ timeout: 30_000 });
 
     const projectId = await expectOpenedProject(page, projectPickerFixture.projectName);
     projectPickerFixture.rememberProjectId(projectId);

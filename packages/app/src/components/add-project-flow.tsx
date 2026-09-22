@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import type { WorkspaceProjectDescriptorPayload } from "@getpaseo/protocol/messages";
 import {
   ArrowLeft,
+  ChevronRight,
   Folder,
   FolderOpen,
   FolderPlus,
@@ -117,6 +118,9 @@ interface FlowRowOption {
   disabled?: boolean;
   testID: string;
   select: () => void;
+  // Rows that both pick something and lead somewhere carry the second action here: the row itself
+  // picks, this opens.
+  open?: { label: string; testID: string; activate: () => void };
 }
 
 type GithubLocationPage = Extract<AddProjectPage, { kind: "github-location" }>;
@@ -146,6 +150,7 @@ const lastCloneParentByHost = new Map<string, string>();
 const EMPTY_PATHS: string[] = [];
 const EMPTY_BROWSE_ENTRIES: DirectoryBrowseEntry[] = [];
 const NAVIGATION_HINT_KEYS = ["Up", "Down"];
+const OPEN_FOLDER_HINT_KEYS = ["Right"];
 const SELECT_HINT_KEYS = ["Enter"];
 const ESCAPE_HINT_KEYS = ["Esc"];
 
@@ -304,6 +309,19 @@ function FlowRow({ option, active }: { option: FlowRowOption; active: boolean })
           </Text>
         ) : null}
       </View>
+      {option.open ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={option.open.label}
+          disabled={option.disabled}
+          hitSlop={8}
+          onPress={option.open.activate}
+          style={styles.rowOpen}
+          testID={option.open.testID}
+        >
+          <MutedFlowIcon icon={ChevronRight} size={16} />
+        </Pressable>
+      ) : null}
     </Pressable>
   );
 }
@@ -341,6 +359,13 @@ function buildBrowseRows(input: BrowseRowsInput): FlowRowOption[] {
       select: () => input.addDirectory(page.directoryPath),
     },
   ];
+  // A folder row adds that folder, because picking one is why the browser is open. Going deeper
+  // is the second action, on the chevron (or Right arrow).
+  const openRow = (directoryPath: string, label: string) => ({
+    label: `Open ${label}`,
+    testID: `add-project-flow-browse-open-${encodeURIComponent(directoryPath)}`,
+    activate: () => input.openDirectory(directoryPath),
+  });
   if (!isFiltering && parent) {
     navigation.push({
       id: `parent:${parent}`,
@@ -369,7 +394,8 @@ function buildBrowseRows(input: BrowseRowsInput): FlowRowOption[] {
       subtitle: null,
       icon: Folder,
       testID: pathTestId(entry.path),
-      select: () => input.openDirectory(entry.path),
+      select: () => input.addDirectory(entry.path),
+      open: openRow(entry.path, entry.label),
     })),
   ];
 }
@@ -920,6 +946,20 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
         submitActive();
         return true;
       }
+      // Left and Right walk the folder tree, but only while the filter is empty: with text in the
+      // field they belong to the caret.
+      if ((key === "ArrowRight" || key === "ArrowLeft") && !query) {
+        if (key === "ArrowRight") {
+          const option = rows[activeIndex];
+          if (!option?.open || option.disabled) return false;
+          option.open.activate();
+          return true;
+        }
+        const parent = browsedDirectory ? parentDirectory(browsedDirectory) : null;
+        if (!parent) return false;
+        openBrowsedDirectory(parent);
+        return true;
+      }
       if (key !== "ArrowDown" && key !== "ArrowUp") return false;
       const next = moveAddProjectSelection(
         activeIndex,
@@ -929,7 +969,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
       setState((current) => setAddProjectActiveIndex(current, next));
       return true;
     },
-    [activeIndex, handleBack, rows, submitActive],
+    [activeIndex, browsedDirectory, handleBack, openBrowsedDirectory, query, rows, submitActive],
   );
 
   const modalLayer = useGlobalWebOverlayLayer("modal", isWeb);
@@ -949,7 +989,13 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
 
   const handleNativeKeyPress = useCallback(
     ({ nativeEvent: { key } }: { nativeEvent: { key: string } }) => {
-      if (key === "ArrowDown" || key === "ArrowUp" || key === "Escape") {
+      if (
+        key === "ArrowDown" ||
+        key === "ArrowUp" ||
+        key === "ArrowLeft" ||
+        key === "ArrowRight" ||
+        key === "Escape"
+      ) {
         handleKey(key);
       }
     },
@@ -1098,7 +1144,13 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
           </ScrollView>
           <View style={styles.footer} testID="add-project-flow-footer">
             <FlowHint keys={NAVIGATION_HINT_KEYS} action="Navigate" />
-            <FlowHint keys={SELECT_HINT_KEYS} action="Select" />
+            <FlowHint
+              keys={SELECT_HINT_KEYS}
+              action={page.kind === "directory-browse" ? "Add" : "Select"}
+            />
+            {page.kind === "directory-browse" ? (
+              <FlowHint keys={OPEN_FOLDER_HINT_KEYS} action="Open folder" />
+            ) : null}
             <FlowHint keys={ESCAPE_HINT_KEYS} action={state.pages.length > 1 ? "Back" : "Close"} />
           </View>
         </View>
@@ -1198,6 +1250,7 @@ const styles = StyleSheet.create((theme) => ({
   rowActive: { backgroundColor: theme.colors.surface1 },
   disabled: { opacity: theme.opacity[50] },
   iconSlot: { width: 18, alignItems: "center" },
+  rowOpen: { width: 24, alignItems: "center" },
   rowText: { flex: 1, minWidth: 0 },
   rowTitle: { color: theme.colors.foreground, fontSize: theme.fontSize.base },
   rowSubtitle: { color: theme.colors.foregroundMuted, fontSize: theme.fontSize.sm, marginTop: 2 },
