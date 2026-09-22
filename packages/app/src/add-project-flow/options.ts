@@ -6,7 +6,12 @@ import {
 import { shortenPath } from "@/utils/shorten-path";
 import type { AddProjectHost, GithubRepositoryChoice } from "./model";
 
-export type AddProjectMethodId = "directory-search" | "browse" | "github" | "new-directory";
+export type AddProjectMethodId =
+  | "directory-search"
+  | "browse"
+  | "browse-folders"
+  | "github"
+  | "new-directory";
 
 export interface AddProjectMethodOption {
   id: AddProjectMethodId;
@@ -36,18 +41,30 @@ export function filterAddProjectHosts(hosts: AddProjectHost[], query: string): A
 export function buildAddProjectMethods(host: AddProjectHost): AddProjectMethodOption[] {
   if (!host.canAddProject) return [];
   const options: AddProjectMethodOption[] = [];
+  // The host's own chooser is the first option whenever it can reach a screen: on the desktop app
+  // Electron opens it, and a client sitting at the host's machine has the daemon open it there.
+  // The in-app folder browser is what a client that cannot see that window falls back to — a
+  // phone over the relay — so the two never appear together.
+  if (host.canBrowse || host.canPickHostDirectory) {
+    options.push({
+      id: "browse",
+      label: "Browse",
+      description: host.canBrowse
+        ? "Choose or create a directory in Finder"
+        : `Choose a folder in a window on ${host.label}`,
+    });
+  } else {
+    options.push({
+      id: "browse-folders",
+      label: "Browse folders",
+      description: `Step through the folders on ${host.label}`,
+    });
+  }
   options.push({
     id: "directory-search",
     label: "Search for directory",
     description: `Find a directory on ${host.label}`,
   });
-  if (host.canBrowse) {
-    options.push({
-      id: "browse",
-      label: "Browse",
-      description: "Choose or create a directory in Finder",
-    });
-  }
   options.push({
     id: "github",
     label: "Clone from GitHub",
@@ -117,6 +134,40 @@ export function buildManualGithubRepositoryChoices(query: string): GithubReposit
     description: `Clone owner/repo via ${cloneProtocol.toUpperCase()}`,
     updatedAt: null,
   }));
+}
+
+export const HOME_DIRECTORY = "~";
+export const FILESYSTEM_ROOT = "/";
+
+export interface DirectoryBrowseEntry {
+  path: string;
+  label: string;
+}
+
+// The host answers a browse request with the children of the directory being browsed, named
+// relative to it.
+export function buildDirectoryBrowseEntries(input: {
+  directoryPath: string;
+  relativePaths: string[];
+}): DirectoryBrowseEntry[] {
+  const seen = new Set<string>();
+  return input.relativePaths.flatMap((relativePath) => {
+    const label = relativePath.replace(/^[.]\//u, "").replace(/[\\/]+$/u, "");
+    if (!label || label === ".") return [];
+    const path = joinDirectoryPath(input.directoryPath, label);
+    if (seen.has(path)) return [];
+    seen.add(path);
+    return [{ path, label }];
+  });
+}
+
+export function filterDirectoryBrowseEntries(
+  entries: DirectoryBrowseEntry[],
+  query: string,
+): DirectoryBrowseEntry[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return entries;
+  return entries.filter((entry) => entry.label.toLowerCase().includes(normalized));
 }
 
 export function parentDirectory(path: string): string | null {

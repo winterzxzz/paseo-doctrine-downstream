@@ -4,14 +4,24 @@ export type AddProjectFlowPage =
   | "host"
   | "method"
   | "directory-search"
+  | "directory-browse"
   | "github-search"
   | "github-location"
   | "new-directory-parent"
   | "new-directory-name";
 
-export type AddProjectMethod = "directory-search" | "browse" | "github" | "new-directory";
+export type AddProjectMethod =
+  | "directory-search"
+  | "browse"
+  | "browse-folders"
+  | "github"
+  | "new-directory";
 
-const METHOD_DESTINATIONS: Record<Exclude<AddProjectMethod, "browse">, AddProjectFlowPage> = {
+// Browse hands off to the host's own chooser and pushes no page, so callers that pick it pass
+// expectPage: false.
+const METHOD_DESTINATIONS: Record<AddProjectMethod, AddProjectFlowPage> = {
+  browse: "method",
+  "browse-folders": "directory-browse",
   "directory-search": "directory-search",
   github: "github-search",
   "new-directory": "new-directory-parent",
@@ -61,13 +71,33 @@ export async function openAddProjectHostSelection(page: Page): Promise<void> {
   await expect(addProjectFlowInput(page)).toBeFocused();
 }
 
-export async function chooseAddProjectMethod(page: Page, method: AddProjectMethod): Promise<void> {
+export async function chooseAddProjectMethod(
+  page: Page,
+  method: AddProjectMethod,
+  options: { expectPage?: boolean } = {},
+): Promise<void> {
   const option = addProjectFlowMethod(page, method);
   await expect(option).toBeVisible();
   await option.click();
-  if (method !== "browse") {
+  if (options.expectPage !== false) {
     await expectAddProjectPage(page, METHOD_DESTINATIONS[method]);
   }
+}
+
+export function addProjectFlowBrowseEntry(page: Page, pathname: string): Locator {
+  return page.getByTestId(`add-project-flow-path-${encodeURIComponent(pathname)}`);
+}
+
+export function addProjectFlowBrowseOpen(page: Page, pathname: string): Locator {
+  return page.getByTestId(`add-project-flow-browse-open-${encodeURIComponent(pathname)}`);
+}
+
+export function addProjectFlowBrowseAdd(page: Page): Locator {
+  return page.getByTestId("add-project-flow-browse-add");
+}
+
+export function addProjectFlowBrowseParent(page: Page): Locator {
+  return page.getByTestId("add-project-flow-browse-parent");
 }
 
 export async function expectNewWorkspaceForAddedProject(

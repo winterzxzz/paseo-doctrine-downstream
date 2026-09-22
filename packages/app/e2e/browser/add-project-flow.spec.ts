@@ -1,11 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { test, expect } from "../support/fixtures";
 import {
   addProjectFlow,
   addProjectFlowBack,
+  addProjectFlowBrowseAdd,
+  addProjectFlowBrowseEntry,
+  addProjectFlowBrowseOpen,
+  addProjectFlowBrowseParent,
   addProjectFlowHost,
   addProjectFlowInput,
   addProjectFlowMethod,
@@ -221,8 +225,9 @@ test.describe("Add Project command-center flow", () => {
     await gotoAppShell(page);
     await openAddProjectFlow(page);
 
-    await page.keyboard.press("Enter");
-    await expectAddProjectPage(page, "directory-search");
+    // Which methods the host offers depends on whether it can open a chooser of its own, so this
+    // reaches the search page by name rather than by counting rows.
+    await chooseAddProjectMethod(page, "directory-search");
     await page.keyboard.type(projectPickerFixture.fuzzyQuery);
     await expect(addProjectFlow(page)).toContainText(projectPickerFixture.projectName, {
       timeout: 30_000,
@@ -238,6 +243,50 @@ test.describe("Add Project command-center flow", () => {
       projectPath: projectPickerFixture.projectPath,
     });
     await expectProjectHasNoWorkspaces(projectId);
+  });
+
+  test("Browse opens folders from the chevron and adds the folder a row names", async ({
+    page,
+    projectPickerFixture,
+  }) => {
+    const segments = path
+      .relative(homedir(), projectPickerFixture.projectPath)
+      .split(path.sep)
+      .filter((segment) => segment.length > 0);
+    const browsePaths = segments.map(
+      (_segment, index) => `~/${segments.slice(0, index + 1).join("/")}`,
+    );
+    const projectBrowsePath = browsePaths.at(-1) ?? "";
+
+    await gotoAppShell(page);
+    await openAddProjectFlow(page);
+    // A host that can open its own chooser offers that instead of the in-app browser, and its
+    // dialog is outside the page, so there is nothing for this test to drive there.
+    test.skip(
+      (await addProjectFlowMethod(page, "browse-folders").count()) === 0,
+      "This host opens its own folder chooser",
+    );
+    await chooseAddProjectMethod(page, "browse-folders");
+
+    for (const browsePath of browsePaths.slice(0, -1)) {
+      await addProjectFlowBrowseOpen(page, browsePath).click({ timeout: 30_000 });
+    }
+    await expect(addProjectFlowBrowseAdd(page)).toContainText(segments.at(-2) ?? "");
+
+    await addProjectFlowBrowseOpen(page, projectBrowsePath).click({ timeout: 30_000 });
+    await expect(addProjectFlowBrowseAdd(page)).toContainText(projectPickerFixture.projectName);
+    await addProjectFlowBrowseParent(page).click();
+
+    await addProjectFlowBrowseEntry(page, projectBrowsePath).click({ timeout: 30_000 });
+
+    const projectId = await expectOpenedProject(page, projectPickerFixture.projectName);
+    projectPickerFixture.rememberProjectId(projectId);
+    await expectNewWorkspaceForAddedProject(page, {
+      serverId: getServerId(),
+      projectId,
+      projectName: projectPickerFixture.projectName,
+      projectPath: projectPickerFixture.projectPath,
+    });
   });
 
   test("a complete repository URL remains selectable without a GitHub search result", async ({

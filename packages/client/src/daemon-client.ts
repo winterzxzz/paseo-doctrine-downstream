@@ -54,6 +54,7 @@ import type {
   CheckoutPrMergeResponse,
   CheckoutPrMergeMethod,
   CheckoutForgeSetAutoMergeResponse,
+  HostDialogPickDirectoryResponse,
   CheckoutGithubSetAutoMergeResponse,
   CheckoutForgeGetCheckDetailsResponse,
   CheckoutGithubGetCheckDetailsResponse,
@@ -422,6 +423,7 @@ type CheckoutRefreshPayload = CheckoutRefreshResponse["payload"];
 type CheckoutPrCreatePayload = CheckoutPrCreateResponse["payload"];
 type CheckoutPrMergePayload = CheckoutPrMergeResponse["payload"];
 type CheckoutForgeSetAutoMergePayload = CheckoutForgeSetAutoMergeResponse["payload"];
+type HostDialogPickDirectoryPayload = HostDialogPickDirectoryResponse["payload"];
 type CheckoutGithubSetAutoMergePayload = CheckoutGithubSetAutoMergeResponse["payload"];
 type CheckoutForgeGetCheckDetailsPayload = CheckoutForgeGetCheckDetailsResponse["payload"];
 type CheckoutGithubGetCheckDetailsPayload = CheckoutGithubGetCheckDetailsResponse["payload"];
@@ -4383,6 +4385,22 @@ export class DaemonClient {
         mergeMethod: input.method,
       },
       responseType: "checkout_pr_merge_response",
+    });
+  }
+
+  // The host shows the chooser and waits for a person to answer it, so this request outlives the
+  // ordinary RPC timeout by design.
+  async pickHostDirectory(
+    input: { title?: string } = {},
+    requestId?: string,
+  ): Promise<HostDialogPickDirectoryPayload> {
+    return this.sendNamespacedCorrelatedSessionRequest<"host.dialog.pick_directory.response">({
+      requestId,
+      message: {
+        type: "host.dialog.pick_directory.request",
+        ...(input.title ? { title: input.title } : {}),
+      },
+      timeout: 5 * 60_000,
     });
   }
 

@@ -235,6 +235,10 @@ import {
 } from "./session/agent-updates/agent-updates-service.js";
 import { expandTilde } from "../utils/path.js";
 import {
+  isHostDirectoryPickerSupported,
+  pickHostDirectory,
+} from "../utils/host-directory-picker.js";
+import {
   searchDirectoryEntries,
   WORKSPACE_SEARCH_HIDDEN_DIRECTORIES,
 } from "../utils/directory-suggestions.js";
@@ -725,6 +729,7 @@ function workspaceLabelErrorCode(error: unknown): string {
 }
 
 export class Session {
+  private connectedFromHostMachine = false;
   private readonly clientId: string;
   private readonly authorization: SessionAuthorization;
   private appVersion: string | null;
@@ -2122,6 +2127,17 @@ export class Session {
     }
   }
 
+  // A host dialog opens on the daemon's screen, so it is only ever useful to a client sitting at
+  // that machine. The connection's own classification decides it; a relayed client never qualifies
+  // however it authenticates.
+  public setConnectedFromHostMachine(value: boolean): void {
+    this.connectedFromHostMachine = value;
+  }
+
+  public canOpenHostDialogs(): boolean {
+    return this.connectedFromHostMachine && isHostDirectoryPickerSupported();
+  }
+
   public setPermissions(permissions: readonly DaemonPermission[]): void {
     this.authorization.replacePermissions(permissions);
   }
@@ -2756,6 +2772,8 @@ export class Session {
         return this.checkoutSession.handleValidateBranchRequest(msg);
       case "branch_suggestions_request":
         return this.checkoutSession.handleBranchSuggestionsRequest(msg);
+      case "host.dialog.pick_directory.request":
+        return this.handleHostDialogPickDirectoryRequest(msg);
       case "directory_suggestions_request":
         return this.handleDirectorySuggestionsRequest(msg);
       case "subscribe_checkout_diff_request":
@@ -4954,6 +4972,41 @@ export class Session {
         },
       });
       throw error;
+    }
+  }
+
+  private async handleHostDialogPickDirectoryRequest(
+    msg: Extract<SessionInboundMessage, { type: "host.dialog.pick_directory.request" }>,
+  ): Promise<void> {
+    const respond = (payload: {
+      path: string | null;
+      cancelled: boolean;
+      error: string | null;
+    }) => {
+      this.emit({
+        type: "host.dialog.pick_directory.response",
+        payload: { ...payload, requestId: msg.requestId },
+      });
+    };
+
+    if (!this.canOpenHostDialogs()) {
+      respond({
+        path: null,
+        cancelled: false,
+        error: "This host cannot open a folder chooser for this connection",
+      });
+      return;
+    }
+
+    try {
+      const pick = await pickHostDirectory(msg.title ? { title: msg.title } : {});
+      respond({ path: pick.path, cancelled: pick.cancelled, error: null });
+    } catch (error) {
+      respond({
+        path: null,
+        cancelled: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
