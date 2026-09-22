@@ -260,6 +260,12 @@ test.describe("Add Project command-center flow", () => {
 
     await gotoAppShell(page);
     await openAddProjectFlow(page);
+    // A host that can open its own chooser offers that instead of the in-app browser, and its
+    // dialog is outside the page, so there is nothing for this test to drive there.
+    test.skip(
+      (await addProjectFlowMethod(page, "browse-folders").count()) === 0,
+      "This host opens its own folder chooser",
+    );
     await chooseAddProjectMethod(page, "browse-folders");
 
     for (const browsePath of browsePaths.slice(0, -1)) {

@@ -43,6 +43,8 @@ export function buildAddProjectMethods(host: AddProjectHost): AddProjectMethodOp
   const options: AddProjectMethodOption[] = [];
   // The host's own chooser is the first option whenever it can reach a screen: on the desktop app
   // Electron opens it, and a client sitting at the host's machine has the daemon open it there.
+  // The in-app folder browser is what a client that cannot see that window falls back to — a
+  // phone over the relay — so the two never appear together.
   if (host.canBrowse || host.canPickHostDirectory) {
     options.push({
       id: "browse",
@@ -51,12 +53,13 @@ export function buildAddProjectMethods(host: AddProjectHost): AddProjectMethodOp
         ? "Choose or create a directory in Finder"
         : `Choose a folder in a window on ${host.label}`,
     });
+  } else {
+    options.push({
+      id: "browse-folders",
+      label: "Browse folders",
+      description: `Step through the folders on ${host.label}`,
+    });
   }
-  options.push({
-    id: "browse-folders",
-    label: "Browse folders",
-    description: `Step through the folders on ${host.label}`,
-  });
   options.push({
     id: "directory-search",
     label: "Search for directory",
