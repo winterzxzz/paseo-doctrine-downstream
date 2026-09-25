@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.9.2-paseo.60 - 2026-09-25
+
+Bản này tích hợp upstream Paseo `v0.9.2` (qua `v0.9.0`, `v0.9.1`) vào downstream line và chuyển base
+version lên `0.9.2`, nên plugin khai báo `requirements.paseo` theo 0.9 load được.
+
+### Changed
+
+- Merge upstream `v0.9.2` (139 commit từ `v0.8.0`); chi tiết upstream nằm ở các mục `Upstream 0.9.x`
+  bên dưới.
+- Daemon lifecycle theo upstream: `paseo daemon start` đọc config bền vững, `paseo daemon run` chạy
+  foreground với env override. Lệnh cài web-cli cũ `daemon start --foreground --listen … --web-ui`
+  vẫn chạy qua shim `COMPAT(legacyForegroundLaunchFlags)`, nên plist launchd đang dùng không phải đổi.
+- Delivery theo owned subscriptions và tạo workspace/agent idempotent của upstream; permission
+  outbound theo từng client và role preflight vẫn áp trên mọi đường mới.
+- Timeline giữ item đã project để tránh tràn heap; durable timeline của downstream vẫn lưu transcript
+  canonical cho Lead handoff.
+- `paseo daemon config set/unset` là thao tác Human-only.
+
+### Preserved downstream contracts
+
+- `paseo daemon status --json` giữ các field Foundation qualification đọc (`connected*`, `source*`,
+  `providers` dạng `{label, path}`).
+- Codex Read-only giữ `approvalPolicy: "never"` cho no-write lease.
+- Guided Hub starter fail-closed, Human-only guard của plugin và Hub, provider set Claude, Codex,
+  Cursor, Antigravity.
+
+### Fixed
+
+- Transcript bị nhân đôi hoặc lệch `seq` sau khi restart daemon hay reload agent, do reconcile history
+  trên row đã project.
+
+### Verification
+
+- Build, typecheck, lint, format pass qua pre-commit gate. Unit test merge đụng tới pass (server 3478,
+  app 1404 + 939, client 226, protocol 115, desktop 97, plugin 32, CLI 134).
+- Server e2e còn đỏ đều đỏ cả trên `main` hoặc upstream `v0.9.2` thuần ở máy này; chi tiết và các gate
+  chưa chạy nằm ở `docs/research/upstream-v0.9.2-stable-integration-2026-09-25.md`.
+
 ## Upstream 0.9.2 - 2026-09-24
 
 ### Added

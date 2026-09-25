@@ -1,6 +1,6 @@
 {
   "name": "@getpaseo/server",
-  "version": "0.8.0-paseo.59",
+  "version": "0.9.2-paseo.60",
   "private": true,
   "description": "Paseo backend server",
   "files": [
