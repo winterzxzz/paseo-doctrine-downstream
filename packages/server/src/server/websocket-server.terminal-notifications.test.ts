@@ -1,3 +1,4 @@
+import { SessionDelivery } from "./session/owned-subscriptions/index.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Server as HTTPServer } from "http";
 import type pino from "pino";
@@ -198,9 +199,13 @@ function connectClient(
   authorized = true,
 ) {
   const ws = createOpenSocket();
+  const delivery = new SessionDelivery(() => {});
+  delivery.attach(ws, false);
   asInternals<{ sessions: Map<unknown, unknown> }>(server).sessions.set(ws, {
     kind: "trusted",
     session: {
+      delivery,
+      wantsSourceNotification: () => true,
       getClientActivity: vi.fn(() => null),
       allowsPermission: vi.fn(() => authorized),
       allowsOutbound: vi.fn(() => authorized),

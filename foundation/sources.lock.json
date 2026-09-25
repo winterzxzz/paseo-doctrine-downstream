@@ -5,7 +5,7 @@
     "ref": "foundation-v0.1.0-dev.24"
   },
   "paseoUpstream": {
-    "commit": "b8e24677e12b226c7c38c1c3a40649daa9f1152f",
+    "commit": "c67b7158b441bb09026b38d86ae335cc4b49190a",
     "remote": "https://github.com/getpaseo/paseo.git"
   }
 }

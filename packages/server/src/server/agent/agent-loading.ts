@@ -8,6 +8,7 @@ import { hasReleasedAgentWriteLease } from "./lead-handoffs.js";
 import {
   buildConfigOverrides,
   buildSessionConfig,
+  extractAttention,
   extractTimestamps,
   isStoredAgentProviderAvailable,
   toAgentPersistenceHandle,
@@ -50,6 +51,9 @@ export async function ensureUnarchivedAgentLoaded(
   }
 
   const agent = await ensureAgentLoaded(agentId, deps);
+  // A shared load returns once its resume finishes. Lifecycle work queued behind that
+  // resume, such as a stored-only archive, must land before this load is judged unarchived.
+  await deps.agentManager.waitForAgentClose?.(agentId);
   const latestRecord = await deps.agentStorage.get(agentId);
   if (latestRecord?.archivedAt) {
     await deps.agentManager.closeAgent(agentId).catch((error: unknown) => {
@@ -135,6 +139,7 @@ async function reserveAgentInitialization(
         agentId,
         {
           ...extractTimestamps(record),
+          attention: extractAttention(record),
           roleBinding: record.launchContract ? undefined : record.roleBinding,
           launchContract: record.launchContract,
           launchProfile: record.launchProfile,
@@ -143,6 +148,9 @@ async function reserveAgentInitialization(
       );
       deps.logger.info({ agentId, provider: record.provider }, "Agent resumed from persistence");
     } else {
+      // No provider handle to resume: this starts the agent's first session rather than
+      // bringing one back, so it stamps activity and carries no stored attention. Records
+      // without a handle never got far enough to accumulate either.
       const config = buildSessionConfig(record, {
         validProviders,
       });

@@ -1,84 +1,37 @@
-import { EventEmitter } from "node:events";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
-import {
-  DEFAULT_STOP_TIMEOUT_MS,
-  type DaemonLaunchRuntime,
-  type DetachedDaemonProcess,
-  resolveLocalDaemonState,
-  startLocalDaemonDetached,
-  startLocalDaemonForeground,
-} from "./local-daemon.js";
+type StartDaemonInstanceInput = Parameters<
+  typeof import("@getpaseo/server/daemon-control").startDaemonInstance
+>[0];
 
-type RecordedDaemonLaunch =
-  | {
-      mode: "detached";
-      command: string;
-      args: string[];
-      options: Parameters<DaemonLaunchRuntime["spawnDetached"]>[2];
-    }
-  | {
-      mode: "foreground";
-      command: string;
-      args: string[];
-      options: Parameters<DaemonLaunchRuntime["spawnForeground"]>[2];
-    };
+const launches = vi.hoisted(() => [] as StartDaemonInstanceInput[]);
 
-class FakeDaemonProcess extends EventEmitter implements DetachedDaemonProcess {
-  pid = 4242;
-  wasUnreferenced = false;
+vi.mock("@getpaseo/server/daemon-control", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@getpaseo/server/daemon-control")>();
+  return {
+    ...actual,
+    startDaemonInstance: vi.fn(async (input: StartDaemonInstanceInput) => {
+      launches.push(input);
+      return {
+        instance: {
+          pid: 4242,
+          startedAt: new Date().toISOString(),
+          hostname: "test-host",
+          uid: 0,
+          listen: "127.0.0.1:43123",
+        },
+        spawned: true,
+        ...(input.foreground ? { exitCode: 0 } : {}),
+      };
+    }),
+  };
+});
 
-  unref(): void {
-    this.wasUnreferenced = true;
-  }
-}
+import { DEFAULT_STOP_TIMEOUT_MS, launchLocalDaemon } from "./local-daemon.js";
 
-class FakeDaemonRuntime implements DaemonLaunchRuntime {
-  readonly recordedLaunches: RecordedDaemonLaunch[] = [];
-  readonly daemonProcess = new FakeDaemonProcess();
-  foregroundStatus = 0;
-  runnerEntry = "/repo/packages/server/scripts/supervisor-entrypoint.ts";
-
-  resolveRunnerEntry(): string {
-    return this.runnerEntry;
-  }
-
-  resolveHome(env: NodeJS.ProcessEnv): string {
-    return env.PASEO_HOME ?? "/tmp/paseo";
-  }
-
-  spawnDetached(
-    command: string,
-    args: string[],
-    options: Parameters<DaemonLaunchRuntime["spawnDetached"]>[2],
-  ): DetachedDaemonProcess {
-    this.recordedLaunches.push({ mode: "detached", command, args, options });
-    return this.daemonProcess;
-  }
-
-  spawnForeground(
-    command: string,
-    args: string[],
-    options: Parameters<DaemonLaunchRuntime["spawnForeground"]>[2],
-  ) {
-    this.recordedLaunches.push({ mode: "foreground", command, args, options });
-    return { status: this.foregroundStatus, error: undefined };
-  }
-}
-
-const tempRoots: string[] = [];
-
-async function createPaseoHome(config: unknown): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "paseo-local-daemon-"));
-  tempRoots.push(root);
-  const paseoHome = path.join(root, ".paseo");
-  await mkdir(paseoHome, { recursive: true });
-  await writeFile(path.join(paseoHome, "config.json"), JSON.stringify(config, null, 2));
-  return paseoHome;
-}
+const home = path.join(os.tmpdir(), "paseo-local-daemon-supervision");
 
 function expectSupervisorLaunch(argv: string[]): void {
   const joined = argv.join(" ");
@@ -90,178 +43,67 @@ function expectSupervisorLaunch(argv: string[]): void {
 }
 
 describe("local daemon launch supervision", () => {
-  beforeEach(() => {
-    vi.useRealTimers();
-  });
-
-  afterEach(async () => {
-    await Promise.all(
-      tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
-    );
+  afterEach(() => {
+    launches.splice(0);
     vi.unstubAllEnvs();
-    vi.restoreAllMocks();
   });
 
   test("default stop budget covers the supervised graceful cleanup window", () => {
     expect(DEFAULT_STOP_TIMEOUT_MS).toBeGreaterThan(30_000);
   });
 
-  test("foreground start spawns supervisor-entrypoint instead of server/index", async () => {
-    const runtime = new FakeDaemonRuntime();
+  test.each([
+    ["background", false, "managed"],
+    ["foreground", true, "deployment"],
+  ] as const)(
+    "%s start launches supervisor-entrypoint, never a worker entry",
+    async (_label, foreground, mode) => {
+      await launchLocalDaemon({ home, foreground });
 
-    const status = startLocalDaemonForeground({ home: "/tmp/paseo-test", relay: false }, runtime);
-
-    expect(status).toBe(0);
-    expect(runtime.recordedLaunches.map((launch) => launch.mode)).toEqual(["foreground"]);
-    const launch = runtime.recordedLaunches[0];
-    expect(launch?.mode).toBe("foreground");
-    expect(launch?.command).toBe(process.execPath);
-    expectSupervisorLaunch(launch?.args ?? []);
-    expect(launch?.args).toContain("--no-relay");
-  });
-
-  test("detached start spawns supervisor-entrypoint instead of server/index", async () => {
-    vi.useFakeTimers();
-    const runtime = new FakeDaemonRuntime();
-
-    const resultPromise = startLocalDaemonDetached(
-      { home: "/tmp/paseo-test", mcp: false },
-      runtime,
-    );
-    await vi.advanceTimersByTimeAsync(1200);
-    const result = await resultPromise;
-
-    expect(result).toEqual({ pid: 4242, logPath: "/tmp/paseo-test/daemon.log" });
-    expect(runtime.daemonProcess.wasUnreferenced).toBe(true);
-    expect(runtime.recordedLaunches.map((launch) => launch.mode)).toEqual(["detached"]);
-    const launch = runtime.recordedLaunches[0];
-    expect(launch?.mode).toBe("detached");
-    expect(launch?.command).toBe(process.execPath);
-    expectSupervisorLaunch(launch?.args ?? []);
-    expect(launch?.args).toContain("--no-mcp");
-  });
+      expect(launches).toHaveLength(1);
+      expect(launches[0]?.command).toBe(process.execPath);
+      expect(launches[0]?.mode).toBe(mode);
+      expectSupervisorLaunch(launches[0]?.args ?? []);
+    },
+  );
 
   test.skipIf(process.platform === "win32")(
-    "detached start appends known user binary directories to PATH",
+    "background start appends known user binary directories to PATH",
     async () => {
-      vi.useFakeTimers();
+      const userHome = path.join(os.tmpdir(), "paseo-path-user");
+      vi.stubEnv("HOME", userHome);
       vi.stubEnv("PATH", ["/usr/bin", "/bin"].join(path.delimiter));
-      const runtime = new FakeDaemonRuntime();
 
-      const resultPromise = startLocalDaemonDetached({ home: "/tmp/paseo-test" }, runtime);
-      await vi.advanceTimersByTimeAsync(1200);
-      await resultPromise;
+      await launchLocalDaemon({ home });
 
-      const launch = runtime.recordedLaunches[0];
-      expect(launch?.mode).toBe("detached");
-      expect(launch?.options.env?.PATH?.split(path.delimiter)).toEqual([
+      expect(launches[0]?.env.PATH?.split(path.delimiter)).toEqual([
         "/usr/bin",
         "/bin",
-        path.join(os.homedir(), "bin"),
-        path.join(os.homedir(), ".local", "bin"),
-        path.join(os.homedir(), ".opencode", "bin"),
-        path.join(os.homedir(), ".bun", "bin"),
+        path.join(userHome, "bin"),
+        path.join(userHome, ".local", "bin"),
+        path.join(userHome, ".opencode", "bin"),
+        path.join(userHome, ".bun", "bin"),
       ]);
     },
   );
 
   test.skipIf(process.platform === "win32")(
     "foreground start preserves PATH precedence and does not duplicate user binary directories",
-    () => {
-      const home = path.join(os.tmpdir(), "paseo-path-user");
-      const openCodeBin = path.join(home, ".opencode", "bin");
-      vi.stubEnv("HOME", home);
+    async () => {
+      const userHome = path.join(os.tmpdir(), "paseo-path-user");
+      const openCodeBin = path.join(userHome, ".opencode", "bin");
+      vi.stubEnv("HOME", userHome);
       vi.stubEnv("PATH", [openCodeBin, "/usr/bin"].join(path.delimiter));
-      const runtime = new FakeDaemonRuntime();
 
-      startLocalDaemonForeground({ home: "/tmp/paseo-test" }, runtime);
+      await launchLocalDaemon({ home, foreground: true });
 
-      const launch = runtime.recordedLaunches[0];
-      expect(launch?.mode).toBe("foreground");
-      expect(launch?.options.env?.PATH?.split(path.delimiter)).toEqual([
+      expect(launches[0]?.env.PATH?.split(path.delimiter)).toEqual([
         openCodeBin,
         "/usr/bin",
-        path.join(home, "bin"),
-        path.join(home, ".local", "bin"),
-        path.join(home, ".bun", "bin"),
+        path.join(userHome, "bin"),
+        path.join(userHome, ".local", "bin"),
+        path.join(userHome, ".bun", "bin"),
       ]);
     },
   );
-
-  test("relay TLS flag is passed to the supervised daemon", async () => {
-    const runtime = new FakeDaemonRuntime();
-
-    const status = startLocalDaemonForeground(
-      {
-        home: "/tmp/paseo-test",
-        relayUseTls: true,
-      },
-      runtime,
-    );
-
-    expect(status).toBe(0);
-    expect(runtime.recordedLaunches.map((launch) => launch.mode)).toEqual(["foreground"]);
-    const launch = runtime.recordedLaunches[0];
-    expect(launch?.mode).toBe("foreground");
-    expect(launch?.args).toContain("--relay-use-tls");
-    expect(launch?.options?.env?.PASEO_RELAY_USE_TLS).toBe("true");
-  });
-
-  test("web UI flag is passed to the supervised daemon", async () => {
-    const runtime = new FakeDaemonRuntime();
-
-    const status = startLocalDaemonForeground(
-      {
-        home: "/tmp/paseo-test",
-        webUi: true,
-      },
-      runtime,
-    );
-
-    expect(status).toBe(0);
-    expect(runtime.recordedLaunches.map((launch) => launch.mode)).toEqual(["foreground"]);
-    const launch = runtime.recordedLaunches[0];
-    expect(launch?.mode).toBe("foreground");
-    expect(launch?.args).toContain("--web-ui");
-    expect(launch?.options?.env?.PASEO_WEB_UI_ENABLED).toBe("true");
-  });
-
-  test("no-web UI flag is passed to the supervised daemon", async () => {
-    const runtime = new FakeDaemonRuntime();
-
-    const status = startLocalDaemonForeground(
-      {
-        home: "/tmp/paseo-test",
-        webUi: false,
-      },
-      runtime,
-    );
-
-    expect(status).toBe(0);
-    expect(runtime.recordedLaunches.map((launch) => launch.mode)).toEqual(["foreground"]);
-    const launch = runtime.recordedLaunches[0];
-    expect(launch?.mode).toBe("foreground");
-    expect(launch?.args).toContain("--no-web-ui");
-    expect(launch?.options?.env?.PASEO_WEB_UI_ENABLED).toBe("false");
-  });
-
-  test("local daemon state keeps public relay TLS separate from daemon relay TLS", async () => {
-    const home = await createPaseoHome({
-      version: 1,
-      daemon: {
-        relay: {
-          endpoint: "10.0.0.5:51185",
-          publicEndpoint: "paseo.example.com",
-          useTls: false,
-          publicUseTls: true,
-        },
-      },
-    });
-
-    const state = resolveLocalDaemonState({ home });
-
-    expect(state.relayEndpoint).toBe("paseo.example.com");
-    expect(state.relayUseTls).toBe(false);
-    expect(state.relayPublicUseTls).toBe(true);
-  });
 });

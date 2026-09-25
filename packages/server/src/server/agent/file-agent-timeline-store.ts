@@ -39,6 +39,11 @@ const LegacyAtomicTimelineDocumentSchema = z.object({
   historyComplete: z.boolean().optional().default(false),
 });
 
+interface CanonicalTimeline {
+  epoch: string;
+  rows: AgentTimelineRow[];
+}
+
 export interface FileAgentTimelineStoreOptions {
   writeJson?: typeof writeJsonFileAtomic;
 }
@@ -52,6 +57,9 @@ function parseRow(agentId: string, value: unknown): AgentTimelineRow {
 }
 
 export class FileAgentTimelineStore implements AgentTimelineStore {
+  // The durable transcript is canonical: one row per committed sequence. The in-memory
+  // store projects on ingestion, so it only serves projected fetches and last-item reads.
+  private readonly canonical = new Map<string, CanonicalTimeline>();
   private readonly memory = new InMemoryAgentTimelineStore();
   private readonly historyComplete = new Map<string, boolean>();
   private readonly loaded = new Set<string>();
@@ -73,15 +81,15 @@ export class FileAgentTimelineStore implements AgentTimelineStore {
   ): Promise<AgentTimelineRow> {
     return this.withAgent(agentId, async () => {
       await this.prepare(agentId);
-      const fetched = this.memory.fetch(agentId, { direction: "tail", limit: 0 });
+      const current = this.canonicalFor(agentId);
       const row: AgentTimelineRow = {
-        seq: fetched.window.nextSeq,
+        seq: (current.rows.at(-1)?.seq ?? 0) + 1,
         timestamp: options?.timestamp ?? new Date().toISOString(),
         item,
         ...(options?.turnId ? { turnId: options.turnId } : {}),
       };
       await this.persistRows(agentId, [row]);
-      this.replaceMemory(agentId, fetched.epoch, [...fetched.rows, row]);
+      this.replaceMemory(agentId, current.epoch, [...current.rows, row]);
       return row;
     });
   }
@@ -99,14 +107,14 @@ export class FileAgentTimelineStore implements AgentTimelineStore {
   async getLatestCommittedSeq(agentId: string): Promise<number> {
     return this.withAgent(agentId, async () => {
       await this.prepare(agentId);
-      return this.memory.fetch(agentId, { direction: "tail", limit: 0 }).window.maxSeq;
+      return this.canonicalFor(agentId).rows.at(-1)?.seq ?? 0;
     });
   }
 
   async getCommittedRows(agentId: string): Promise<AgentTimelineRow[]> {
     return this.withAgent(agentId, async () => {
       await this.prepare(agentId);
-      return this.memory.getRows(agentId);
+      return structuredClone(this.canonicalFor(agentId).rows);
     });
   }
 
@@ -114,7 +122,7 @@ export class FileAgentTimelineStore implements AgentTimelineStore {
     return this.withAgent(agentId, async () => {
       await this.prepare(agentId);
       return {
-        rows: this.memory.getRows(agentId),
+        rows: structuredClone(this.canonicalFor(agentId).rows),
         historyComplete: this.historyComplete.get(agentId) ?? false,
       };
     });
@@ -136,6 +144,7 @@ export class FileAgentTimelineStore implements AgentTimelineStore {
 
   async deleteAgent(agentId: string): Promise<void> {
     return this.withAgent(agentId, async () => {
+      this.canonical.delete(agentId);
       this.memory.delete(agentId);
       this.historyComplete.delete(agentId);
       this.loaded.delete(agentId);
@@ -147,8 +156,8 @@ export class FileAgentTimelineStore implements AgentTimelineStore {
     if (rows.length === 0) return;
     return this.withAgent(agentId, async () => {
       await this.prepare(agentId);
-      const fetched = this.memory.fetch(agentId, { direction: "tail", limit: 0 });
-      const existingBySeq = new Map(fetched.rows.map((row) => [row.seq, row]));
+      const current = this.canonicalFor(agentId);
+      const existingBySeq = new Map(current.rows.map((row) => [row.seq, row]));
       const uniqueRows = [...new Map(rows.map((row) => [row.seq, row])).values()];
       for (const row of uniqueRows) {
         const existing = existingBySeq.get(row.seq);
@@ -161,34 +170,34 @@ export class FileAgentTimelineStore implements AgentTimelineStore {
         .toSorted((left, right) => left.seq - right.seq);
       if (additions.length === 0) return;
       await this.persistRows(agentId, additions);
-      this.replaceMemory(agentId, fetched.epoch, [...fetched.rows, ...additions]);
+      this.replaceMemory(agentId, current.epoch, [...current.rows, ...additions]);
     });
   }
 
   async replaceCommittedSnapshot(agentId: string, snapshot: AgentTimelineSnapshot): Promise<void> {
     return this.withAgent(agentId, async () => {
       await this.prepare(agentId);
-      const fetched = this.memory.fetch(agentId, { direction: "tail", limit: 0 });
+      const { epoch } = this.canonicalFor(agentId);
       const rows = [...new Map(snapshot.rows.map((row) => [row.seq, row])).values()].toSorted(
         (left, right) => left.seq - right.seq,
       );
-      await this.persistReplacement(agentId, fetched.epoch, rows, snapshot.historyComplete);
-      this.replaceMemory(agentId, fetched.epoch, rows, snapshot.historyComplete);
+      await this.persistReplacement(agentId, epoch, rows, snapshot.historyComplete);
+      this.replaceMemory(agentId, epoch, rows, snapshot.historyComplete);
     });
   }
 
   async updateCommittedRow(agentId: string, row: AgentTimelineRow): Promise<void> {
     return this.withAgent(agentId, async () => {
       await this.prepare(agentId);
-      const fetched = this.memory.fetch(agentId, { direction: "tail", limit: 0 });
-      const index = fetched.rows.findIndex((candidate) => candidate.seq === row.seq);
+      const current = this.canonicalFor(agentId);
+      const index = current.rows.findIndex((candidate) => candidate.seq === row.seq);
       if (index < 0) {
         throw new Error(`Cannot update missing timeline row sequence ${row.seq}`);
       }
       await this.persistRows(agentId, [row]);
-      const updated = [...fetched.rows];
+      const updated = [...current.rows];
       updated[index] = row;
-      this.replaceMemory(agentId, fetched.epoch, updated);
+      this.replaceMemory(agentId, current.epoch, updated);
     });
   }
 
@@ -308,11 +317,10 @@ export class FileAgentTimelineStore implements AgentTimelineStore {
         await fs.rm(paths.rows, { recursive: true, force: true });
       }
       await this.commitRows(agentId, rows);
-      const fetched = this.memory.fetch(agentId, { direction: "tail", limit: 0 });
       this.replaceMemory(
         agentId,
         epoch,
-        replace ? rows : [...fetched.rows, ...rows],
+        replace ? rows : [...this.canonicalFor(agentId).rows, ...rows],
         historyComplete,
       );
       await fs.rm(manifestPath, { force: true });
@@ -324,7 +332,7 @@ export class FileAgentTimelineStore implements AgentTimelineStore {
     const normalized = [...new Map(rows.map((row) => [row.seq, row])).values()];
     if (normalized.length === 0) return;
     await fs.mkdir(paths.pending, { recursive: true });
-    const epoch = this.memory.fetch(agentId, { direction: "tail", limit: 0 }).epoch;
+    const { epoch } = this.canonicalFor(agentId);
     const manifestPath = path.join(paths.pending, `${randomUUID()}.json`);
     const historyComplete = this.historyComplete.get(agentId) ?? false;
     await this.writeJson(manifestPath, {
@@ -386,12 +394,19 @@ export class FileAgentTimelineStore implements AgentTimelineStore {
     const ordered = [...new Map(rows.map((row) => [row.seq, row])).values()].toSorted(
       (left, right) => left.seq - right.seq,
     );
+    this.canonical.set(agentId, { epoch, rows: ordered });
     this.memory.initialize(agentId, {
       epoch,
       rows: ordered,
       nextSeq: (ordered.at(-1)?.seq ?? 0) + 1,
     });
     this.historyComplete.set(agentId, historyComplete);
+  }
+
+  private canonicalFor(agentId: string): CanonicalTimeline {
+    const timeline = this.canonical.get(agentId);
+    if (!timeline) throw new Error(`Durable timeline for agent ${agentId} is not loaded`);
+    return timeline;
   }
 
   private paths(agentId: string): TimelinePaths {

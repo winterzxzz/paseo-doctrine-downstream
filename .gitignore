@@ -104,3 +104,6 @@ app.json
 # Local daemon state written when a daemon runs with its home at the repo root
 /config.json
 /server-id
+
+# Heap snapshots dumped by --heapsnapshot-near-heap-limit; keep them for debugging.
+*.heapsnapshot

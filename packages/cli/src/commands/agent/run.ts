@@ -1,7 +1,10 @@
 import { Command, Option } from "commander";
-import { getStructuredAgentResponse, StructuredAgentResponseError } from "@getpaseo/server";
+import {
+  getStructuredAgentResponse,
+  StructuredAgentResponseError,
+} from "@getpaseo/server/agent-response";
 import type { AgentSnapshotPayload } from "@getpaseo/protocol/messages";
-import { connectToDaemon, getDaemonHost } from "../../utils/client.js";
+import { connectToDaemon } from "../../utils/client.js";
 import type {
   CommandOptions,
   SingleResult,
@@ -165,6 +168,7 @@ function resolveNewWorkspaceKind(options: AgentRunOptions): string | undefined {
 function buildRunWorkspaceSource(options: AgentRunOptions, cwd: string) {
   const newWorkspace = resolveNewWorkspaceKind(options) ?? "local";
   return buildWorkspaceSource({
+    daemonTarget: options.daemonTarget,
     isolation: newWorkspace,
     path: cwd,
     mode: options.worktreeMode,
@@ -206,6 +210,7 @@ function loadOutputSchema(value: string): Record<string, unknown> {
     try {
       source = readFileSync(resolve(trimmed), "utf8");
     } catch (err) {
+      if (err && typeof err === "object" && "code" in err) throw err;
       const message = err instanceof Error ? err.message : String(err);
       const error: CommandError = {
         code: "INVALID_OUTPUT_SCHEMA",
@@ -220,6 +225,7 @@ function loadOutputSchema(value: string): Record<string, unknown> {
   try {
     parsed = JSON.parse(source);
   } catch (err) {
+    if (err && typeof err === "object" && "code" in err) throw err;
     const message = err instanceof Error ? err.message : String(err);
     const error: CommandError = {
       code: "INVALID_OUTPUT_SCHEMA",
@@ -570,6 +576,7 @@ function parseWaitTimeoutOption(waitTimeout: string | undefined): number {
     }
     return ms;
   } catch (err) {
+    if (err && typeof err === "object" && "code" in err) throw err;
     const message = err instanceof Error ? err.message : String(err);
     throw {
       code: "INVALID_TIMEOUT",
@@ -596,6 +603,7 @@ function loadRunImages(
         mimeType,
       };
     } catch (err) {
+      if (err && typeof err === "object" && "code" in err) throw err;
       const message = err instanceof Error ? err.message : String(err);
       throw new Error(`Failed to read image ${imagePath}: ${message}`, { cause: err });
     }
@@ -644,22 +652,6 @@ function parseKeyValueFlags(
     labels[key] = labelStr.slice(eqIndex + 1);
   }
   return labels;
-}
-
-async function connectToDaemonOrThrow(
-  hostOption: string | undefined,
-  host: string,
-): Promise<ConnectedDaemonClient> {
-  try {
-    return await connectToDaemon({ host: hostOption });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    throw {
-      code: "DAEMON_NOT_RUNNING",
-      message: `Cannot connect to daemon at ${host}: ${message}`,
-      details: "Start the daemon with: paseo daemon start",
-    } satisfies CommandError;
-  }
 }
 
 // A workspace is the explicit home of a run: it owns the directory the agent
@@ -751,7 +743,6 @@ export async function runRunCommand(
   options: AgentRunOptions,
   _command: Command,
 ): Promise<SingleResult<AgentRunResult>> {
-  const host = getDaemonHost({ host: options.host });
   const outputSchema = options.outputSchema ? loadOutputSchema(options.outputSchema) : undefined;
 
   validateRunOptions(prompt, options, outputSchema);
@@ -762,7 +753,7 @@ export async function runRunCommand(
   const assignmentEffect = parseAssignmentEffectOption(options.assignmentEffect);
   const resolvedTitle = options.title ?? options.name;
 
-  const client = await connectToDaemonOrThrow(options.host, host);
+  const client = await connectToDaemon({ target: options.daemonTarget });
 
   try {
     // Resolve working directory

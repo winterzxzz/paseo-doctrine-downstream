@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { withOutput } from "../../output/index.js";
 import { addJsonAndDaemonHostOptions } from "../../utils/command-options.js";
+import type { DaemonTarget } from "../../utils/daemon-target.js";
 import { HubHttpClient } from "./hub-client/index.js";
 import { addHubConnectCommand } from "./connect.js";
 import { PrivateHubCredentialStore, type HubCredentialStore } from "./credentials.js";
@@ -64,7 +65,10 @@ export function createHubCommand(overrides: Partial<HubCommandEnvironment> = {})
     reporter: environment.reporter,
     isInteractive: environment.isInteractive,
     ...(foundationHubStarterAuthoritySupported()
-      ? { continueGuidedSetup: (origin: string) => continueHubGuidedSetup(origin, environment) }
+      ? {
+          continueGuidedSetup: (origin: string, daemonTarget: DaemonTarget) =>
+            continueHubGuidedSetup(origin, { ...environment, daemonTarget }),
+        }
       : {}),
   });
   addHubInitCommand(hub, environment);
@@ -77,8 +81,11 @@ export function createHubCommand(overrides: Partial<HubCommandEnvironment> = {})
   });
   addJsonAndDaemonHostOptions(hub.command("status")).action(
     withOutput(async (...args) => {
-      const options = args.at(-2) as { host?: string };
-      return withHubDaemon(environment.daemon, options.host, async (client) =>
+      const options = args.at(-2) as {
+        host?: string;
+        daemonTarget: import("../../utils/daemon-target.js").DaemonTarget;
+      };
+      return withHubDaemon(environment.daemon, options.daemonTarget, async (client) =>
         hubStatusResult((await client.getHubStatus()).status),
       );
     }),

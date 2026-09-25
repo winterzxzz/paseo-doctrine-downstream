@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { CoordinationSignal } from "@getpaseo/protocol/coordination-signal";
 
-import { connectToDaemon, getDaemonHost, resolveAgentId } from "../../utils/client.js";
+import { connectToDaemon, resolveAgentId } from "../../utils/client.js";
 import type {
   CommandError,
   CommandOptions,
@@ -115,17 +115,7 @@ export async function runSignalCommand(
   _command: Command,
 ): Promise<SingleResult<AgentSignalResult>> {
   const options = commandOptions as AgentSignalOptions;
-  const host = getDaemonHost({ host: options.host });
-  let client: DaemonClient;
-  try {
-    client = await connectToDaemon({ host: options.host });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw {
-      code: "DAEMON_NOT_RUNNING",
-      message: `Cannot connect to daemon at ${host}: ${message}`,
-    } satisfies CommandError;
-  }
+  const client = await connectToDaemon({ target: options.daemonTarget });
 
   try {
     const kind = parseSignalKind(options.kind);

@@ -157,7 +157,10 @@ try {
       ) {
         return false;
       }
-      const client = await tryConnectToDaemon({ host, timeout: 500 });
+      const client = await tryConnectToDaemon({
+        target: { kind: "endpoint", host },
+        timeout: 500,
+      });
       if (!client) return false;
       await client.close().catch(() => undefined);
       return true;
@@ -231,8 +234,9 @@ try {
   );
   const capturedSupervisorLogs = await readCapturedSupervisorLogs(paseoHome, recentSupervisorLogs);
   assert(
-    capturedSupervisorLogs.includes('"msg":"Worker requested shutdown"') &&
-      capturedSupervisorLogs.includes('"reason":"client_shutdown_rpc"'),
+    process.platform === "win32"
+      ? capturedSupervisorLogs.includes('"reason":"client_shutdown_rpc"')
+      : capturedSupervisorLogs.includes("supervisor_received_SIGTERM"),
     `stop should log lifecycle shutdown reason from daemon worker, logs:\n${capturedSupervisorLogs}`,
   );
   assert(

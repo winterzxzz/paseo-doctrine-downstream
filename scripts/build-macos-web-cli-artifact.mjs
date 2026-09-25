@@ -400,7 +400,7 @@ if [ "$START" -eq 1 ] && [ -n "$EXISTING_PASEO" ]; then
     echo "Refusing to replace the existing Paseo installation because daemon status could not be read." >&2
     exit 1
   fi
-  if grep -Eq '"localDaemon"[[:space:]]*:[[:space:]]*"(running|unresponsive)"' "$PREFLIGHT_ROOT/status.json"; then
+  if grep -Eq '"localDaemon"[[:space:]]*:[[:space:]]*"(running|not_ready|unresponsive)"' "$PREFLIGHT_ROOT/status.json"; then
     if ! PASEO_HOST= "$EXISTING_PASEO" ls --global --json > "$PREFLIGHT_ROOT/agents.json"; then
       echo "Refusing to stop the existing daemon because agent state could not be read." >&2
       exit 1
@@ -739,7 +739,7 @@ if [ "$START" -eq 1 ] && [ -n "$EXISTING_PASEO" ]; then
     echo "Refusing to replace the existing Paseo installation because daemon status could not be read." >&2
     exit 1
   fi
-  if grep -Eq '"localDaemon"[[:space:]]*:[[:space:]]*"(running|unresponsive)"' "$PREFLIGHT_ROOT/status.json"; then
+  if grep -Eq '"localDaemon"[[:space:]]*:[[:space:]]*"(running|not_ready|unresponsive)"' "$PREFLIGHT_ROOT/status.json"; then
     if ! PASEO_HOST= "$EXISTING_PASEO" ls --global --json > "$PREFLIGHT_ROOT/agents.json"; then
       echo "Refusing to stop the existing daemon because agent state could not be read." >&2
       exit 1
@@ -1071,7 +1071,7 @@ $ExistingPaseo = Get-Command paseo -ErrorAction SilentlyContinue
 if (-not $NoStart -and $ExistingPaseo) {
   $status = & $ExistingPaseo.Source daemon status --json | ConvertFrom-Json
   if ($LASTEXITCODE -ne 0) { throw "Refusing replacement because daemon status could not be read." }
-  if ($status.localDaemon -in @("running", "unresponsive")) {
+  if ($status.localDaemon -in @("running", "not_ready", "unresponsive")) {
     $agents = @(& $ExistingPaseo.Source ls --global --json | ConvertFrom-Json)
     if ($LASTEXITCODE -ne 0) { throw "Refusing replacement because agent state could not be read." }
     if ($agents | Where-Object { $_.status -in @("running", "starting", "initializing") }) {

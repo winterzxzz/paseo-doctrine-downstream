@@ -102,13 +102,12 @@ Nếu máy đang có daemon hoặc agent quan trọng, dừng pilot cho tới kh
 pilot user không có daemon, chạy local-only:
 
 ```bash
-PASEO_LOCAL_SPEECH_AUTO_DOWNLOAD=0 \
-PASEO_DICTATION_ENABLED=0 \
-PASEO_VOICE_MODE_ENABLED=0 \
-paseo daemon start \
-  --listen 127.0.0.1:6767 \
-  --web-ui \
-  --no-relay
+paseo daemon config set daemon.listen 127.0.0.1:6767
+paseo daemon config set features.webUi.enabled true
+paseo daemon config set daemon.relay.enabled false
+paseo daemon config set features.dictation.enabled false
+paseo daemon config set features.voiceMode.enabled false
+PASEO_LOCAL_SPEECH_AUTO_DOWNLOAD=0 paseo daemon start
 ```
 
 Mở `http://127.0.0.1:6767`. Không đổi bind address, bật relay hoặc expose qua reverse proxy trong pilot

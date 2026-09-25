@@ -129,7 +129,7 @@ export async function startIsolatedHostDaemon(
 ): Promise<IsolatedHostDaemon> {
   const primaryPort = Number(process.env.E2E_DAEMON_PORT ?? 0);
   let port = await getAvailablePort();
-  while (port === 6767 || port === primaryPort) port = await getAvailablePort();
+  while (port === 6767 || port === 6768 || port === primaryPort) port = await getAvailablePort();
   let beadsCentralPort = await getAvailablePort();
   while (beadsCentralPort === port || beadsCentralPort === 6769) {
     beadsCentralPort = await getAvailablePort();

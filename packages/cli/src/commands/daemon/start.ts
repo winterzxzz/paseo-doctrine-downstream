@@ -1,71 +1,72 @@
-import { Command, Option } from "commander";
-import chalk from "chalk";
+import { addLocalDaemonOptions } from "../../utils/command-options.js";
+import { Command } from "commander";
+import { daemonLogPath } from "@getpaseo/server/daemon-control";
 import {
-  startLocalDaemonForeground,
-  startLocalDaemonDetached,
-  type DaemonStartOptions as StartOptions,
+  isLegacyForegroundLaunch,
+  launchLocalDaemon,
+  legacyForegroundLaunchEnv,
+  parseTimeoutMs,
+  rejectRemovedLaunchFlags,
 } from "./local-daemon.js";
-import { getErrorMessage } from "../../utils/errors.js";
+import { withOutput, type CommandOptions, type SingleResult } from "../../output/index.js";
 
-export type { DaemonStartOptions as StartOptions } from "./local-daemon.js";
-
-type RawStartCommandOptions = StartOptions & {
-  allowedHosts?: string;
-};
+// Both launch paths share one result type so withOutput infers a single data shape.
+type StartResult = SingleResult<Record<string, unknown>>;
 
 export function startCommand(): Command {
-  return new Command("start")
-    .description("Start the local Paseo daemon")
-    .option("--listen <listen>", "Listen target (host:port, port, or unix socket path)")
-    .option("--port <port>", "Port to listen on (default: 6767)")
-    .option("--home <path>", "Paseo home directory (default: ~/.paseo)")
-    .option("--foreground", "Run in foreground (don't daemonize)")
-    .option("--relay", "Enable relay connection")
-    .option("--no-relay", "Disable relay connection")
-    .option("--relay-use-tls", "Use wss:// for the relay connection and pairing offers")
-    .option("--no-mcp", "Disable the Agent MCP HTTP endpoint")
-    .option("--no-inject-mcp", "Disable auto-injecting the Paseo MCP into created agents")
-    .option("--web-ui", "Enable the bundled daemon web UI")
-    .option("--no-web-ui", "Disable the bundled daemon web UI")
-    .option(
-      "--hostnames <hosts>",
-      'Daemon hostnames (comma-separated, e.g. "myhost,.example.com" or "true" for any)',
-    )
-    .addOption(new Option("--allowed-hosts <hosts>").hideHelp())
-    .action(async (options: RawStartCommandOptions) => {
-      await runStart({
-        ...options,
-        hostnames: options.hostnames ?? options.allowedHosts,
-      });
-    });
+  // COMPAT(legacyForegroundLaunchFlags): added in v0.9.2-paseo.60, remove after the web-cli installer launches with paseo daemon run
+  return rejectRemovedLaunchFlags(addLocalDaemonOptions(new Command("start")), {
+    allowLegacyForegroundLaunch: true,
+  })
+    .description("Start the local daemon from persistent configuration (local operation)")
+    .option("--timeout <seconds>", "Readiness deadline (default: 600)")
+    .action(withOutput(runStart));
 }
 
-export async function runStart(options: StartOptions): Promise<void> {
-  if (options.listen && options.port) {
-    console.error(chalk.red("Cannot use --listen and --port together"));
-    process.exit(1);
+export async function runStart(options: CommandOptions, command: Command): Promise<StartResult> {
+  if (options.daemonTarget.kind !== "instance") throw new Error("Start requires a local home");
+  const home = options.daemonTarget.home;
+  // COMPAT(legacyForegroundLaunchFlags): added in v0.9.2-paseo.60, remove after the web-cli installer launches with paseo daemon run
+  if (isLegacyForegroundLaunch(command)) {
+    return runForegroundDaemon(home, legacyForegroundLaunchEnv(command));
   }
-
-  if (!options.foreground) {
-    try {
-      const startup = await startLocalDaemonDetached(options);
-      console.log(chalk.green(`Daemon starting in background (PID ${startup.pid ?? "unknown"}).`));
-      console.log(chalk.dim(`Logs: ${startup.logPath}`));
-    } catch (err) {
-      exitWithError(getErrorMessage(err));
-    }
-    return;
-  }
-  try {
-    const status = startLocalDaemonForeground(options);
-    process.exit(status);
-  } catch (err) {
-    const message = getErrorMessage(err);
-    exitWithError(`Failed to start daemon: ${message}`);
-  }
+  const result = await launchLocalDaemon({ home, timeoutMs: parseTimeoutMs(options.timeout) });
+  const data = {
+    action: result.spawned ? "started" : "already_running",
+    home,
+    pid: result.instance.pid,
+    listen: result.instance.listen,
+    logPath: daemonLogPath(home),
+  };
+  return {
+    type: "single" as const,
+    data,
+    schema: {
+      idField: "pid" as const,
+      columns: [],
+      renderHuman: () =>
+        `${result.spawned ? "Started" : "Already running"}: PID ${data.pid}${data.listen ? `, listening on ${data.listen}` : ", not ready"}\nLogs: ${data.logPath}`,
+    },
+  };
 }
 
-function exitWithError(message: string): never {
-  console.error(chalk.red(message));
-  process.exit(1);
+async function runForegroundDaemon(home: string, env?: NodeJS.ProcessEnv): Promise<StartResult> {
+  const result = await launchLocalDaemon({ home, foreground: true, env });
+  process.exitCode = result.exitCode ?? 0;
+  return {
+    type: "single" as const,
+    data: { pid: result.instance.pid, action: result.spawned ? "exited" : "already_running" },
+    schema: { idField: "pid" as const, columns: [] },
+  };
+}
+
+export function daemonRunCommand(): Command {
+  return rejectRemovedLaunchFlags(addLocalDaemonOptions(new Command("run")))
+    .description("Run a local daemon in the foreground with deployment environment overrides")
+    .action(
+      withOutput(async (options: CommandOptions, _command: Command) => {
+        if (options.daemonTarget.kind !== "instance") throw new Error("Run requires a local home");
+        return runForegroundDaemon(options.daemonTarget.home);
+      }),
+    );
 }

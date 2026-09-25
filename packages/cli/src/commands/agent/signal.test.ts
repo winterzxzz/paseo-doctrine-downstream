@@ -47,11 +47,18 @@ vi.mock("../../utils/client.js", () => ({
   ),
 }));
 
+const daemonTarget = { kind: "endpoint" as const, host: "127.0.0.1:6767" };
+
 describe("runSignalCommand", () => {
   test("sends a handoff recommendation without claiming delivery", async () => {
     const result = await runSignalCommand(
       "Lead",
-      { kind: "handoff", reason: "Context dilution", evidence: ["room-message-1"] },
+      {
+        daemonTarget,
+        kind: "handoff",
+        reason: "Context dilution",
+        evidence: ["room-message-1"],
+      },
       {} as never,
     );
 
@@ -74,6 +81,7 @@ describe("runSignalCommand", () => {
     const result = await runSignalCommand(
       "Lead",
       {
+        daemonTarget,
         kind: "question",
         observation: "The working stream reversed its ownership premise.",
         question: "Does this decision need to return to the Lead boundary?",
