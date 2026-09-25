@@ -12,13 +12,13 @@ import { ensurePrivateFile, writePrivateFileAtomicSync } from "./private-files.j
 import {
   AgentProfileSchema,
   AgentSkillSelectionSchema,
+  PeerDelegationRunModeSchema,
   PeerSubroleSchema,
 } from "@getpaseo/protocol/agent-profile";
 import {
   BeadsCentralEndpointSchema,
   FoundationCredentialRefSchema,
-  PeerDelegationRunModeSchema,
-} from "@getpaseo/protocol/messages";
+} from "@getpaseo/protocol/foundation-config";
 import { PluginIdSchema, PluginSourceSchema } from "@getpaseo/protocol/plugin-config";
 import { TerminalProfileSchema } from "@getpaseo/protocol/terminal-profile";
 import { PaseoServicePortAllocationSchema } from "@getpaseo/protocol/paseo-config-schema";

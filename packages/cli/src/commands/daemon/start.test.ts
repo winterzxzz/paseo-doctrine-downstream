@@ -40,7 +40,7 @@ function parse(command: Command, args: string[]) {
   return command.parseAsync([...args, "--home", home], { from: "user" });
 }
 
-// COMPAT(legacyForegroundLaunchFlags): added in v0.9.2-paseo.60, remove after the web-cli installer launches with paseo daemon run
+// COMPAT(legacyForegroundLaunchFlags): added in v0.9.2-paseo.60, remove after 2027-03-25 once the web-cli installer launches with paseo daemon run
 describe("legacy foreground launch flags on daemon start", () => {
   beforeEach(() => {
     vi.spyOn(process.stdout, "write").mockImplementation(() => true);

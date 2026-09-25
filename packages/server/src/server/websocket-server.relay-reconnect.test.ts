@@ -68,6 +68,8 @@ const sessionMock = vi.hoisted(() => {
       void this.delivery.detach(source);
     });
     getClientActivity = vi.fn(() => null);
+    setConnectedFromHostMachine = vi.fn((_fromHostMachine: boolean) => {});
+    canOpenHostDialogs = vi.fn(() => false);
     wantsSourceEvent = (source: object) => !this.delivery.isModern(source);
     getSessionId = vi.fn(() => "mock-session-id");
     getPermissions = vi.fn(() => this.args.permissions as string[]);

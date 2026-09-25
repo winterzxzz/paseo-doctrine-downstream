@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import type { AgentTimelineItem } from "./agent-sdk-types.js";
 import type { AgentTimelineRow } from "./agent-timeline-store-types.js";
+import { toCanonicalTimelineRow } from "./agent-timeline-store.js";
 
 export interface ProviderHistoryTimelineEntry {
   item: AgentTimelineItem;
@@ -10,10 +11,12 @@ export interface ProviderHistoryTimelineEntry {
 
 /** Reconciles canonical metadata onto provider-ordered history without inventing membership. */
 export function reconcileProviderHistory(
-  canonicalRows: readonly AgentTimelineRow[],
+  existingRows: readonly AgentTimelineRow[],
   providerEntries: readonly ProviderHistoryTimelineEntry[],
   options?: { mode?: "incomplete" | "force" },
 ): AgentTimelineRow[] {
+  // The in-memory store serves projected rows; reconcile their canonical form only.
+  const canonicalRows = existingRows.map(toCanonicalTimelineRow);
   if (providerEntries.length === 0) {
     return options?.mode === "force"
       ? []
@@ -141,7 +144,19 @@ function hasSharedIdentity(row: AgentTimelineRow, provider: AgentTimelineItem): 
 function structurallyMatches(left: AgentTimelineItem, right: AgentTimelineItem): boolean {
   if (left.type === "user_message" && right.type === "user_message")
     return left.text === right.text;
-  return isDeepStrictEqual(left, right);
+  // Projection merges spell absent fields as explicit `undefined` (tool `metadata`); the
+  // provider replay omits them. Both mean the same item.
+  return isDeepStrictEqual(withoutUndefinedFields(left), withoutUndefinedFields(right));
+}
+
+function withoutUndefinedFields(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutUndefinedFields);
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, field]) => field !== undefined)
+      .map(([key, field]) => [key, withoutUndefinedFields(field)]),
+  );
 }
 
 function mergeCanonicalIdentity(

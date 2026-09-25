@@ -206,9 +206,8 @@ async function connect(input: {
     reconnect: { enabled: false },
   });
   await client.connect();
-  await client.fetchAgents({
-    subscribe: { subscriptionId: `selective-timeline:${input.clientId}` },
-  });
+  // Subscription IDs are host-assigned since 0.9.
+  await client.fetchAgents({ subscribe: {} });
   const connected = new ConnectedClient(client, socket);
   clients.push(connected);
   return connected;

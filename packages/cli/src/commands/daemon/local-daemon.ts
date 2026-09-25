@@ -136,7 +136,7 @@ const REMOVED_LAUNCH_FLAGS: Record<string, string> = {
   "--foreground": "",
 };
 
-// COMPAT(legacyForegroundLaunchFlags): added in v0.9.2-paseo.60, remove after the web-cli installer launches with paseo daemon run
+// COMPAT(legacyForegroundLaunchFlags): added in v0.9.2-paseo.60, remove after 2027-03-25 once the web-cli installer launches with paseo daemon run
 // The downstream web-cli service units (launchd, systemd, Windows) and artifact smokes launch
 // `paseo daemon start --foreground --listen <host:port> --web-ui --no-relay`. With --foreground,
 // `daemon start` accepts exactly these flags and runs the `daemon run` foreground path with the
@@ -152,12 +152,12 @@ const LEGACY_FOREGROUND_LAUNCH_FLAGS = new Set([
   "--no-relay",
 ]);
 
-// COMPAT(legacyForegroundLaunchFlags): added in v0.9.2-paseo.60, remove after the web-cli installer launches with paseo daemon run
+// COMPAT(legacyForegroundLaunchFlags): added in v0.9.2-paseo.60, remove after 2027-03-25 once the web-cli installer launches with paseo daemon run
 export function isLegacyForegroundLaunch(command: Command): boolean {
   return command.getOptionValueSource("foreground") === "cli";
 }
 
-// COMPAT(legacyForegroundLaunchFlags): added in v0.9.2-paseo.60, remove after the web-cli installer launches with paseo daemon run
+// COMPAT(legacyForegroundLaunchFlags): added in v0.9.2-paseo.60, remove after 2027-03-25 once the web-cli installer launches with paseo daemon run
 export function legacyForegroundLaunchEnv(command: Command): NodeJS.ProcessEnv {
   const options = command.opts<{
     listen?: string;
@@ -181,7 +181,7 @@ export function rejectRemovedLaunchFlags(
   for (const flag of Object.keys(REMOVED_LAUNCH_FLAGS))
     command.addOption(new Option(flag).hideHelp());
   command.hook("preAction", () => {
-    // COMPAT(legacyForegroundLaunchFlags): added in v0.9.2-paseo.60, remove after the web-cli installer launches with paseo daemon run
+    // COMPAT(legacyForegroundLaunchFlags): added in v0.9.2-paseo.60, remove after 2027-03-25 once the web-cli installer launches with paseo daemon run
     const legacyForeground =
       options.allowLegacyForegroundLaunch === true && isLegacyForegroundLaunch(command);
     for (const [flag, configPath] of Object.entries(REMOVED_LAUNCH_FLAGS)) {

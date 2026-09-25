@@ -6369,6 +6369,90 @@ test("repairs transient durable timeline failures before Lead handoff closure", 
   }
 });
 
+test("resumed history keeps durable sequence numbers contiguous for later live rows", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-durable-resume-seq-"));
+  const storage = new AgentStorage(join(workdir, "agents"), logger);
+  const durableStore = new FileAgentTimelineStore(join(workdir, "timelines"));
+  const toolCall = (status: "running" | "completed"): AgentTimelineItem => ({
+    type: "tool_call",
+    callId: "call-1",
+    name: "Bash",
+    status,
+    detail: { type: "unknown", input: null, output: null },
+    error: null,
+  });
+  // Streamed chunks and tool updates project into fewer rows than their source sequences.
+  const history: AgentTimelineItem[] = [
+    { type: "user_message", text: "hi", messageId: "m1" },
+    { type: "assistant_message", text: "Hel" },
+    { type: "assistant_message", text: "lo" },
+    toolCall("running"),
+    toolCall("completed"),
+    { type: "assistant_message", text: "done" },
+  ];
+  // Provider history replays whole messages and final tool states, like the projection.
+  const replay: AgentTimelineItem[] = [
+    { type: "user_message", text: "hi", messageId: "m1" },
+    { type: "assistant_message", text: "Hello" },
+    toolCall("completed"),
+    { type: "assistant_message", text: "done" },
+  ];
+  class ReplayingSession extends TestAgentSession {
+    override async *streamHistory(): AsyncGenerator<AgentStreamEvent> {
+      for (const item of replay) yield { type: "timeline", provider: "codex", item };
+    }
+  }
+  class ReplayingClient extends TestAgentClient {
+    override async createSession(config: AgentSessionConfig): Promise<AgentSession> {
+      return new ReplayingSession(config);
+    }
+
+    override async resumeSession(
+      _handle: AgentPersistenceHandle,
+      config?: Partial<AgentSessionConfig>,
+    ): Promise<AgentSession> {
+      return new ReplayingSession({ provider: "codex", cwd: config?.cwd ?? workdir });
+    }
+  }
+  const manager = new AgentManager({
+    clients: { codex: new ReplayingClient() },
+    registry: storage,
+    durableTimelineStore: durableStore,
+    logger,
+  });
+  const agentId = "00000000-0000-4000-8000-000000000160";
+
+  try {
+    await manager.createAgent({ provider: "codex", cwd: workdir }, agentId, {
+      workspaceId: undefined,
+    });
+    for (const item of history) await manager.appendTimelineItem(agentId, item);
+    await manager.flush();
+
+    await manager.reloadAgentSession(agentId, undefined, { rehydrateFromDisk: true });
+    await manager.hydrateTimelineFromProvider(agentId, { broadcast: true });
+    await manager.appendTimelineItem(agentId, {
+      type: "user_message",
+      text: "next",
+      messageId: "m2",
+    });
+    await manager.flush();
+
+    const rows = await durableStore.getCommittedRows(agentId);
+    expect(rows.map((row) => row.item)).toEqual([
+      ...replay,
+      { type: "user_message", text: "next", messageId: "m2" },
+    ]);
+    expect(rows.map((row) => row.seq)).toEqual([1, 2, 3, 4, 5]);
+    for (const row of rows) expect(row).not.toHaveProperty("seqStart");
+  } finally {
+    await manager.closeAgent(agentId).catch(() => undefined);
+    await manager.flush().catch(() => undefined);
+    await storage.flush().catch(() => undefined);
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
+
 test("retries a pre-manifest timeline failure before Lead handoff closure", async () => {
   const workdir = mkdtempSync(join(tmpdir(), "agent-manager-handoff-manifest-repair-"));
   const storage = new AgentStorage(join(workdir, "agents"), logger);

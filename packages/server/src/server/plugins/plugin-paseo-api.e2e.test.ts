@@ -7,7 +7,7 @@ import { afterEach, expect, test } from "vitest";
 import { z } from "zod";
 import { DaemonClient } from "../test-utils/daemon-client.js";
 import { createTestPaseoDaemon } from "../test-utils/paseo-daemon.js";
-import { createTestAgentClient, createTestAgentClients } from "../test-utils/fake-agent-client.js";
+import { createTestAgentClients } from "../test-utils/fake-agent-client.js";
 
 const roots: string[] = [];
 
@@ -57,7 +57,7 @@ export default function contribute(server: PluginServerContext) {
       title: "Plugin workspace",
     });
     const agent = await workspace.agents.create({
-      config: { provider: "pi/test" },
+      config: { provider: "codex/test" },
       prompt: "Created by a plugin handler",
     });
     return { workspaceId: workspace.id, agentId: agent.id };
@@ -80,7 +80,7 @@ export default function contribute(server: PluginServerContext) {
   );
 
   const daemon = await createTestPaseoDaemon({
-    agentClients: { ...createTestAgentClients(), pi: createTestAgentClient("pi") },
+    agentClients: createTestAgentClients(),
   });
   const client = new DaemonClient({
     url: `ws://127.0.0.1:${daemon.port}/ws`,

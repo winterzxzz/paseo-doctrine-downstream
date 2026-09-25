@@ -3,6 +3,9 @@ import { z } from "zod";
 export const PeerSubroleSchema = z.enum(["scout", "engineer", "reviewer", "architect"]);
 export type PeerSubrole = z.infer<typeof PeerSubroleSchema>;
 
+export const PeerDelegationRunModeSchema = z.enum(["guarded", "unattended"]);
+export type PeerDelegationRunMode = z.infer<typeof PeerDelegationRunModeSchema>;
+
 /**
  * A named launch bundle: a provider plus the agent-config values a client would
  * otherwise set one control at a time. Field names mirror `AgentSessionConfig`

@@ -14,7 +14,7 @@ import { withOutput, type CommandOptions, type SingleResult } from "../../output
 type StartResult = SingleResult<Record<string, unknown>>;
 
 export function startCommand(): Command {
-  // COMPAT(legacyForegroundLaunchFlags): added in v0.9.2-paseo.60, remove after the web-cli installer launches with paseo daemon run
+  // COMPAT(legacyForegroundLaunchFlags): added in v0.9.2-paseo.60, remove after 2027-03-25 once the web-cli installer launches with paseo daemon run
   return rejectRemovedLaunchFlags(addLocalDaemonOptions(new Command("start")), {
     allowLegacyForegroundLaunch: true,
   })
@@ -26,7 +26,7 @@ export function startCommand(): Command {
 export async function runStart(options: CommandOptions, command: Command): Promise<StartResult> {
   if (options.daemonTarget.kind !== "instance") throw new Error("Start requires a local home");
   const home = options.daemonTarget.home;
-  // COMPAT(legacyForegroundLaunchFlags): added in v0.9.2-paseo.60, remove after the web-cli installer launches with paseo daemon run
+  // COMPAT(legacyForegroundLaunchFlags): added in v0.9.2-paseo.60, remove after 2027-03-25 once the web-cli installer launches with paseo daemon run
   if (isLegacyForegroundLaunch(command)) {
     return runForegroundDaemon(home, legacyForegroundLaunchEnv(command));
   }

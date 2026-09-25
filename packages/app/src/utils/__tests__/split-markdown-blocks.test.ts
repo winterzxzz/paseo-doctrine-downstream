@@ -98,9 +98,12 @@ describe("splitMarkdownBlocks", () => {
     ]);
   });
 
-  it("recognizes every destination the renderer accepts, including escaped spaces", () => {
+  it("recognizes exactly the destinations the renderer accepts", () => {
+    // The downstream renderer is injected with Markdown-It 14, which rejects an escaped
+    // space in a bare destination; that line renders as text and stays its own block.
     expect(splitMarkdownBlocks("See [docs].\n\n[docs]: docs\\ folder/readme")).toEqual([
-      "See [docs].\n\n[docs]: docs\\ folder/readme",
+      "See [docs].",
+      "[docs]: docs\\ folder/readme",
     ]);
     expect(splitMarkdownBlocks("See [docs].\n\n[docs]: <docs folder/readme> 'Title'")).toEqual([
       "See [docs].\n\n[docs]: <docs folder/readme> 'Title'",

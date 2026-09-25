@@ -1211,8 +1211,10 @@ describe("Codex app-server provider", () => {
     await session.startTurn("trigger thread creation");
 
     const startCall = requests.find((req) => req.method === "thread/start");
+    // Downstream Read-only never asks for escalation: a no-write lease cannot be widened
+    // by an approval prompt.
     expect(startCall?.params).toMatchObject({
-      approvalPolicy: "on-request",
+      approvalPolicy: "never",
       sandbox: "read-only",
       approvalsReviewer: "user",
     });
@@ -2132,7 +2134,7 @@ describe("Codex app-server provider", () => {
     }
   });
 
-  test("defers runtime config during history load and applies it on the first interactive use", async () => {
+  test("reads role-bound archived history without resuming the thread or applying runtime config", async () => {
     const threadRequests: Array<{ method: string; params: unknown }> = [];
     const appServer = createFakeCodexAppServer({
       "thread/loaded/list": () => ({ data: ["archived-thread-id"] }),
@@ -2163,25 +2165,9 @@ describe("Codex app-server provider", () => {
       { purpose: "history" },
     );
 
+    // A history session is a read-only snapshot; unarchive resumes a fresh interactive one.
     expect(threadRequests).toEqual([
       { method: "thread/read", params: { threadId: "archived-thread-id", includeTurns: true } },
-    ]);
-    await session.startTurn("interactive after history read");
-    appServer.completeTurn();
-    expect(threadRequests).toEqual([
-      { method: "thread/read", params: { threadId: "archived-thread-id", includeTurns: true } },
-      {
-        method: "thread/resume",
-        params: expect.objectContaining({
-          threadId: "archived-thread-id",
-          developerInstructions: expect.stringContaining("Bound Lead instructions"),
-          config: expect.objectContaining({
-            mcp_servers: expect.objectContaining({
-              paseo: expect.objectContaining({ required: true }),
-            }),
-          }),
-        }),
-      },
     ]);
     await session.close();
     appServer.assertNoErrors();

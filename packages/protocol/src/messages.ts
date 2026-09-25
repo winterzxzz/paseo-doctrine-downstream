@@ -2,18 +2,23 @@ import {
   AgentProfileLaunchReceiptSchema,
   AgentProfileSchema,
   AgentSkillSelectionSchema,
+  PeerDelegationRunModeSchema,
   PeerSubroleSchema,
 } from "./agent-profile.js";
 export {
   AgentProfileLaunchReceiptSchema,
   AgentProfileSchema,
   AgentSkillSelectionSchema,
+  PeerDelegationRunModeSchema,
   PeerSubroleSchema,
   type AgentProfile,
   type AgentProfileLaunchReceipt,
   type AgentSkillSelection,
+  type PeerDelegationRunMode,
   type PeerSubrole,
 } from "./agent-profile.js";
+import { BeadsCentralEndpointSchema, FoundationCredentialRefSchema } from "./foundation-config.js";
+export { BeadsCentralEndpointSchema, FoundationCredentialRefSchema } from "./foundation-config.js";
 import { PluginIdSchema, PluginRequirementsSchema, PluginSourceSchema } from "./plugin-config.js";
 export {
   PluginIdSchema,
@@ -249,9 +254,6 @@ export const PeerDelegationModelRouteSchema = z
 
 export type PeerDelegationModelRoute = z.infer<typeof PeerDelegationModelRouteSchema>;
 
-export const PeerDelegationRunModeSchema = z.enum(["guarded", "unattended"]);
-export type PeerDelegationRunMode = z.infer<typeof PeerDelegationRunModeSchema>;
-
 const MutablePeerDelegationConfigSchema = z
   .object({
     enabled: z.boolean(),
@@ -270,22 +272,6 @@ const MutableRelayConfigSchema = z
     enabled: z.boolean(),
   })
   .passthrough();
-export const FoundationCredentialRefSchema = z.string().regex(/^[a-z][a-z0-9-]{0,63}$/u);
-export const BeadsCentralEndpointSchema = z.url().superRefine((value, context) => {
-  const endpoint = new URL(value);
-  if (endpoint.protocol !== "http:" && endpoint.protocol !== "https:") {
-    context.addIssue({
-      code: "custom",
-      message: "Beads Central endpoint must use http or https",
-    });
-  }
-  if (endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
-    context.addIssue({
-      code: "custom",
-      message: "Beads Central endpoint must not contain credentials, query, or fragment",
-    });
-  }
-});
 const MutableBeadsCentralConfigSchema = z
   .object({
     endpoint: BeadsCentralEndpointSchema.default("http://127.0.0.1:6769"),

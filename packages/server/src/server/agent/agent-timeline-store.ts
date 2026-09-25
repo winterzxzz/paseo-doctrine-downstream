@@ -26,6 +26,22 @@ interface AgentTimelineState {
   nextSeq: number;
 }
 const DEFAULT_TIMELINE_FETCH_LIMIT = 200;
+
+/**
+ * Projected rows carry `seqStart`, `seqEnd` and merge metadata for one source range.
+ * Renumbering or persisting one must start from the canonical row, or the stale range
+ * survives re-projection and the store's next sequence disagrees with its rows.
+ */
+export function toCanonicalTimelineRow(row: AgentTimelineRow): AgentTimelineRow {
+  return {
+    seq: row.seq,
+    timestamp: row.timestamp,
+    item: row.item,
+    ...(row.turnId ? { turnId: row.turnId } : {}),
+    ...(row.providerMessageId ? { providerMessageId: row.providerMessageId } : {}),
+  };
+}
+
 function cloneRow<T extends AgentTimelineRow>(row: T): T {
   return { ...row };
 }

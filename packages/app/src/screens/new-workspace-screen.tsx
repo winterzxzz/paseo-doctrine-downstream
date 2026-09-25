@@ -1058,8 +1058,6 @@ async function createWorkspaceChatAgent(input: CreateChatAgentInput): Promise<Su
         clientMessageId: initialAgent.clientMessageId,
         images: request.images,
         attachments: request.attachments,
-        ...(request.roleId ? { roleId: request.roleId } : {}),
-        ...(request.assignment ? { assignment: request.assignment } : {}),
       }),
   };
   await agentCreation.result;

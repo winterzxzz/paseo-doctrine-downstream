@@ -275,7 +275,12 @@ async function submitDraftCreateRequest(input: {
     ...(attachmentsArray && attachmentsArray.length > 0 ? { attachments: attachmentsArray } : {}),
   };
   const creation = useWorkspaceDraftSubmissionStore.getState().creationByDraftId[input.draftId];
-  const result = creation ? await creation.retry(options) : await client.createAgent(options);
+  // A combined workspace+agent create cannot change its body under the same key. A role chosen
+  // on retry creates the agent directly in the workspace this tab already belongs to.
+  const result =
+    creation && !roleIntent.roleId
+      ? await creation.retry(options)
+      : await client.createAgent(options);
 
   assertRoleLaunchReceipt(result, roleIntent.roleId);
 

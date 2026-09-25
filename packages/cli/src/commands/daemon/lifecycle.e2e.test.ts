@@ -181,7 +181,7 @@ test("removed flags and ambiguous targets fail before side effects; observation 
     expect(existsSync(home)).toBe(false);
     for (const args of [
       ["start", "--port", "12345"],
-      // COMPAT(legacyForegroundLaunchFlags): added in v0.9.2-paseo.60, remove after the web-cli installer launches with paseo daemon run
+      // COMPAT(legacyForegroundLaunchFlags): added in v0.9.2-paseo.60, remove after 2027-03-25 once the web-cli installer launches with paseo daemon run
       // Upstream rejects a bare `start --foreground`; downstream runs it as `daemon run`, so the
       // rejection cases here are the flags the shim still refuses.
       ["start", "--web-ui"],

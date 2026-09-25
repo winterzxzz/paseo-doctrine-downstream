@@ -301,19 +301,25 @@ export function WorkspaceSetupDialog() {
         input,
       });
 
-      if (payload.error || !payload.workspace) {
+      // Remember a created workspace even when its agent step failed: a retry that now
+      // carries a role creates the agent separately instead of replaying this request.
+      const normalizedWorkspace = payload.workspace
+        ? normalizeWorkspaceDescriptor(payload.workspace)
+        : null;
+      if (normalizedWorkspace) {
+        mergeWorkspaces(pendingWorkspaceSetup.serverId, [normalizedWorkspace]);
+        if (pendingWorkspaceSetup.creationMethod === "open_project") {
+          setHasHydratedWorkspaces(pendingWorkspaceSetup.serverId, true);
+        }
+        setCreatedWorkspace(normalizedWorkspace);
+      }
+      if (payload.error || !normalizedWorkspace) {
         throw new Error(
           payload.error ?? failureMessageForCreationMethod(pendingWorkspaceSetup.creationMethod, t),
         );
       }
 
       if (payload.agent) input.onAgentCreated?.(payload.agent);
-      const normalizedWorkspace = normalizeWorkspaceDescriptor(payload.workspace);
-      mergeWorkspaces(pendingWorkspaceSetup.serverId, [normalizedWorkspace]);
-      if (pendingWorkspaceSetup.creationMethod === "open_project") {
-        setHasHydratedWorkspaces(pendingWorkspaceSetup.serverId, true);
-      }
-      setCreatedWorkspace(normalizedWorkspace);
       return normalizedWorkspace;
     },
     [

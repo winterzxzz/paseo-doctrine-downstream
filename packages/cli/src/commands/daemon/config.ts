@@ -7,7 +7,22 @@ import {
   editPersistedConfig,
 } from "@getpaseo/server/configuration";
 import { connectToDaemon } from "../../utils/client.js";
-import { withOutput, type CommandOptions } from "../../output/index.js";
+import { withOutput, type CommandError, type CommandOptions } from "../../output/index.js";
+
+// Daemon settings carry plugin, Hub, role-profile and delegation authority, so only a
+// Human changes them; the daemon config RPC stays behind `daemon.manage`.
+export function assertDaemonConfigHumanContext(
+  env: { PASEO_AGENT_ID?: string } = process.env,
+): void {
+  const callerAgentId = env.PASEO_AGENT_ID?.trim();
+  if (!callerAgentId) return;
+  throw {
+    code: "DAEMON_CONFIG_HUMAN_REQUIRED",
+    message:
+      "Daemon configuration is Human-owned. Paseo agents cannot set or unset daemon settings.",
+    details: `Caller agent: ${callerAgentId}`,
+  } satisfies CommandError;
+}
 
 function redact(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(redact);
@@ -94,6 +109,7 @@ export function daemonConfigCommand(): Command {
     .option("--string", "Interpret value literally as a string")
     .action(
       withOutput(async (field: string, raw: string, options: CommandOptions, _command: Command) => {
+        assertDaemonConfigHumanContext();
         let value: unknown = raw;
         if (!options.string) {
           try {
@@ -108,6 +124,7 @@ export function daemonConfigCommand(): Command {
     );
   addLocalDaemonOptions(config.command("unset <path>")).action(
     withOutput(async (field: string, options: CommandOptions, _command: Command) => {
+      assertDaemonConfigHumanContext();
       editPersistedConfig(homeOf(options), field, { unset: true });
       return applySaved(homeOf(options), options);
     }),

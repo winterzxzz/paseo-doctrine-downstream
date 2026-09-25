@@ -7,7 +7,7 @@ import { z } from "zod";
 
 import { writeJsonFileAtomic } from "../atomic-file.js";
 import type { AgentTimelineItem } from "./agent-sdk-types.js";
-import { InMemoryAgentTimelineStore } from "./agent-timeline-store.js";
+import { InMemoryAgentTimelineStore, toCanonicalTimelineRow } from "./agent-timeline-store.js";
 import type {
   AgentTimelineFetchOptions,
   AgentTimelineFetchResult,
@@ -158,7 +158,9 @@ export class FileAgentTimelineStore implements AgentTimelineStore {
       await this.prepare(agentId);
       const current = this.canonicalFor(agentId);
       const existingBySeq = new Map(current.rows.map((row) => [row.seq, row]));
-      const uniqueRows = [...new Map(rows.map((row) => [row.seq, row])).values()];
+      const uniqueRows = [
+        ...new Map(rows.map((row) => [row.seq, toCanonicalTimelineRow(row)])).values(),
+      ];
       for (const row of uniqueRows) {
         const existing = existingBySeq.get(row.seq);
         if (existing && !isDeepStrictEqual(existing, row)) {
@@ -178,15 +180,16 @@ export class FileAgentTimelineStore implements AgentTimelineStore {
     return this.withAgent(agentId, async () => {
       await this.prepare(agentId);
       const { epoch } = this.canonicalFor(agentId);
-      const rows = [...new Map(snapshot.rows.map((row) => [row.seq, row])).values()].toSorted(
-        (left, right) => left.seq - right.seq,
-      );
+      const rows = [
+        ...new Map(snapshot.rows.map((row) => [row.seq, toCanonicalTimelineRow(row)])).values(),
+      ].toSorted((left, right) => left.seq - right.seq);
       await this.persistReplacement(agentId, epoch, rows, snapshot.historyComplete);
       this.replaceMemory(agentId, epoch, rows, snapshot.historyComplete);
     });
   }
 
-  async updateCommittedRow(agentId: string, row: AgentTimelineRow): Promise<void> {
+  async updateCommittedRow(agentId: string, update: AgentTimelineRow): Promise<void> {
+    const row = toCanonicalTimelineRow(update);
     return this.withAgent(agentId, async () => {
       await this.prepare(agentId);
       const current = this.canonicalFor(agentId);

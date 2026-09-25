@@ -70,6 +70,7 @@ import {
 import type { AgentOwner } from "./agent-owner.js";
 import {
   InMemoryAgentTimelineStore,
+  toCanonicalTimelineRow,
   type SeedAgentTimelineOptions,
 } from "./agent-timeline-store.js";
 import type {
@@ -2076,11 +2077,12 @@ export class AgentManager {
       this.assertAcceptingAgentRegistrations();
 
       if (rehydrateFromDisk) {
-        // Wipe the in-memory timeline so registerSession mints a new epoch and
-        // hydrateTimelineFromProvider re-streams the freshly read provider history.
-        // The committed timeline stays until a complete replay replaces it, so a
-        // failed replay leaves the durable history intact.
+        // Start an empty in-memory timeline under a new epoch so
+        // hydrateTimelineFromProvider replays the freshly read provider history as the
+        // whole transcript. The committed timeline stays until a complete replay
+        // replaces it, so a failed replay leaves the durable history intact.
         this.timelineStore.delete(agentId);
+        this.timelineStore.initialize(agentId, { timestamp: new Date().toISOString() });
         for (const event of this.providerSubagents.deleteParent(agentId)) {
           this.dispatch({ type: "provider_subagent", event });
         }
@@ -4660,7 +4662,7 @@ export class AgentManager {
     }
 
     const reconciledRows = reconcileProviderHistory(
-      this.timelineStore.getRows(agent.id),
+      await this.canonicalTimelineRows(agent.id),
       historyEvents.map((event) => ({ item: event.item, timestamp: event.timestamp })),
       { mode: "force" },
     );
@@ -4685,7 +4687,7 @@ export class AgentManager {
     if (broadcastTimeline) {
       this.dispatchReconciledTimelineRows(agent, reconciledRows);
     }
-    await this.commitCompleteHistorySnapshot(agent.id);
+    await this.commitCompleteHistorySnapshot(agent.id, reconciledRows);
     agent.historyPrimed = true;
     this.touchUpdatedAt(agent);
     this.emitState(agent);
@@ -4731,7 +4733,7 @@ export class AgentManager {
       }
 
       const reconciledRows = reconcileProviderHistory(
-        this.timelineStore.getRows(agent.id),
+        await this.canonicalTimelineRows(agent.id),
         historyEvents.map((event) => ({ item: event.item, timestamp: event.timestamp })),
       );
       this.timelineStore.initialize(agent.id, {
@@ -4743,7 +4745,7 @@ export class AgentManager {
       } else if (broadcast) {
         this.dispatchReconciledTimelineRows(agent, reconciledRows);
       }
-      await this.commitCompleteHistorySnapshot(agent.id);
+      await this.commitCompleteHistorySnapshot(agent.id, reconciledRows);
       agent.historyPrimed = true;
     } catch (error) {
       this.logger.warn(
@@ -4786,11 +4788,26 @@ export class AgentManager {
     }
   }
 
-  private async commitCompleteHistorySnapshot(agentId: string): Promise<void> {
+  // Reconciliation matches provider history item by item, so it needs the canonical rows.
+  // The in-memory store keeps only projected rows (streamed chunks already merged); the
+  // durable store keeps one row per source event.
+  private async canonicalTimelineRows(agentId: string): Promise<AgentTimelineRow[]> {
+    const retained = this.timelineStore.getRows(agentId);
+    if (retained.length === 0 || !this.durableTimelineStore) return retained;
+    await this.durableTimelineBuffer?.flush(agentId);
+    return this.durableTimelineStore.getCommittedRows(agentId);
+  }
+
+  // The durable transcript is canonical. Callers that just reconciled history pass those
+  // rows; otherwise the retained projection is reduced to one canonical row per item.
+  private async commitCompleteHistorySnapshot(
+    agentId: string,
+    rows: readonly AgentTimelineRow[] = this.timelineStore.getRows(agentId),
+  ): Promise<void> {
     if (!this.durableTimelineStore) return;
     await this.durableTimelineBuffer?.flush(agentId);
     await this.durableTimelineStore.replaceCommittedSnapshot(agentId, {
-      rows: this.timelineStore.getRows(agentId),
+      rows: rows.map(toCanonicalTimelineRow),
       historyComplete: true,
     });
   }
