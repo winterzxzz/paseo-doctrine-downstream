@@ -48,6 +48,8 @@ Trong workspace, chọn role **Lead**, chọn exact provider/model đã discover
 
 ```text
 Objective: <observable outcome>
+Rationale: <Human outcome mà objective phục vụ; optional>
+Open assumptions: <giả định chưa kiểm chứng; optional>
 Authority: <exact write owner và scope | no-write; external effects>
 Evidence: <behavior/checks phải quan sát>
 Handback/stop: <stable artifact, completion hoặc blocker>

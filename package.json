@@ -64,6 +64,7 @@
     "build:daemon-web-ui": "node scripts/build-daemon-web-ui.mjs",
     "build:macos-web-cli-artifact": "node scripts/build-macos-web-cli-artifact.mjs",
     "build:web-cli-artifact": "node scripts/build-macos-web-cli-artifact.mjs",
+    "test:compat-expiry": "node --test scripts/compat-expiry.test.mjs",
     "test:install-macos": "node --test scripts/install-macos.test.mjs",
     "test:macos-web-cli-artifact": "node --test scripts/d3-color-hardened-intrinsics.test.mjs && scripts/smoke-macos-web-cli-artifact.sh",
     "test:web-cli-artifact": "node scripts/smoke-web-cli-artifact.mjs",

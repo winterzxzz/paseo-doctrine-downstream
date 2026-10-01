@@ -85,8 +85,9 @@ A shim that exists for old-app or old-daemon support carries a comment naming it
 - One tag per shim, at the site that has to be deleted.
 - Give it a name, a version, and a removal condition or date. Six months out is the usual default.
 - Never bury compatibility in an untagged `??` fallback or an optional-chain tunnel. Untagged back-compat never gets removed, because nobody can find it.
+- Every new tag carries a `YYYY-MM-DD` date or a `floor >= vX.Y.Z` condition. `npm run test:compat-expiry` (the `compat-expiry` CI job) fails on a new undated tag and on any tag more than 14 days past its date; it logs tags due within 30 days. Shims that predate the rule are listed in `scripts/compat-expiry.baseline.json` as `path::name`; the writer only keeps entries already present, so the list can only shrink, and it refuses to create a missing baseline unless `COMPAT_EXPIRY_SEED_BASELINE=1` is set on purpose.
 
-When a tag's condition is met, delete the shim and the tag in the same change.
+When a tag's condition is met, delete the shim and the tag in the same change. When the date passes but the condition is still unverified, re-date it in the same comment with the observable readback that would close it; an expired tag is a decision, not a reminder.
 
 ## QA
 

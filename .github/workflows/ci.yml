@@ -55,6 +55,21 @@ jobs:
       - name: Validate CI contracts
         run: node --test scripts/agent-instructions.test.mjs scripts/ci-workflow.test.mjs scripts/daemon-launch-contract.test.mjs scripts/downstream-publish-guard.test.mjs scripts/sync-fdroid-changelogs.test.mjs scripts/upload-release-assets.test.mjs
 
+  compat-expiry:
+    name: compat-expiry
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.outputs.full != 'false' || needs.changes.outputs.quality != 'false') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Check COMPAT shim expiry
+        run: npm run test:compat-expiry
+
   format:
     name: format
     needs: changes

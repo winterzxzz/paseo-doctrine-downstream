@@ -206,9 +206,11 @@ function resolveConfiguredACPRoleBindingSupport(
   return null;
 }
 
-// COMPAT(legacyProviderRoleDetection): fail-closed migration guard only. Delete after
-// 2026-09-30 together with Foundation legacy role-link inventory; no installer creates these.
-export const LEGACY_PROVIDER_ROLE_DETECTION_EXPIRES_AT = "2026-09-30";
+// COMPAT(legacyProviderRoleDetection): fail-closed migration guard only. Remove after
+// 2027-03-31 together with the Foundation legacy role-link inventory, once every supported
+// install reports no `legacy-owned` link; the 2026-09-30 deadline lapsed with that readback
+// still missing. No installer creates these.
+export const LEGACY_PROVIDER_ROLE_DETECTION_EXPIRES_AT = "2027-03-31";
 
 export function detectLegacyProviderRole(
   command: readonly string[] | undefined,

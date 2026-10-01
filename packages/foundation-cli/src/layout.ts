@@ -112,9 +112,11 @@ export function resolveInstallLayout(input: {
   };
 }
 
-// COMPAT(legacyRoleLinks): detection/removal only. Delete this inventory after 2026-09-30
-// once supported installs have crossed the native role-binding migration window.
-export const LEGACY_ROLE_LINK_MIGRATION_EXPIRES_AT = "2026-09-30";
+// COMPAT(legacyRoleLinks): detection/removal only. Remove after 2027-03-31 once
+// `paseo-foundation inspect` on every supported install reports no `legacy-owned` link.
+// The 2026-09-30 deadline lapsed with that readback still missing, so the inventory stays
+// until the condition is observed rather than assumed.
+export const LEGACY_ROLE_LINK_MIGRATION_EXPIRES_AT = "2027-03-31";
 
 export function legacyRoleLinks(input: {
   home: string;

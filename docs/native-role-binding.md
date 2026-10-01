@@ -49,8 +49,8 @@ createdAt
 Client gửi `roleId` cùng một caller-authored `AssignmentEnvelope`; client không gửi hoặc sửa
 materialized instruction. Daemon validate chéo role/disposition, effect/write boundary, issuer,
 workspace, expiry và protocol exception rồi tạo immutable `AssignmentContract` có digest. Receipt
-secret-safe được persist cùng `RoleBinding`; exact objective, evidence, handback và stop condition được
-chèn vào durable role instruction. Resume/reload dùng exact persisted binding, không resolve lại từ
+secret-safe được persist cùng `RoleBinding`; exact objective, optional rationale/open assumptions,
+evidence, handback và stop condition được chèn vào durable role instruction. Resume/reload dùng exact persisted binding, không resolve lại từ
 catalog hiện tại và không nhận role/system-prompt override.
 
 Ngay trước launch, daemon compose `RoleBinding` với exact provider route thành một immutable

@@ -95,13 +95,19 @@ dùng private credential. Agent tự khai role hoặc provider catalog không th
 
 ```text
 Objective: <observable outcome, không pre-solve solution>
+Rationale: <Human outcome mà objective phục vụ; tách khỏi solution đang thử>
+Open assumptions: <giả định chưa kiểm chứng; assignee được reopen bằng evidence>
 Authority: <exact write Owner và scope | no-write; external effects>
 Evidence: <behavior/checks cần quan sát>
 Handback/stop: <stable artifact, completion hoặc blocker condition>
 ```
 
-Chỉ thêm disposition, excluded scope, stable review input, escalation trigger hoặc bounded routing
-override khi chúng làm thay đổi execution. Routing override cần exact reason, `applies_to` và expiry; nó
+`Rationale` và `Open assumptions` là optional trong envelope (`rationale`, `openAssumptions`); hiện chỉ
+`paseo agent run --rationale/--open-assumptions` và MCP `create_agent` truyền chúng, WebUI chưa có ô nhập. Chúng
+nên có khi task là một candidate solution: Peer nhận "implement WebSocket server" sẽ tối ưu WebSocket;
+Peer nhận thêm "browser phải thấy call state trước khi đổ chuông; WebSocket chỉ là candidate" mới có
+căn cứ để nói hướng hiện tại sai. Chỉ thêm disposition, excluded scope, stable review input,
+escalation trigger hoặc bounded routing override khi chúng làm thay đổi execution. Routing override cần exact reason, `applies_to` và expiry; nó
 hết hiệu lực ở handback/stop.
 
 ## Cách vận hành từng role

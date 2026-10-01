@@ -160,10 +160,33 @@ learning, nhưng project repository vẫn sở hữu protocol, product truth và
 - thêm reviewer, council hoặc protocol chỉ để đủ ceremony;
 - dùng bounded attention question của Supervisor như command chain tới Peer hoặc quyết định product;
 - coi provider/model/mode là authority;
-- expose mọi skill cho mọi role.
+- expose mọi skill cho mọi role;
+- chia plan thành phase trung gian mà hệ thống không cần, rồi để code tạm của phase đó sống thành
+  convention.
 
 Khi chưa đủ evidence, giữ kết luận là `UNKNOWN`, `BLOCKED` hoặc `REOPEN`; không lấp chỗ trống bằng
 inference thuận tiện.
+
+### Intermediate-state debt
+
+Đây là anti-pattern downstream bổ sung cho catalog §8 của Deep Dive; chưa được upstream vào
+Foundation nên ghi ở đây cho tới khi có Foundation tag mới.
+
+**Dấu hiệu:** plan có nhiều phase nhưng mọi consumer nằm trong cùng codebase và sửa được trong một
+vòng; adapter, dual path hoặc compat layer tồn tại vì plan chia phase chứ không vì production cần;
+`COMPAT` không ngày hoặc đã quá hạn; agent sau coi đường tạm là architecture hợp lệ và thêm test bảo vệ
+nó.
+
+**Cơ chế:** mỗi agent nhìn code hiện tại như specification. Context "cái này chỉ để migrate" không đi
+cùng source, nên code tạm có test xanh tự tạo bằng chứng giả rằng nó quan trọng. Ví dụ đã ghi nhận:
+[audit SLP bundled policy pack](slp-bundled-policy-pack-audit.md), mục "Cập nhật F-04 (Phase 2A)",
+một module compat "xóa sau migration window" sống qua hai generation vì thiếu ngày và owner.
+
+**Phản ứng:** với mỗi phase hỏi "bỏ phase này, làm thẳng tới trạng thái cuối thì mất gì?"; nếu đáp án
+chỉ là "plan xấu đi" thì gộp. Phase chỉ hợp lệ khi phản ánh dependency thật: production migration,
+nhiều client độc lập, giả định cần prototype. Code tạm bắt buộc có `COMPAT` tag với ngày hoặc version
+floor; `npm run test:compat-expiry` fail khi tag mới thiếu ngày hoặc tag cũ quá hạn, ép quyết định
+xóa hoặc re-date có điều kiện quan sát được.
 
 ## Reading map
 

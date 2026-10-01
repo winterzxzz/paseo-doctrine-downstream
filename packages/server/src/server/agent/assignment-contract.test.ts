@@ -111,6 +111,49 @@ describe("immutable assignment contract", () => {
     );
   });
 
+  test("keeps a read-only Lead inspecting when Central is unavailable and blocks a mutating Lead", () => {
+    const readOnlyLead = materialize({ envelope: envelope() });
+    const mutatingLead = materialize({
+      envelope: envelope({
+        objective: "Apply the bounded fix.",
+        effectClass: "mutating",
+        mutationBoundary: { mode: "bounded-write", scope: "/repo" },
+        externalEffectBoundary: {
+          mode: "bounded",
+          scope:
+            "Beads Central issue/work graph for this assignment only; no other external effects",
+        },
+      }),
+    });
+
+    const readOnlyText = buildSlpAssignmentInstruction(readOnlyLead);
+    expect(readOnlyText).toContain("continue only the no-write inspection");
+    expect(readOnlyText).toContain("report issue state UNKNOWN");
+    expect(readOnlyText).not.toContain("report BLOCKED");
+
+    const mutatingText = buildSlpAssignmentInstruction(mutatingLead);
+    expect(mutatingText).toContain("If Central is unavailable, report BLOCKED");
+    expect(mutatingText).toContain("close only after your engineering verdict");
+  });
+
+  test("renders rationale and open assumptions only when the envelope carries them", () => {
+    const bare = buildSlpAssignmentInstruction(materialize({ envelope: envelope() }));
+    expect(bare).not.toContain("Rationale:");
+    expect(bare).not.toContain("Open assumptions:");
+
+    const framed = buildSlpAssignmentInstruction(
+      materialize({
+        envelope: envelope({
+          rationale: "The browser must learn call state early enough to ring.",
+          openAssumptions: "WebSocket is the candidate transport; SSE plus HTTP may suffice.",
+        }),
+      }),
+    );
+    expect(framed).toContain(
+      "Objective: Inspect the repository without mutation.\nRationale: The browser must learn call state early enough to ring.\nOpen assumptions: WebSocket is the candidate transport; SSE plus HTTP may suffice.\nMutation boundary: no-write",
+    );
+  });
+
   test("requires an issue grant only for a mutating Peer", () => {
     expect(
       materialize({

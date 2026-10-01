@@ -60,7 +60,7 @@ export function buildWorkspaceProtocolTemplate(repoRoot: string, now = new Date(
 - project policy: \`none\`; chỉ activate exact package + version + scope + authority + conflict rule bằng Human decision hoặc protocol revision mới.
 - review/evidence: focused checks và current diff là mặc định; independent review theo material risk; Lead/Human giữ acceptance authority.
 - escalation/Human decisions: dùng \`REOPEN\`, \`DEPENDENCY\` hoặc \`BLOCKED\` với evidence và exact decision cần Human chốt.
-- repository exceptions/anti-patterns: chưa ghi nhận exception riêng; không dựng control plane thứ hai, self-approve hoặc mở rộng lease từ tool/runtime capability.
+- repository exceptions/anti-patterns: chưa ghi nhận exception riêng; không dựng control plane thứ hai, self-approve hoặc mở rộng lease từ tool/runtime capability; không chia plan thành phase trung gian mà hệ thống không cần và không để code tạm tồn tại không có ngày hoặc điều kiện xóa quan sát được.
 `;
 }
 

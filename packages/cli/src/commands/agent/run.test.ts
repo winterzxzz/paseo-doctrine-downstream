@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildCliAssignment,
+  requireAssignmentFramingSupport,
   resolveExistingRunWorkspace,
+  validateAssignmentFramingOptions,
   resolveRunCallerAgentId,
   runRunCommand,
   type AgentRunOptions,
@@ -36,6 +38,62 @@ describe("CLI assignment issue grants", () => {
         scope: "Beads Central issue/work graph for this assignment only; no other external effects",
       },
     });
+  });
+});
+
+describe("CLI assignment framing", () => {
+  it("rejects framing flags without an assignment and rejects blank values", () => {
+    expect(() =>
+      validateAssignmentFramingOptions({ rationale: "why" } as AgentRunOptions, undefined),
+    ).toThrow(
+      expect.objectContaining({
+        code: "INVALID_OPTIONS",
+        message: "--rationale and --open-assumptions require --role and --assignment-effect",
+      }),
+    );
+    expect(() =>
+      validateAssignmentFramingOptions({ openAssumptions: "   " } as AgentRunOptions, "read-only"),
+    ).toThrow(expect.objectContaining({ message: "--open-assumptions cannot be blank" }));
+    expect(() =>
+      validateAssignmentFramingOptions({ rationale: "why" } as AgentRunOptions, "read-only"),
+    ).not.toThrow();
+  });
+
+  it("requires a host that advertises assignmentFraming only when framing flags are used", () => {
+    const oldHost = { getLastServerInfoMessage: () => ({ features: {} }) };
+    const newHost = { getLastServerInfoMessage: () => ({ features: { assignmentFraming: true } }) };
+    expect(() =>
+      requireAssignmentFramingSupport(oldHost, { rationale: "why" } as AgentRunOptions),
+    ).toThrow(expect.objectContaining({ code: "DAEMON_UPDATE_REQUIRED" }));
+    expect(() =>
+      requireAssignmentFramingSupport(newHost, { rationale: "why" } as AgentRunOptions),
+    ).not.toThrow();
+    expect(() => requireAssignmentFramingSupport(oldHost, {} as AgentRunOptions)).not.toThrow();
+  });
+
+  it("builds the envelope with trimmed rationale and open assumptions", () => {
+    expect(
+      buildCliAssignment({
+        roleId: "lead",
+        effectClass: "read-only",
+        objective: "Assess the realtime layer",
+        cwd: "/repo",
+        rationale: "  Browser must see call state before ringing  ",
+        openAssumptions: "WebSocket is only the candidate transport",
+      }),
+    ).toMatchObject({
+      rationale: "Browser must see call state before ringing",
+      openAssumptions: "WebSocket is only the candidate transport",
+    });
+    const bare = buildCliAssignment({
+      roleId: "lead",
+      effectClass: "read-only",
+      objective: "Assess the realtime layer",
+      cwd: "/repo",
+      rationale: "   ",
+    });
+    expect(bare).not.toHaveProperty("rationale");
+    expect(bare).not.toHaveProperty("openAssumptions");
   });
 });
 

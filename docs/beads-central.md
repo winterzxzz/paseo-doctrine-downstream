@@ -67,8 +67,15 @@ payload khác với same key bị reject. Product/Central phải authoritative-r
 
 Root `WORKSPACE_PROTOCOL.md` v3 và active Foundation `beads-issue-tracker` yêu cầu cả ba role gọi
 `beads_status` ở assignment start, đọc issue liên quan trước material action và update/readback ở
-material handoff. Central unavailable, wrong version hoặc missing credential trả `BLOCKED`; không
-fallback tracker khác.
+material handoff. Central unavailable, wrong version hoặc missing credential: assignment có tracker
+lease (Lead với effect `mutating`, `delegation`, `bootstrap` hoặc `recovery`; Peer `mutating`) trả
+`BLOCKED`; assignment không có tracker lease (Lead/Peer `read-only`, Supervisor) tiếp tục inspection
+và giữ issue state `UNKNOWN`. Không fallback tracker khác.
+
+Carve-out cho Lead `read-only` là quyết định downstream theo root protocol v3: block theo tracker
+lease (quyền mutate Beads), không theo role và không theo workspace write; Lead `delegation`/`recovery`
+là workspace no-write nhưng vẫn giữ tracker lease nên vẫn `BLOCKED`. Foundation `beads-issue-tracker` và `ROLE_CONTRACTS.md` hiện chỉ nêu Peer/Supervisor
+read-only; cập nhật Foundation còn chờ tag mới.
 
 Daemon persist một `beadsStatusCheckpoint` gắn với exact assignment digest. Mỗi lần gọi
 `beads_status`, receipt cũ bị xóa trước; chỉ response `available=true` mới ghi receipt mới. Mọi Beads

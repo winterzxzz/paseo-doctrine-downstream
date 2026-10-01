@@ -47,6 +47,14 @@ export function addRunOptions(cmd: Command): Command {
       )
       .option("--write-scope <scope>", "Narrow write scope for a mutating role assignment")
       .option(
+        "--rationale <text>",
+        "Why the objective exists (the Human outcome), kept apart from any candidate solution",
+      )
+      .option(
+        "--open-assumptions <text>",
+        "Unverified assumptions the assignee may reopen with evidence",
+      )
+      .option(
         "--beads-issue <id>",
         "Grant an exact Beads Central issue to a Peer (can be used multiple times)",
         collectMultiple,
@@ -137,6 +145,8 @@ export interface AgentRunOptions extends CommandOptions {
   role?: string;
   assignmentEffect?: string;
   writeScope?: string;
+  rationale?: string;
+  openAssumptions?: string;
   beadsIssue?: string[];
   name?: string;
   provider?: string;
@@ -404,6 +414,42 @@ function validateRunWorkspaceOptions(options: AgentRunOptions): void {
   }
 }
 
+export function validateAssignmentFramingOptions(
+  options: AgentRunOptions,
+  assignmentEffect: AssignmentEffectClass | undefined,
+): void {
+  const provided = [
+    ["--rationale", options.rationale],
+    ["--open-assumptions", options.openAssumptions],
+  ].filter(([, value]) => value !== undefined);
+  if (provided.length === 0) return;
+  if (!assignmentEffect) {
+    throw {
+      code: "INVALID_OPTIONS",
+      message: "--rationale and --open-assumptions require --role and --assignment-effect",
+    } satisfies CommandError;
+  }
+  for (const [flag, value] of provided) {
+    if (!value?.trim()) {
+      throw { code: "INVALID_OPTIONS", message: `${flag} cannot be blank` } satisfies CommandError;
+    }
+  }
+}
+
+export function requireAssignmentFramingSupport(
+  client: { getLastServerInfoMessage(): { features?: { assignmentFraming?: boolean } } | null },
+  options: AgentRunOptions,
+): void {
+  if (options.rationale === undefined && options.openAssumptions === undefined) return;
+  // COMPAT(assignmentFraming): added after v0.9.2-paseo.60, remove gate after 2027-04-01.
+  if (client.getLastServerInfoMessage()?.features?.assignmentFraming) return;
+  throw {
+    code: "DAEMON_UPDATE_REQUIRED",
+    message: "Update the host to use --rationale and --open-assumptions.",
+    details: "This daemon does not advertise assignmentFraming.",
+  } satisfies CommandError;
+}
+
 function validateRunOptions(prompt: string, options: AgentRunOptions, outputSchema: unknown): void {
   if (!prompt || prompt.trim().length === 0) {
     throw {
@@ -434,6 +480,7 @@ function validateRunOptions(prompt: string, options: AgentRunOptions, outputSche
       message: "--write-scope requires --role and --assignment-effect",
     } satisfies CommandError;
   }
+  validateAssignmentFramingOptions(options, assignmentEffect);
   if (
     options.writeScope &&
     assignmentEffect &&
@@ -519,8 +566,12 @@ export function buildCliAssignment(input: {
   objective: string;
   cwd: string;
   writeScope?: string;
+  rationale?: string;
+  openAssumptions?: string;
   beadsIssueIds?: readonly string[];
 }): AssignmentEnvelope {
+  const rationale = input.rationale?.trim();
+  const openAssumptions = input.openAssumptions?.trim();
   let disposition: AssignmentEnvelope["disposition"] = "supervision";
   if (input.roleId === "lead") disposition = "lead-direct";
   if (input.roleId === "peer") disposition = "peer-execution";
@@ -529,6 +580,8 @@ export function buildCliAssignment(input: {
     version: PASEO_ASSIGNMENT_CONTRACT_VERSION,
     disposition,
     objective: input.objective.trim(),
+    ...(rationale ? { rationale } : {}),
+    ...(openAssumptions ? { openAssumptions } : {}),
     effectClass: input.effectClass,
     mutationBoundary:
       input.effectClass === "mutating" ||
@@ -550,6 +603,8 @@ function buildOptionalCliAssignment(input: {
   objective: string;
   cwd: string;
   writeScope?: string;
+  rationale?: string;
+  openAssumptions?: string;
   beadsIssueIds?: readonly string[];
 }): AssignmentEnvelope | undefined {
   if (!input.roleId || !input.effectClass) return undefined;
@@ -559,6 +614,8 @@ function buildOptionalCliAssignment(input: {
     objective: input.objective,
     cwd: input.cwd,
     writeScope: input.writeScope,
+    rationale: input.rationale,
+    openAssumptions: input.openAssumptions,
     beadsIssueIds: input.beadsIssueIds,
   });
 }
@@ -756,6 +813,7 @@ export async function runRunCommand(
   const client = await connectToDaemon({ target: options.daemonTarget });
 
   try {
+    requireAssignmentFramingSupport(client, options);
     // Resolve working directory
     const cwd = options.cwd ?? process.cwd();
     const thinkingOptionId = options.thinking?.trim();
@@ -785,6 +843,8 @@ export async function runRunCommand(
       objective: prompt,
       cwd: runCwd,
       writeScope: options.writeScope,
+      rationale: options.rationale,
+      openAssumptions: options.openAssumptions,
       beadsIssueIds: options.beadsIssue,
     });
 

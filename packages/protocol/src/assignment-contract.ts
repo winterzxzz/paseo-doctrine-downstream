@@ -132,6 +132,10 @@ export const AssignmentEnvelopeSchema = z.object({
   version: z.literal(PASEO_ASSIGNMENT_CONTRACT_VERSION),
   disposition: AssignmentDispositionSchema,
   objective: z.string().trim().min(1),
+  /** Why the objective exists: the Human outcome it serves, kept separate from any candidate solution. */
+  rationale: z.string().trim().min(1).max(4000).optional(),
+  /** Assumptions still unverified; the assignee may reopen them with evidence instead of treating them as constraints. */
+  openAssumptions: z.string().trim().min(1).max(4000).optional(),
   effectClass: AssignmentEffectClassSchema,
   mutationBoundary: AssignmentMutationBoundarySchema,
   externalEffectBoundary: AssignmentExternalEffectBoundarySchema,

@@ -68,7 +68,7 @@ function assignmentBinding(roleId: "lead" | "peer" | "supervisor", cwd: string) 
 
 describe("native Foundation role materialization", () => {
   test("detects only exact legacy role transport commands", () => {
-    expect(LEGACY_PROVIDER_ROLE_DETECTION_EXPIRES_AT).toBe("2026-09-30");
+    expect(LEGACY_PROVIDER_ROLE_DETECTION_EXPIRES_AT).toBe("2027-03-31");
     expect(detectLegacyProviderRole(["/opt/paseo/codex-profile", "lead"])).toBe("lead");
     expect(detectLegacyProviderRole(["claude", "--agent", "paseo-supervisor"])).toBe("supervisor");
     expect(detectLegacyProviderRole(["custom-provider", "peer"])).toBeNull();

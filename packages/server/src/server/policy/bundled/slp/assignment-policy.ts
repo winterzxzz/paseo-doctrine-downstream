@@ -91,6 +91,9 @@ function trackerCheckpointForRole(
     assignmentExternalEffectBoundaryFor(roleId, effectClass).mode === "bounded";
   const receiptRule = `Resolve the exact logical tool from the current provider tool catalog; never guess or hard-code an MCP namespace. Only an authoritative Paseo tool receipt counts as the checkpoint; a missing or failed selector leaves issue state UNKNOWN${canMutateTracker ? " and blocks tracker mutation" : " while source inspection continues inside the no-write lease"}.`;
   if (roleId === "lead") {
+    if (!canMutateTracker) {
+      return `Mandatory Beads Central checkpoint: call beads_status at assignment start. ${receiptRule} Inspect the relevant issue when Central is available. If Central is unavailable, continue only the no-write inspection, report issue state UNKNOWN, and do not use native bd or another tracker.`;
+    }
     return `Mandatory Beads Central checkpoint: call beads_status at assignment start. ${receiptRule} Inspect or create the durable issue before material routing/work; update authoritative evidence at handoff; close only after your engineering verdict. If Central is unavailable, report BLOCKED and do not use native bd or another tracker.`;
   }
   if (roleId === "peer") {
@@ -126,6 +129,8 @@ export function buildSlpAssignmentInstruction(contract: PersistedAssignmentContr
   return [
     `Assignment Contract: sha256=${receipt.assignmentDigest}; disposition=${envelope.disposition}; effect=${envelope.effectClass}.`,
     `Objective: ${envelope.objective}`,
+    envelope.rationale ? `Rationale: ${envelope.rationale}` : null,
+    envelope.openAssumptions ? `Open assumptions: ${envelope.openAssumptions}` : null,
     `Mutation boundary: ${writeScope}. External effects: ${externalScope}.`,
     technicalCapabilityBoundary,
     supervisorDelegationBoundary,
