@@ -1643,6 +1643,20 @@ export const zhCN: TranslationResources = {
     },
   },
   pairing: {
+    hostPassword: {
+      title: "{{host}} 的密码",
+      label: "主机密码",
+    },
+    hostConfirmation: {
+      title: "连接到此主机？",
+      description: "此主机将能在此应用中运行代码，并访问你其他已连接的主机。仅在你认识它时才连接。",
+      descriptionChanged:
+        "此链接会改变你连接此主机的方式。该主机将能在此应用中运行代码，并访问你其他已连接的主机。仅在你认识它时才连接。",
+      hostLabel: "主机",
+      fingerprintLabel: "密钥指纹",
+      relayLabel: "中继",
+      connect: "连接",
+    },
     connectionMethods: {
       title: "添加连接",
       direct: {
@@ -1975,8 +1989,11 @@ export const zhCN: TranslationResources = {
     groupInfo: "关于 {{title}}",
     sections: {
       general: "通用",
+      chat: "聊天",
       appearance: "外观",
-      layout: en.settings.sections.layout,
+      sidebar: "侧边栏",
+      terminal: "终端",
+      browser: "浏览器",
       editor: "编辑器",
       shortcuts: "快捷键",
       integrations: "集成",
@@ -2034,6 +2051,7 @@ export const zhCN: TranslationResources = {
     },
     general: {
       title: "通用",
+      sending: "发送",
       browserData: {
         title: "浏览器数据",
         siteData: "Cookie 和网站数据",
@@ -2059,8 +2077,6 @@ export const zhCN: TranslationResources = {
         },
       },
       serviceUrls: {
-        label: "服务 URL",
-        description: "运行脚本中的 URL 打开位置",
         options: {
           ask: "询问",
           inApp: "在 Paseo 中",
@@ -2079,7 +2095,6 @@ export const zhCN: TranslationResources = {
       toolCallDetail: {
         label: "工具调用显示",
         description: "工具调用在时间线中的显示方式",
-        accessibilityLabel: "选择工具调用显示方式（{{value}}）",
         options: {
           overview: "摘要",
           detailed: "完整详情",
@@ -2315,6 +2330,9 @@ export const zhCN: TranslationResources = {
       },
     },
     host: {
+      password: {
+        guidance: "移除此主机，然后使用此守护进程要求的密码重新添加。",
+      },
       appearance: {
         title: "外观",
         name: {

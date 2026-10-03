@@ -42,7 +42,7 @@ import { CursorACPAgentClient } from "./providers/cursor-acp-agent.js";
 import { GenericACPAgentClient } from "./providers/generic-acp-agent.js";
 import { KimiACPAgentClient } from "./providers/kimi-acp-agent.js";
 import { KiroACPAgentClient } from "./providers/kiro-acp-agent.js";
-import { OpenCodeAgentClient } from "./providers/opencode-agent.js";
+import { OpenCodeRuntimeClient } from "./providers/opencode/runtime-client.js";
 import type { OpenCodeBridge } from "./providers/opencode/bridge.js";
 import { OmpAgentClient } from "./providers/omp/agent.js";
 import type { OmpRuntime } from "./providers/omp/runtime.js";
@@ -266,7 +266,7 @@ const PROVIDER_CLIENT_FACTORIES: Record<string, ProviderClientFactory> = {
       env: runtimeSettings?.env,
     }),
   opencode: (logger, runtimeSettings, options) =>
-    new OpenCodeAgentClient(logger, runtimeSettings, {
+    new OpenCodeRuntimeClient(logger, runtimeSettings, {
       managedProcesses: options?.managedProcesses,
       bridge: options?.openCodeBridge,
     }),
@@ -571,6 +571,8 @@ function wrapClientProvider(
   const importSession = inner.importSession?.bind(inner);
   const listFeatures = inner.listFeatures?.bind(inner);
   const materializeProviderLaunchBinding = inner.materializeProviderLaunchBinding?.bind(inner);
+  const archiveNativeSession = inner.archiveNativeSession?.bind(inner);
+  const unarchiveNativeSession = inner.unarchiveNativeSession?.bind(inner);
 
   return {
     provider,
@@ -679,6 +681,12 @@ function wrapClientProvider(
             persistence,
           };
         }
+      : undefined,
+    archiveNativeSession: archiveNativeSession
+      ? async (handle) => await archiveNativeSession({ ...handle, provider: inner.provider })
+      : undefined,
+    unarchiveNativeSession: unarchiveNativeSession
+      ? async (handle) => await unarchiveNativeSession({ ...handle, provider: inner.provider })
       : undefined,
     getCatalogCacheKey: inner.getCatalogCacheKey?.bind(inner),
     isAvailable: (signal, options) => inner.isAvailable(signal, options),

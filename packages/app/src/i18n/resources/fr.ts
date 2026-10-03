@@ -1710,6 +1710,21 @@ export const fr: TranslationResources = {
     },
   },
   pairing: {
+    hostPassword: {
+      title: "Mot de passe pour {{host}}",
+      label: "Mot de passe de l’hôte",
+    },
+    hostConfirmation: {
+      title: "Se connecter à cet hôte ?",
+      description:
+        "Cet hôte pourra exécuter du code dans cette application et accéder à vos autres hôtes connectés. Connectez-vous uniquement si vous le reconnaissez.",
+      descriptionChanged:
+        "Ce lien modifie la façon dont vous vous connectez à cet hôte. L'hôte pourra exécuter du code dans cette application et accéder à vos autres hôtes connectés. Connectez-vous uniquement si vous le reconnaissez.",
+      hostLabel: "Hôte",
+      fingerprintLabel: "Empreinte de la clé",
+      relayLabel: "Relais",
+      connect: "Se connecter",
+    },
     connectionMethods: {
       title: "Ajouter une connexion",
       direct: {
@@ -2049,8 +2064,11 @@ export const fr: TranslationResources = {
     groupInfo: "À propos de{{title}}",
     sections: {
       general: "Général",
+      chat: "Discussion",
       appearance: "Apparence",
-      layout: en.settings.sections.layout,
+      sidebar: "Barre latérale",
+      terminal: "Terminal",
+      browser: "Navigateur",
       editor: "Éditeur",
       shortcuts: "Raccourcis",
       integrations: "Intégrations",
@@ -2109,6 +2127,7 @@ export const fr: TranslationResources = {
     },
     general: {
       title: "Général",
+      sending: "Envoi",
       browserData: {
         title: "Données du navigateur",
         siteData: "Cookies et données des sites",
@@ -2138,8 +2157,6 @@ export const fr: TranslationResources = {
         },
       },
       serviceUrls: {
-        label: "URL de services",
-        description: "Où ouvrir les URL à partir de scripts en cours d'exécution",
         options: {
           ask: "Demander",
           inApp: "DansPaseo",
@@ -2158,7 +2175,6 @@ export const fr: TranslationResources = {
       toolCallDetail: {
         label: "Affichage des appels d’outils",
         description: "Comment les appels d’outils apparaissent dans la chronologie",
-        accessibilityLabel: "Sélectionner l’affichage des appels d’outils ({{value}})",
         options: {
           overview: "Résumé",
           detailed: "Détails complets",
@@ -2399,6 +2415,10 @@ export const fr: TranslationResources = {
       },
     },
     host: {
+      password: {
+        guidance:
+          "Supprimez cet hôte puis ajoutez-le à nouveau avec le mot de passe demandé par ce daemon.",
+      },
       appearance: {
         title: "Apparence",
         name: {

@@ -288,7 +288,9 @@ interface CodexAppServerAgentDeps {
     extends: string;
     credentialRef?: string;
   };
-  customCodexConfig?: Record<string, unknown> | null;
+  customCodexConfig?: CodexCustomProviderConfig | null;
+  // The CODEX_HOME the session's app-server runs with; prompts and skills are read from it.
+  codexHome?: string;
   _createCodexClient?: (
     child: ChildProcessWithoutNullStreams,
     logger: Logger,
@@ -574,8 +576,8 @@ async function checkCodexLaunchAvailable(launch: ResolvedProviderLaunch) {
   });
 }
 
-function resolveCodexHomeDir(): string {
-  return process.env.CODEX_HOME ?? path.join(os.homedir(), ".codex");
+function resolveCodexHomeDir(env: NodeJS.ProcessEnv): string {
+  return env.CODEX_HOME ?? path.join(os.homedir(), ".codex");
 }
 
 function decodeEscapedChar(next: string): string {
@@ -712,8 +714,7 @@ async function listProjectedCodexProductSkills(
   );
 }
 
-async function listCodexCustomPrompts(): Promise<AgentSlashCommand[]> {
-  const codexHome = resolveCodexHomeDir();
+async function listCodexCustomPrompts(codexHome: string): Promise<AgentSlashCommand[]> {
   const promptsDir = path.join(codexHome, "prompts");
   let entries: Dirent[];
   try {
@@ -755,6 +756,7 @@ async function listCodexCustomPrompts(): Promise<AgentSlashCommand[]> {
 
 export async function listCodexSkills(
   cwd: string,
+  codexHome: string,
   workspaceGitService?: Pick<WorkspaceGitService, "resolveRepoRoot">,
   foundationSkillPolicy?: FoundationSkillPolicy | null,
   productSkillPolicy?: ProductSkillPolicy | null,
@@ -770,7 +772,7 @@ export async function listCodexSkills(
     candidates.push(path.join(repoRoot, ".codex", "skills"));
   }
 
-  candidates.push(path.join(resolveCodexHomeDir(), "skills"));
+  candidates.push(path.join(codexHome, "skills"));
 
   const candidateReads = await Promise.all(
     candidates.map(async (dir) => {
@@ -1014,7 +1016,7 @@ const CodexModelListResponseSchema = z.object({
 async function readCodexThreadWindow(
   client: Pick<CodexAppServerClientLike, "request">,
   logger: Logger,
-  window: { limit: number; cwd?: string },
+  window: { limit: number; cwd?: string; modelProviders?: string[] },
 ): Promise<Array<Record<string, unknown>>> {
   // A thread updated while the scan is paging moves under `updated_at` order
   // and can come back on a later page, so identify each one and keep it once.
@@ -1030,6 +1032,7 @@ async function readCodexThreadWindow(
         // Older Codex builds ignore the unknown key and keep that order.
         sortKey: "updated_at",
         ...(window.cwd ? { cwd: window.cwd } : {}),
+        ...(window.modelProviders ? { modelProviders: window.modelProviders } : {}),
         ...(cursor ? { cursor } : {}),
       }),
     );
@@ -3470,10 +3473,15 @@ const READ_FOUNDATION_CREDENTIAL_SCRIPT =
   'const value=JSON.parse(require("node:fs").readFileSync(process.argv[1],"utf8")).OPENAI_API_KEY;' +
   'if(typeof value!=="string"||!value.trim())process.exit(1);process.stdout.write(value.trim());';
 
+interface CodexCustomProviderConfig {
+  model_provider: string;
+  model_providers: Record<string, Record<string, unknown>>;
+}
+
 function buildCodexCustomProviderConfig(
   runtimeSettings: ProviderRuntimeSettings | undefined,
   customProvider: CodexAppServerAgentDeps["customProvider"],
-): Record<string, unknown> | null {
+): CodexCustomProviderConfig | null {
   if (customProvider?.extends !== CODEX_PROVIDER) {
     return null;
   }
@@ -3569,6 +3577,23 @@ interface ConsumedRootCompaction {
   itemId?: string;
 }
 
+function loadCodexRoleSkillPolicies(
+  roleId: PaseoRoleId | undefined,
+  allowedFoundationSkills: readonly string[] | undefined,
+  productSkillBundleRoot: string | undefined,
+): { foundation: FoundationSkillPolicy | null; product: ProductSkillPolicy | null } {
+  if (!roleId) {
+    return { foundation: null, product: null };
+  }
+  return {
+    foundation: narrowFoundationSkillPolicy(
+      loadFoundationSkillPolicy(roleId),
+      allowedFoundationSkills,
+    ),
+    product: loadProductSkillPolicy(roleId, productSkillBundleRoot),
+  };
+}
+
 export class CodexAppServerAgentSession implements AgentSession {
   readonly provider = CODEX_PROVIDER;
   readonly capabilities = CODEX_APP_SERVER_CAPABILITIES;
@@ -3576,6 +3601,7 @@ export class CodexAppServerAgentSession implements AgentSession {
   private readonly logger: Logger;
   private readonly config: AgentSessionConfig;
   private readonly asyncQuestions: CodexAsyncQuestions;
+  private readonly codexHome: string;
   private currentMode: string;
   private hasWorkflowModeOverride: boolean;
   private readonly providerOptions: CodexProviderOptions;
@@ -3694,12 +3720,12 @@ export class CodexAppServerAgentSession implements AgentSession {
       provider: CODEX_PROVIDER,
       agentId: this.agentId,
     });
-    this.foundationSkillPolicy = roleId
-      ? narrowFoundationSkillPolicy(loadFoundationSkillPolicy(roleId), allowedFoundationSkills)
-      : null;
-    this.productSkillPolicy = roleId
-      ? loadProductSkillPolicy(roleId, this.deps.productSkillBundleRoot)
-      : null;
+    ({ foundation: this.foundationSkillPolicy, product: this.productSkillPolicy } =
+      loadCodexRoleSkillPolicies(
+        roleId,
+        allowedFoundationSkills,
+        this.deps.productSkillBundleRoot,
+      ));
     if (config.modeId !== undefined) {
       validateCodexMode(config.modeId);
     }
@@ -3708,6 +3734,7 @@ export class CodexAppServerAgentSession implements AgentSession {
     this.providerOptions = CodexProviderOptionsSchema.parse(config.providerOptions ?? {});
     this.config = config;
     this.asyncQuestions = new CodexAsyncQuestions(resumeHandle?.metadata?.asyncQuestions);
+    this.codexHome = deps.codexHome ?? resolveCodexHomeDir(process.env);
     this.config.thinkingOptionId = normalizeCodexThinkingOptionId(this.config.thinkingOptionId);
     if (this.config.featureValues?.fast_mode && codexModelSupportsFastMode(this.config.model)) {
       this.serviceTier = "fast";
@@ -4456,8 +4483,7 @@ export class CodexAppServerAgentSession implements AgentSession {
   ): Promise<CodexPromptInput> {
     if (commandName.startsWith("prompts:")) {
       const promptName = commandName.slice("prompts:".length);
-      const codexHome = resolveCodexHomeDir();
-      const promptPath = path.join(codexHome, "prompts", `${promptName}.md`);
+      const promptPath = path.join(this.codexHome, "prompts", `${promptName}.md`);
       const raw = await fs.readFile(promptPath, "utf8");
       const parsed = parseFrontMatter(raw);
       return expandCodexCustomPrompt(parsed.body, args);
@@ -5275,6 +5301,7 @@ export class CodexAppServerAgentSession implements AgentSession {
       cwd: this.config.cwd ?? null,
       model: this.config.model ?? null,
       serviceTier: this.serviceTier,
+      config: this.buildCodexInnerConfig(),
       userMessageTurns: this.codexUserMessageTurns(),
       setThreadId: async (threadId) => {
         this.currentThreadId = threadId;
@@ -5382,7 +5409,7 @@ export class CodexAppServerAgentSession implements AgentSession {
   }
 
   async listCommands(): Promise<AgentSlashCommand[]> {
-    const prompts = await listCodexCustomPrompts();
+    const prompts = await listCodexCustomPrompts(this.codexHome);
     if (this.connectionState === "disconnected") {
       await this.connect();
     } else {
@@ -5398,6 +5425,7 @@ export class CodexAppServerAgentSession implements AgentSession {
       this.cachedSkills === null
         ? await listCodexSkills(
             this.config.cwd,
+            this.codexHome,
             this.deps.workspaceGitService,
             this.foundationSkillPolicy,
             this.productSkillPolicy,
@@ -5695,14 +5723,14 @@ export class CodexAppServerAgentSession implements AgentSession {
           skillConfig = mergeCodexFoundationSkillConfig(
             skillConfig,
             this.foundationSkillPolicy,
-            resolveCodexHomeDir(),
+            this.codexHome,
           );
         }
         if (this.productSkillPolicy) {
           skillConfig = mergeCodexProductSkillConfig(
             skillConfig,
             this.productSkillPolicy,
-            resolveCodexHomeDir(),
+            this.codexHome,
           );
         }
         innerConfig.skills = {
@@ -7515,14 +7543,16 @@ export class CodexAppServerAgentClient implements AgentClient {
     private readonly deps: CodexAppServerAgentDeps = {},
   ) {}
 
-  private sessionDeps(): CodexAppServerAgentDeps {
+  private sessionDeps(launchEnv: Record<string, string> | undefined): CodexAppServerAgentDeps {
     return {
       ...this.deps,
-      customCodexConfig: buildCodexCustomProviderConfig(
-        this.runtimeSettings,
-        this.deps.customProvider,
-      ),
+      codexHome: resolveCodexHomeDir(buildCodexAppServerEnv(this.runtimeSettings, launchEnv)),
+      customCodexConfig: this.customProviderConfig(),
     };
+  }
+
+  private customProviderConfig(): CodexCustomProviderConfig | null {
+    return buildCodexCustomProviderConfig(this.runtimeSettings, this.deps.customProvider);
   }
 
   private resolveGoalsEnabled(): Promise<boolean> {
@@ -7729,7 +7759,7 @@ export class CodexAppServerAgentClient implements AgentClient {
           agentId: launchContext?.agentId,
           providerLaunchBinding: launchContext?.providerLaunchBinding,
         }),
-      this.sessionDeps(),
+      this.sessionDeps(launchContext?.env),
       options?.persistSession === false,
       goalsEnabled,
       autoReviewEnabled,
@@ -7772,7 +7802,7 @@ export class CodexAppServerAgentClient implements AgentClient {
           agentId: launchContext?.agentId,
           providerLaunchBinding: launchContext?.providerLaunchBinding,
         }),
-      this.sessionDeps(),
+      this.sessionDeps(launchContext?.env),
       false,
       goalsEnabled,
       autoReviewEnabled,
@@ -7808,9 +7838,14 @@ export class CodexAppServerAgentClient implements AgentClient {
       // filtering since most threads will be from other cwds, then keep the
       // local realpath-aware filter for symlink-equivalent workspace paths.
       const listLimit = options?.cwd ? Math.max(scanLimit, 50) : scanLimit;
+      // Codex records each thread under the model provider that ran it and,
+      // unless told otherwise, lists only the provider its own config selects.
+      // A custom provider runs under its own id, so ask for exactly that one.
+      const customProviderConfig = this.customProviderConfig();
       const allThreads = await readCodexThreadWindow(client, this.logger, {
         limit: listLimit,
         cwd: options?.cwd,
+        ...(customProviderConfig ? { modelProviders: [customProviderConfig.model_provider] } : {}),
       });
       const threads = filterCodexThreadsByCwd(allThreads, options?.cwd);
       return threads.slice(0, limit).map((thread) => {
