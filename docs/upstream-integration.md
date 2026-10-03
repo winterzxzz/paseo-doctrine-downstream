@@ -28,7 +28,8 @@ Skill `upgrade-upstream` chạy toàn bộ quy trình này.
    `Duplicate identifier` sau merge gần như luôn là trường hợp này. `packages/cli/tsconfig.json`
    loại test khỏi typecheck, và lệnh CLI chỉ downstream có (`chat`, `agent signal`, `update`) không
    conflict nhưng vỡ khi upstream đổi connect API: chạy vitest trực tiếp cho các file đó.
-6. **Test bị đụng.** `./scripts/upstream-integration.sh run-tests <base>` chạy mọi unit test file đổi
+6. **Test bị đụng.** Commit merge trên branch tích hợp trước: script so `HEAD` với base, merge chưa
+   commit cho ra 0 file. `./scripts/upstream-integration.sh run-tests <base>` chạy mọi unit test file đổi
    so với base, mỗi package một lần gọi vitest, log nằm ở `.dev/upstream-integration/`. Đọc
    [Test đỏ giả](#test-đỏ-giả) trước khi sửa code vì một test đỏ.
 7. **Provenance.** Sửa `paseoUpstream.commit` trong `foundation/sources.lock.json` thành peeled commit
@@ -72,6 +73,7 @@ Không chọn wholesale `ours` hay `theirs` cho vùng authority và lifecycle. C
 | Protocol                     | Theo [protocol-compatibility.md](protocol-compatibility.md). Khi hai phía cùng thêm một schema, giữ bản là superset. Schema upstream tách ra module riêng (`agent-profile.ts`, `terminal-profile.ts`) thì field downstream theo sang đó, `messages.ts` re-export. Module load config (`persisted-config.ts`) import leaf module (`agent-profile`, `foundation-config`, `plugin-config`), không import `messages.ts`; `exports.test.ts` chặn điều đó. |
 | Daemon lifecycle (CLI)       | Lấy cấu trúc upstream (`daemon run`, config bền vững, `daemon-control`). Ghép lại: PATH có user agent bins, stop budget 35s, field readback của `daemon status --json` (`connected*`, `source*`, `providers` dạng `{label, path}` mà Foundation qualification đọc). Installer web-cli vẫn gọi `daemon start --foreground --listen … --web-ui`, nên giữ shim `COMPAT(legacyForegroundLaunchFlags)` tới khi installer chuyển sang `daemon run`.        |
 | Session delivery             | Lấy `SessionDelivery` và owned subscriptions của upstream. Permission outbound của downstream: `emitForSource` gọi `allowsOutbound` trước `authorizeReply`, đường implicit delivery cũng lọc qua `allowsOutbound`. Output correlated chỉ downstream có mà tên không theo convention (`distribution.update.progress`) phải khai báo trong `session/owned-subscriptions/replies.ts`.                                                                   |
+| WebSocket auth và log        | Lấy auth upstream (password trong `hello.auth`, `local-credential`, relay `COMPAT(relayPasswordOptional)`); Hub vẫn truyền admission tường minh. Log lỗi frame không ghi payload inbound, không cần redaction riêng của downstream.                                                                                                                                                                                                                  |
 | Durable timeline             | In-memory store của upstream project ngay khi ghi (chunk gộp thành một row). `FileAgentTimelineStore` giữ mirror canonical riêng; chỉ `fetchCommitted` trả rows đã project. Reconcile history đối chiếu rows canonical từ durable store, không bao giờ từ projected rows, và snapshot ghi rows canonical. Reload + rehydrate bắt đầu in-memory rỗng rồi replay thuần; committed timeline chỉ bị thay khi replay xong.                                |
 
 Sau khi giải xong, soát hai loại lỗi mà typecheck không bắt:
@@ -104,6 +106,11 @@ cả baseline không phải regression của merge.
   `gemini-antigravity`. Test upstream chỉ tắt builtin của upstream, nên suite đi probe CLI thật trên
   máy: chạy hàng phút và timeout ngẫu nhiên. Test upstream dùng `pi` hoặc `opencode` làm provider
   thì đổi sang `gemini-antigravity` (catalog theo workspace) hoặc `codex` (catalog theo host).
+- `AgentManager` downstream gom durable append vào `durableTimelineBuffer`; upstream ghi thẳng. Test
+  upstream đọc `getTimelineRows` (committed rows) ngay sau create/hydrate thì thấy rỗng: thêm
+  `await manager.flush()` trước khi đọc.
+- Test e2e upstream dùng OpenCode (cần binary `opencode`) hoặc custom provider `extends: "claude"`
+  (`Provider '…' is disabled`) đỏ vì provider set downstream, không sửa bằng cách mở lại provider.
 - Suite chạy từ bên trong một Paseo agent thừa hưởng `PASEO_AGENT_ID` và vấp Human-only guard của
   plugin/Hub. Test của các guard đó đặt `PASEO_AGENT_ID=""`.
 
