@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.10.3-paseo.61 - 2026-10-03
+
+Bản này tích hợp upstream Paseo `v0.10.3` (qua `v0.10.0`, `v0.10.1`, `v0.10.2`) vào downstream line
+và chuyển base version lên `0.10.3`, nên plugin khai báo `requirements.paseo` theo 0.10 load được.
+
+### Changed
+
+- Merge upstream `v0.10.3` (62 commit từ `v0.9.2`); chi tiết upstream nằm ở các mục `Upstream 0.10.x`
+  bên dưới.
+- Daemon password theo upstream: password đi trong `hello`, CLI và desktop trên cùng máy dùng
+  `~/.paseo/local-credential` (mode 0600) thay cho password. Relay không password vẫn được nhận qua
+  shim `COMPAT(relayPasswordOptional)` của upstream.
+- Settings chia thành các trang General, Sidebar, Chat, Terminal, Browser, Open location; route project
+  settings vẫn mang `protocolRoot`.
+- CODEX_HOME tính theo từng session; skill policy Foundation và product của Codex dùng đúng CODEX_HOME
+  mà app-server của session chạy.
+- Log lỗi WebSocket không còn ghi payload inbound (thay cho redaction của downstream).
+
+### Preserved downstream contracts
+
+- `send_agent_prompt` vẫn kiểm role topology trước khi gửi; luồng finish notification mới của upstream
+  chạy sau đó.
+- Provider set Claude, Codex, Cursor, Antigravity và custom provider derive từ Codex. OpenCode v2 và
+  custom provider derive từ Claude vẫn tắt.
+- Custom Codex provider launch binding, durable canonical timeline, Hub admission tường minh.
+
+### Verification
+
+- Build, typecheck, lint, format pass. Unit test merge đụng tới: app 338, client 154, protocol 90,
+  desktop 4, server 1461 + 2 file sửa sau review (252). Test đỏ còn lại là môi trường hoặc provider set;
+  chi tiết ở `docs/research/upstream-v0.10.3-stable-integration-2026-10-03.md`.
+
 ## Upstream 0.10.3 - 2026-10-02
 
 ### Added
