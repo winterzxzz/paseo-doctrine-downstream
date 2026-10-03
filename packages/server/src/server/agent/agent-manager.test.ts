@@ -13591,6 +13591,8 @@ test("commits startup notices once on create and after restored history", async 
   try {
     const created = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {});
     ids.push(created.id);
+    // Durable appends are buffered downstream; flush before reading committed rows.
+    await manager.flush();
     expect((await manager.getTimelineRows(created.id)).map((row) => row.item)).toEqual([notice]);
     const resumed = await manager.resumeAgentFromPersistence({
       provider: "codex",
@@ -13599,12 +13601,14 @@ test("commits startup notices once on create and after restored history", async 
     });
     ids.push(resumed.id);
     await manager.hydrateTimelineFromProvider(resumed.id);
+    await manager.flush();
     expect((await manager.getTimelineRows(resumed.id)).map((row) => row.item)).toEqual([
       history,
       limitedToolOutput,
       notice,
     ]);
     await manager.hydrateTimelineFromProvider(resumed.id, { force: true });
+    await manager.flush();
     expect((await manager.getTimelineRows(resumed.id)).map((row) => row.item)).toEqual([
       history,
       limitedToolOutput,

@@ -1035,7 +1035,7 @@ describe("relay external socket reconnect behavior", () => {
     await server.close();
   });
 
-  test("redacts credential bytes when a credential request fails", async () => {
+  test("keeps credential bytes out of logs when a credential request fails", async () => {
     const logger = createLogger();
     const server = createServer({ logger });
     const socket = new MockSocket();
@@ -1064,7 +1064,7 @@ describe("relay external socket reconnect behavior", () => {
     await vi.waitFor(() => expect(logger.error).toHaveBeenCalled());
     const serializedLogs = JSON.stringify(logger.error.mock.calls);
     expect(serializedLogs).not.toContain(secret);
-    expect(serializedLogs).toContain("[redacted]");
+    expect(serializedLogs).toContain('"errorName":"Error"');
     await server.close();
   });
 
