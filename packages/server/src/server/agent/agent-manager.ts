@@ -63,7 +63,8 @@ import { assertAgentPromptLease } from "./lead-handoffs.js";
 import {
   assertRoleAssignmentModeAllowed,
   assertRoleAssignmentPermissionResponseAllowed,
-  resolveAssignmentLaunchMode,
+  enforceRoleAssignmentCapability,
+  isNoWriteRuntime,
 } from "./assignment-capability-boundary.js";
 import type { AgentOwner } from "./agent-owner.js";
 import {
@@ -5935,7 +5936,7 @@ export class AgentManager {
       });
       launchContract = materializeLaunchContract(roleBinding, providerBinding);
     }
-    storedConfig = resolveAssignmentLaunchMode(storedConfig, roleBinding);
+    storedConfig = enforceRoleAssignmentCapability(storedConfig, roleBinding);
     if (roleBinding && launchContract) {
       assertPersistedRoleBindingMatches(roleBinding, storedConfig.provider);
       assertPersistedLaunchContractMatches(launchContract, storedConfig);
@@ -6132,7 +6133,7 @@ export class AgentManager {
               ...(roleBinding.roleProfile
                 ? { allowedSkills: roleBinding.roleProfile.allowedSkills }
                 : {}),
-              noWrite: roleBinding.assignment?.mutationBoundary.mode === "no-write",
+              noWrite: isNoWriteRuntime(roleBinding),
             },
           }
         : {}),

@@ -160,7 +160,10 @@ import {
   type RoleBindingInjectionMethod,
   type PaseoRoleId,
 } from "@getpaseo/protocol/role-binding";
-import { noWriteModeForInjectionMethod } from "../assignment-capability-boundary.js";
+import {
+  noWriteModeForInjectionMethod,
+  resolveRuntimePermissionPolicy,
+} from "../assignment-capability-boundary.js";
 import {
   ManualCoordinationSignalKindSchema,
   CoordinationSignalResolutionSchema,
@@ -2870,7 +2873,7 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
           requestedMode: launchSettings.requestedMode,
           requestedCwd: resolvedArgs.cwd,
           launchProfile,
-          assignmentNoWrite: isNoWriteAssignment(parsedArgs),
+          assignmentNoWrite: requiresGuardedLaunchMode(parsedArgs, executionProfileId),
         });
         const inheritedConfig = resolveInheritedProviderConfig(selectedProvider);
         workspaceRollbackTransferred = true;
@@ -3017,10 +3020,21 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
         worktree: CreateAgentFromMcpInput["worktree"];
       };
 
-  function isNoWriteAssignment(parsedArgs: ResolvedCreateAgentToolArgs["parsedArgs"]): boolean {
-    return (
-      parsedArgs.role !== undefined && parsedArgs.assignment?.mutationBoundary.mode === "no-write"
-    );
+  // The `no-write` and `ask` runtime policies both launch in the provider's guarded mode, so
+  // preflight that the provider exposes it before any session starts.
+  function requiresGuardedLaunchMode(
+    parsedArgs: ResolvedCreateAgentToolArgs["parsedArgs"],
+    executionProfileId: string | undefined,
+  ): boolean {
+    if (parsedArgs.role === undefined) return false;
+    const policy = resolveRuntimePermissionPolicy({
+      roleId: parsedArgs.role,
+      disposition: parsedArgs.assignment?.disposition,
+      effectClass: parsedArgs.assignment?.effectClass,
+      mutationMode: parsedArgs.assignment?.mutationBoundary.mode,
+      executionProfileId,
+    });
+    return policy === "no-write" || policy === "ask";
   }
 
   async function rollbackCreateAgentWorkspaceAfterValidationFailure(

@@ -2071,6 +2071,8 @@ class ClaudeContextUsageState {
   }
 }
 
+const NO_WRITE_WEB_READ_TOOLS = new Set(["WebFetch", "WebSearch"]);
+
 class ClaudeAgentSession implements AgentSession {
   readonly provider = "claude" as const;
   readonly capabilities = CLAUDE_CAPABILITIES;
@@ -4824,6 +4826,14 @@ class ClaudeAgentSession implements AgentSession {
     // reject. Unlisted MCP tools and every provider-native write tool continue
     // through the normal permission path.
     if (this.exactPreapprovedToolNames.has(toolName)) {
+      return {
+        behavior: "allow",
+        updatedInput: input,
+      };
+    }
+    // A no-write session refuses every `allow` response, so web reads in its strict
+    // read-only tool surface would deadlock; they change no state, so admit them here.
+    if (this.noWrite && NO_WRITE_WEB_READ_TOOLS.has(toolName)) {
       return {
         behavior: "allow",
         updatedInput: input,

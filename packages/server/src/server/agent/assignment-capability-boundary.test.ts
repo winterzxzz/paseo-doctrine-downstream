@@ -6,7 +6,7 @@ import {
   assertRoleAssignmentPermissionResponseAllowed,
   enforceRoleAssignmentCapability,
   requiredNoWriteMode,
-  resolveAssignmentLaunchMode,
+  runtimePermissionPolicyForBinding,
 } from "./assignment-capability-boundary.js";
 import type { PersistedRoleBinding } from "./role-binding.js";
 
@@ -15,14 +15,37 @@ function roleBinding(input: {
   mutationMode?: "no-write" | "bounded-write";
 }): PersistedRoleBinding {
   const mutationMode = input.mutationMode ?? "no-write";
+  // A reviewer Peer is pinned no-write under both the downstream role policy and
+  // upstream enforcement, so these cases do not depend on PASEO_FORCE_BYPASS.
   return {
-    roleId: "lead",
+    roleId: "peer",
     injectionMethod: input.injectionMethod,
     assignment: {
+      disposition: "independent-review",
+      effectClass: mutationMode === "no-write" ? "read-only" : "mutating",
       mutationBoundary:
         mutationMode === "no-write"
           ? { mode: "no-write" }
           : { mode: "bounded-write", scope: "src/**" },
+    },
+  } as PersistedRoleBinding;
+}
+
+function subjectBinding(input: {
+  roleId: PersistedRoleBinding["roleId"];
+  disposition: "lead-direct" | "peer-execution" | "independent-review" | "supervision";
+  effectClass: "read-only" | "mutating" | "delegation" | "bootstrap" | "recovery";
+  executionProfileId?: string;
+}): PersistedRoleBinding {
+  const noWrite = input.effectClass === "read-only" || input.effectClass === "delegation";
+  return {
+    roleId: input.roleId,
+    injectionMethod: "claude-system-prompt",
+    ...(input.executionProfileId ? { executionProfile: { id: input.executionProfileId } } : {}),
+    assignment: {
+      disposition: input.disposition,
+      effectClass: input.effectClass,
+      mutationBoundary: noWrite ? { mode: "no-write" } : { mode: "bounded-write", scope: "src/**" },
     },
   } as PersistedRoleBinding;
 }
@@ -73,23 +96,92 @@ test("no-write Claude assignment pins guarded default mode for the strict tool b
   ).toMatchObject({ modeId: "default" });
 });
 
-test("forced bypass still pins a no-write Lead assignment to its no-write mode", () => {
-  const config: AgentSessionConfig = {
-    provider: "claude",
-    cwd: "/workspace/repo",
-    modeId: "bypassPermissions",
-  };
-
-  expect(
-    resolveAssignmentLaunchMode(
-      config,
-      roleBinding({ injectionMethod: "claude-system-prompt" }),
-      true,
-    ),
-  ).toMatchObject({ modeId: "default" });
+test.each([
+  [
+    "lead read-only",
+    { roleId: "lead", disposition: "lead-direct", effectClass: "read-only" },
+    "bypass",
+  ],
+  [
+    "lead delegation",
+    { roleId: "lead", disposition: "lead-direct", effectClass: "delegation" },
+    "bypass",
+  ],
+  [
+    "lead mutating",
+    { roleId: "lead", disposition: "lead-direct", effectClass: "mutating" },
+    "bypass",
+  ],
+  [
+    "peer mutating",
+    { roleId: "peer", disposition: "peer-execution", effectClass: "mutating" },
+    "bypass",
+  ],
+  [
+    "peer read-only scout",
+    { roleId: "peer", disposition: "peer-execution", effectClass: "read-only" },
+    "bypass",
+  ],
+  [
+    "peer independent review",
+    { roleId: "peer", disposition: "independent-review", effectClass: "read-only" },
+    "no-write",
+  ],
+  [
+    "peer reviewer specialization",
+    {
+      roleId: "peer",
+      disposition: "peer-execution",
+      effectClass: "mutating",
+      executionProfileId: "reviewer",
+    },
+    "no-write",
+  ],
+  [
+    "peer OCR review specialization",
+    {
+      roleId: "peer",
+      disposition: "peer-execution",
+      effectClass: "read-only",
+      executionProfileId: "review",
+    },
+    "no-write",
+  ],
+  [
+    "supervisor observer",
+    { roleId: "supervisor", disposition: "supervision", effectClass: "read-only" },
+    "no-write",
+  ],
+  [
+    "supervisor coordinator",
+    { roleId: "supervisor", disposition: "supervision", effectClass: "delegation" },
+    "ask",
+  ],
+  [
+    "supervisor recovery",
+    { roleId: "supervisor", disposition: "supervision", effectClass: "recovery" },
+    "bypass",
+  ],
+] as const)("runtime policy: %s -> %s", (_label, subject, expected) => {
+  expect(runtimePermissionPolicyForBinding(subjectBinding(subject), true)).toBe(expected);
 });
 
-test("forced bypass launches a write-authorized assignment in unattended mode", () => {
+test("upstream enforcement pins every no-write assignment and keeps write-authorized modes", () => {
+  expect(
+    runtimePermissionPolicyForBinding(
+      subjectBinding({ roleId: "lead", disposition: "lead-direct", effectClass: "delegation" }),
+      false,
+    ),
+  ).toBe("no-write");
+  expect(
+    runtimePermissionPolicyForBinding(
+      subjectBinding({ roleId: "peer", disposition: "peer-execution", effectClass: "mutating" }),
+      false,
+    ),
+  ).toBe("provider-default");
+});
+
+test("a no-write Lead launches in bypass under the Human role policy", () => {
   const config: AgentSessionConfig = {
     provider: "claude",
     cwd: "/workspace/repo",
@@ -97,15 +189,35 @@ test("forced bypass launches a write-authorized assignment in unattended mode", 
   };
 
   expect(
-    resolveAssignmentLaunchMode(
+    enforceRoleAssignmentCapability(
       config,
-      roleBinding({ injectionMethod: "claude-system-prompt", mutationMode: "bounded-write" }),
+      subjectBinding({ roleId: "lead", disposition: "lead-direct", effectClass: "delegation" }),
       true,
     ),
   ).toMatchObject({ modeId: "bypassPermissions" });
 });
 
-test("no-write session cannot switch into bypass mode", () => {
+test("a coordinating Supervisor launches in the guarded ask mode", () => {
+  const config: AgentSessionConfig = {
+    provider: "claude",
+    cwd: "/workspace/repo",
+    modeId: "bypassPermissions",
+  };
+
+  expect(
+    enforceRoleAssignmentCapability(
+      config,
+      subjectBinding({
+        roleId: "supervisor",
+        disposition: "supervision",
+        effectClass: "delegation",
+      }),
+      true,
+    ),
+  ).toMatchObject({ modeId: "default" });
+});
+
+test("a pinned reviewer cannot switch into bypass mode", () => {
   expect(() =>
     assertRoleAssignmentModeAllowed(
       roleBinding({ injectionMethod: "claude-system-prompt" }),
@@ -124,10 +236,8 @@ test("bounded-write assignment preserves the requested provider capability", () 
   expect(
     enforceRoleAssignmentCapability(
       config,
-      roleBinding({
-        injectionMethod: "claude-system-prompt",
-        mutationMode: "bounded-write",
-      }),
+      subjectBinding({ roleId: "peer", disposition: "peer-execution", effectClass: "mutating" }),
+      false,
     ),
   ).toBe(config);
 });

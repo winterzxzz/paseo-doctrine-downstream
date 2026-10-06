@@ -76,7 +76,7 @@ function composeInstructions(input: RoleBindingInstructionCompositionInput): str
     input.definition.instructions,
     input.executionProfile?.instructions,
     buildProtocolInstruction(input.workspaceProtocol, input.hasProtocolException),
-    buildSlpAssignmentInstruction(input.assignmentContract),
+    buildSlpAssignmentInstruction(input.assignmentContract, input.executionProfile?.id),
     buildBeadsSkillAdmissionInstruction(input.definition.id, input.roleProfile),
   ]
     .filter((part): part is string => Boolean(part))

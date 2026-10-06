@@ -19,10 +19,17 @@ Provider/profile/mode chỉ transport capability. Authority đến từ current 
 
 - Paseo là delegation/lifecycle plane duy nhất; không dùng Codex-native hoặc Claude-native agents.
 - Runtime `full-access` không cấp write lease, ownership, external effect hoặc acceptance authority.
-- Assignment có mutation boundary `no-write` phải được daemon pin vào provider/OS no-write mode đã
-  qualify; thiếu technical enforcement thì launch fail closed. Không được fallback sang `full-access`,
-  đổi mode hoặc approve permission escalation. Với bounded-write assignment, technical capability vẫn
-  không mở rộng exact lease.
+- Runtime permission mode là Human policy do daemon áp dụng theo role:
+  - Lead luôn chạy bypass/`full-access`, kể cả assignment `no-write`.
+  - Peer chạy bypass/`full-access`, trừ reviewer Peer (disposition `independent-review` hoặc
+    specialization `reviewer`/`review`) bị pin vào provider no-write mode đã qualify.
+  - Supervisor `read-only` (quan sát) bị pin no-write; Supervisor `delegation` (điều phối) chạy ask
+    mode để Human duyệt từng request; `bootstrap`/`recovery` chạy bypass trong exact lease.
+- Bypass dưới assignment `no-write` là chủ ý, không phải mâu thuẫn: agent tự giữ mutation boundary và
+  tiếp tục, không dừng, không báo lệch mode, không xin đổi mode.
+- Khi daemon pin no-write mode: thiếu technical enforcement thì launch fail closed; không fallback sang
+  `full-access`, đổi mode hoặc approve permission escalation. Technical capability không bao giờ mở
+  rộng exact lease.
 - Current artifacts và reproduced evidence mạnh hơn lifecycle status, notification, silence hoặc model confidence.
 - Một moving/coupled scope có đúng một write Owner.
 - Unknown giữ là `unknown`; test pass không tự là acceptance.

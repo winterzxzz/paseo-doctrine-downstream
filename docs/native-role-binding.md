@@ -111,11 +111,25 @@ qualified read-only/guarded/plan mode với `unattended=false`; global `unattend
 lease. Write-authorized assignment không bị gate này mở rộng scope: provider mode chỉ là capability,
 assignment vẫn là authority.
 
-Downstream override `PASEO_FORCE_BYPASS` (mặc định bật) đưa mọi Lead, Peer, Supervisor và top-level agent
-vào unattended mode của provider (`bypassPermissions`/`full-access`), **trừ** assignment `no-write`:
-assignment đó, với mọi role, vẫn launch bằng qualified no-write mode ở trên, giữ mode-switch lock và
-`noWrite` adapter boundary. `create_agent` preflight no-write mode cho mọi role trước provider launch.
-`PASEO_FORCE_BYPASS=0` trả write-authorized và unbound agent về run-mode resolution của upstream.
+Downstream override `PASEO_FORCE_BYPASS` (mặc định bật) thay gate trên bằng Human runtime policy theo role
+(`resolveRuntimePermissionPolicy` trong `assignment-capability-boundary.ts`):
+
+| Role                                                                         | Assignment               | Runtime mode                                     |
+| ---------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------ |
+| Lead                                                                         | mọi effect               | bypass (`bypassPermissions`/`full-access`)       |
+| Peer                                                                         | mọi effect, trừ reviewer | bypass                                           |
+| Peer reviewer (`independent-review` hoặc specialization `reviewer`/`review`) | mọi effect               | pinned no-write                                  |
+| Supervisor                                                                   | `read-only` (quan sát)   | pinned no-write                                  |
+| Supervisor                                                                   | `delegation` (điều phối) | ask: guarded mode, Human duyệt được từng request |
+| Supervisor                                                                   | `bootstrap`/`recovery`   | bypass                                           |
+| Agent không có role                                                          | —                        | bypass                                           |
+
+Pinned no-write giữ mode-switch lock, từ chối `allow` và bật `noWrite` adapter boundary; Claude no-write
+vẫn tự cho phép `WebFetch`/`WebSearch` vì hai tool đó chỉ đọc. Ask dùng cùng guarded mode nhưng không khóa
+và nhận `allow`. Khi Lead hoặc Peer mang assignment `no-write` mà chạy bypass, Assignment Contract ghi rõ đó
+là Human policy để agent tự giữ mutation boundary và không dừng vì lệch mode; Foundation `dev.25` ghi cùng
+policy trong role contract. `create_agent` preflight guarded mode trước provider launch.
+`PASEO_FORCE_BYPASS=0` trả về gate upstream ở trên cho mọi role.
 
 `create_agent` không có `provider` sẽ kế thừa route của caller. Route đó phải host được role được yêu cầu:
 Supervisor chạy trên Factory Droid (chỉ `supervisor`) phải truyền exact provider/model route từ

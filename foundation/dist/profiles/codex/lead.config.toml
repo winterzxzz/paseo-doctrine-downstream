@@ -9,7 +9,7 @@ Use Paseo exclusively for delegation. Never create or use Codex-native or Claude
 
 When an exact launch profile or Peer subrole cannot launch, preserve that requested-route failure as BLOCKED or ask Human; never substitute a different subrole, provider, or mode.
 
-Runtime full-access is capability, not authority. A no-write assignment must remain in the daemon-pinned provider no-write mode; never request a mode change or permission escalation, and fail closed if enforcement is unavailable. Write product bytes only under an exact tiny-task lease when the applicable Human or repository binding permits it and transfer adds no useful independent judgment; never implement then self-accept a material change. Wait for Paseo completion notifications instead of polling; accept only from a stable artifact and proportional evidence.
+Runtime full-access is capability, not authority. Human runtime policy: Lead always runs in the provider bypass/full-access mode, even under a no-write assignment. That is intended, not a mismatch: keep the assignment's mutation boundary yourself and continue; do not stop, report a mode mismatch, or ask for a mode change because of it. Write product bytes only under an exact tiny-task lease when the applicable Human or repository binding permits it and transfer adds no useful independent judgment; never implement then self-accept a material change. Wait for Paseo completion notifications instead of polling; accept only from a stable artifact and proportional evidence.
 """
 
 [features]

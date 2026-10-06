@@ -10,6 +10,7 @@ import {
   preflightAssignmentEnvelope,
   type PersistedAssignmentContract,
 } from "../../../agent/assignment-contract.js";
+import { resolveRuntimePermissionPolicy } from "../../../agent/assignment-capability-boundary.js";
 
 function validateRoleDisposition(roleId: PaseoRoleId, envelope: AssignmentEnvelope): void {
   const allowed: Record<PaseoRoleId, readonly AssignmentEnvelope["disposition"][]> = {
@@ -106,7 +107,34 @@ function trackerCheckpointForRole(
   return `Mandatory Beads Central checkpoint: call beads_status and read the relevant issue graph at supervision start and material handoff when Central is available. ${receiptRule} Remain read-only. If Central is unavailable, continue only the no-write inspection, report issue state UNKNOWN, and do not use native bd or another tracker.`;
 }
 
-export function buildSlpAssignmentInstruction(contract: PersistedAssignmentContract): string {
+function buildTechnicalCapabilityBoundary(
+  contract: PersistedAssignmentContract,
+  executionProfileId: string | undefined,
+): string {
+  const { envelope, receipt } = contract;
+  const policy = resolveRuntimePermissionPolicy({
+    roleId: receipt.roleId,
+    disposition: envelope.disposition,
+    effectClass: envelope.effectClass,
+    mutationMode: envelope.mutationBoundary.mode,
+    executionProfileId,
+  });
+  if (policy === "no-write") {
+    return "Technical capability boundary: Paseo pins this session to a provider-enforced no-write mode. Do not request or attempt a mode change or permission escalation; launch must fail closed when the provider cannot enforce no-write.";
+  }
+  if (policy === "ask") {
+    return "Technical capability boundary: by Human runtime policy this coordination session runs in the provider ask mode; a permission request may reach Human for approval, but do not ask to leave that mode. The mutation boundary above still binds.";
+  }
+  if (policy === "bypass" && envelope.mutationBoundary.mode === "no-write") {
+    return "Technical capability boundary: by Human runtime policy this session runs in the provider bypass/full-access mode. That is intended, not a mismatch: the no-write mutation boundary above still binds, so keep it yourself and continue; do not stop, report a mode mismatch, or ask for a mode change because the runtime is bypass.";
+  }
+  return "Technical capability boundary: runtime capability does not expand the exact bounded-write scope or external-effect lease above.";
+}
+
+export function buildSlpAssignmentInstruction(
+  contract: PersistedAssignmentContract,
+  executionProfileId?: string,
+): string {
   const { envelope, receipt } = contract;
   const writeScope =
     envelope.mutationBoundary.mode === "bounded-write"
@@ -118,10 +146,10 @@ export function buildSlpAssignmentInstruction(contract: PersistedAssignmentContr
       : "denied";
   const beadsIssueGrants = envelope.resourceGrants?.beadsIssueIds?.join(", ") || "none";
   const trackerCheckpoint = trackerCheckpointForRole(receipt.roleId, envelope.effectClass);
-  const technicalCapabilityBoundary =
-    envelope.mutationBoundary.mode === "no-write"
-      ? "Technical capability boundary: Paseo pins this session to a provider-enforced no-write mode. Do not request or attempt a mode change or permission escalation; launch must fail closed when the provider cannot enforce no-write."
-      : "Technical capability boundary: runtime capability does not expand the exact bounded-write scope or external-effect lease above.";
+  const technicalCapabilityBoundary = buildTechnicalCapabilityBoundary(
+    contract,
+    executionProfileId,
+  );
   const supervisorDelegationBoundary =
     receipt.roleId === "supervisor" && envelope.effectClass === "delegation"
       ? "Human-issued topology lease: you may create and prompt only your own direct role-bound Lead children through Paseo. Those Leads own their project engineering and may delegate only to their own Peers; do not bypass a Lead to direct its Peers."

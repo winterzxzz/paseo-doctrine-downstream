@@ -22,16 +22,18 @@ Thiếu recovery/replacement lease nghĩa là `observe + advise only`. Runtime `
 
 ## Runtime permission binding
 
-Capability phải khớp mutation boundary của exact assignment:
+Daemon chọn runtime mode theo loại assignment của Supervisor:
 
-- Supervisor `no-write`: Codex dùng daemon-pinned `read-only`; Claude, Cursor hoặc Antigravity dùng
-  daemon-pinned `plan`; mode switch và permission escalation bị từ chối;
-- provider chưa có no-write mode đã qualify: launch fail closed, không fallback sang full-permission;
-- `bootstrap` hoặc `recovery` có exact bounded-write lease mới được dùng write-capable mode, nhưng mode
-  đó không mở rộng scope, external effect, recovery/replacement hoặc acceptance authority.
+- `read-only` (quan sát): daemon pin provider no-write mode; mode switch và permission escalation bị từ
+  chối; provider chưa có no-write mode đã qualify thì launch fail closed;
+- `delegation` (điều phối): provider ask mode; permission request được đến Human để duyệt từng lần,
+  nhưng không xin rời ask mode;
+- `bootstrap` hoặc `recovery`: bypass/`full-access` trong exact bounded-write lease, nhưng mode đó không
+  mở rộng scope, external effect, recovery/replacement hoặc acceptance authority.
 
-Không xin Human approve từng escalation để thoát no-write boundary. Nếu discovery cần capability không
-tương thích với lease, report blocker và yêu cầu assignment mới.
+Lead do Supervisor tạo luôn chạy bypass/`full-access`; Peer chạy bypass trừ reviewer bị pin no-write.
+Đó là Human policy, không phải lệch mode: không dừng Lead/Peer hay báo mismatch vì runtime là bypass.
+Nếu discovery cần capability không tương thích với lease, report blocker và yêu cầu assignment mới.
 
 ## Observation workflow
 
