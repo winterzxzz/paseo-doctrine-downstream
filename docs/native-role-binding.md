@@ -135,6 +135,13 @@ policy trong role contract. `create_agent` preflight guarded mode trước provi
 Supervisor chạy trên Factory Droid (chỉ host `supervisor`/`peer`, không host `lead`) phải truyền exact provider/model route từ
 `list_models` khi tạo Lead, nếu không daemon từ chối trước launch và nêu role mà provider hỗ trợ.
 
+Human có thể pin Lead route bằng `daemon.leadRoutes` trong `config.json`: danh sách `provider/model` có thứ tự, ví dụ
+`["claude/claude-fable-5-1", "claude/claude-opus-5-5"]`. Khi có list này, agent tạo Lead (thường là Supervisor) bỏ trống
+`provider` thì daemon dùng route đầu thay vì kế thừa caller; `provider` ngoài list bị từ chối. Route sau là fallback có tên:
+khi route đang chọn fail preflight hoặc launch, lỗi trả về nêu route kế tiếp để caller tạo Lead mới với đúng route đó và báo
+Human. Daemon không tự failover. Field này không đi qua wire config; `paseo daemon reload` áp dụng mà không cần restart. Human
+tạo Lead trực tiếp (WebUI hoặc top-level CLI) không bị list này giới hạn.
+
 ### Hai Codex route độc lập với role
 
 - Built-in `codex` là Codex native subscription. Preflight gọi app-server `account/read`, chỉ nhận

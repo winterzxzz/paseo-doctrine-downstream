@@ -222,6 +222,7 @@ const RELOADABLE_PATHS = [
   "daemon.peerDelegationProfileIds",
   "daemon.peerDelegationProviderPriority",
   "daemon.peerDelegationDefaultSubrole",
+  "daemon.leadRoutes",
   "daemon.terminalProfiles",
   "daemon.agentProfiles",
   "app.baseUrl",
@@ -482,6 +483,12 @@ export class DaemonConfigStore {
     return this.current;
   }
 
+  // Lead routes stay out of the wire config: they are read from the last applied config file so
+  // `paseo daemon reload` takes effect without a protocol field.
+  public getLeadRoutes(): readonly string[] | undefined {
+    return this.lastKnownPersisted.daemon?.leadRoutes;
+  }
+
   public patch(partial: MutableDaemonConfigPatch): MutableDaemonConfig {
     const parsedPatch = pickSupportedPatchFields(MutableDaemonConfigPatchSchema.parse(partial));
     return this.applySupportedPatch(parsedPatch);
@@ -596,6 +603,9 @@ export class DaemonConfigStore {
         )
       );
     });
+    if (!isEqualValue(this.lastKnownPersisted.daemon?.leadRoutes, persisted.daemon?.leadRoutes)) {
+      appliedPaths.push("daemon.leadRoutes");
+    }
     const restartRequiredPaths = compactOwnedPaths(
       diffPaths(this.startupPersisted, persisted).filter((path) => {
         if (path === "$schema" || path === "version") return false;

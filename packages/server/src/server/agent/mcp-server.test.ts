@@ -2301,6 +2301,126 @@ describe("create_agent MCP tool", () => {
     );
   });
 
+  describe("Human-configured Lead routes", () => {
+    const LEAD_ROUTES = ["claude/claude-fable-5-1", "claude/claude-opus-5-5"];
+
+    async function createDroidSupervisorServer(
+      options: {
+        models?: Array<{ provider: string; id: string; label: string }>;
+      } = {},
+    ) {
+      const deps = createTestDeps();
+      const caller = createManagedAgent({
+        id: "supervisor-agent",
+        provider: "factory-droid",
+        config: { model: "gpt-6-astra" },
+        cwd: existingCwd,
+        workspaceId: "wks_control",
+        roleBinding: createTestRoleBinding("supervisor", "delegation"),
+      });
+      deps.spies.agentManager.getAgent.mockImplementation((agentId: string) =>
+        agentId === caller.id ? caller : null,
+      );
+      mockStoredAgentRecords(deps.spies.agentStorage.get, [
+        createActiveStoredRecord({
+          id: caller.id,
+          cwd: caller.cwd,
+          workspaceId: caller.workspaceId,
+          roleBinding: caller.roleBinding,
+        }),
+      ]);
+      deps.spies.agentManager.createAgent.mockResolvedValue(
+        createManagedAgent({
+          id: "lead-agent",
+          provider: "claude",
+          config: { model: "claude-fable-5-1" },
+          cwd: existingCwd,
+          workspaceId: "wks_control",
+          roleBinding: createTestRoleBinding("lead"),
+        }),
+      );
+      const providerSnapshot = createOpenCodeManager();
+      if (options.models) providerSnapshot.stub.listModels.mockResolvedValue(options.models);
+      const server = await createAgentMcpServer({
+        agentManager: deps.agentManager,
+        agentStorage: deps.agentStorage,
+        providerSnapshotManager: providerSnapshot.manager,
+        daemonConfigStore: { get: () => ({}) as never, getLeadRoutes: () => LEAD_ROUTES },
+        callerAgentId: caller.id,
+        logger,
+      });
+      return { tool: registeredTool(server, "create_agent"), spies: deps.spies };
+    }
+
+    it("launches the first Lead route when the Supervisor omits provider", async () => {
+      const { tool, spies } = await createDroidSupervisorServer();
+
+      await tool.handler({
+        title: "Project Lead",
+        role: "lead",
+        initialPrompt: "Own the bounded project",
+      });
+
+      expect(spies.agentManager.createAgent).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: "claude", model: "claude-fable-5-1" }),
+        undefined,
+        expect.objectContaining({ roleId: "lead" }),
+      );
+    });
+
+    it("accepts an explicit fallback route and rejects routes outside the list", async () => {
+      const { tool, spies } = await createDroidSupervisorServer();
+
+      await expect(
+        tool.handler({
+          title: "Project Lead",
+          provider: "codex/gpt-5.4",
+          role: "lead",
+          initialPrompt: "Own the bounded project",
+        }),
+      ).rejects.toThrow("Lead route 'codex/gpt-5.4' is not Human-approved");
+      expect(spies.agentManager.createAgent).not.toHaveBeenCalled();
+
+      await tool.handler({
+        title: "Project Lead",
+        provider: "claude/claude-opus-5-5",
+        role: "lead",
+        initialPrompt: "Own the bounded project",
+      });
+      expect(spies.agentManager.createAgent).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: "claude", model: "claude-opus-5-5" }),
+        undefined,
+        expect.objectContaining({ roleId: "lead" }),
+      );
+    });
+
+    it("names the fallback route when the first Lead route fails", async () => {
+      const unavailable = await createDroidSupervisorServer({
+        models: [{ provider: "claude", id: "claude-opus-5-5", label: "Opus 5.5" }],
+      });
+      await expect(
+        unavailable.tool.handler({
+          title: "Project Lead",
+          role: "lead",
+          initialPrompt: "Own the bounded project",
+        }),
+      ).rejects.toThrow("create a new Lead with provider 'claude/claude-opus-5-5'");
+      expect(unavailable.spies.agentManager.createAgent).not.toHaveBeenCalled();
+
+      const launchFailure = await createDroidSupervisorServer();
+      launchFailure.spies.agentManager.createAgent.mockRejectedValue(new Error("launch failed"));
+      await expect(
+        launchFailure.tool.handler({
+          title: "Project Lead",
+          role: "lead",
+          initialPrompt: "Own the bounded project",
+        }),
+      ).rejects.toThrow(
+        "launch failed; Human-configured fallback Lead route: create a new Lead with provider 'claude/claude-opus-5-5'",
+      );
+    });
+  });
+
   it("rejects an unavailable explicit role-child model before creating an agent", async () => {
     const { agentManager, agentStorage, spies } = createTestDeps();
     const caller = createManagedAgent({

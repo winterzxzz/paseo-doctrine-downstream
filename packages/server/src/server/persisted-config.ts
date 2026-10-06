@@ -300,6 +300,20 @@ export const PersistedConfigSchema = z
         peerDelegationProfileIds: z.array(z.string().trim().min(1)).optional(),
         peerDelegationProviderPriority: z.array(z.string().trim().min(1)).optional(),
         peerDelegationDefaultSubrole: PeerSubroleSchema.nullable().optional(),
+        // Ordered Human Lead routes (`provider/model`). The first is the default for agent-created
+        // Leads; the rest are explicit fallbacks the caller must request by name.
+        leadRoutes: z
+          .array(
+            z
+              .string()
+              .trim()
+              .regex(
+                /^[^/\s]+\/\S+$/u,
+                "lead route must be provider/model, for example claude/claude-fable-5-1",
+              ),
+          )
+          .min(1)
+          .optional(),
         terminalProfiles: z.array(TerminalProfileSchema).optional(),
         agentProfiles: z.array(AgentProfileSchema).optional(),
         cors: z

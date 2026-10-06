@@ -195,7 +195,8 @@ export interface PaseoToolHostDependencies {
   sendAgentMessage?: (agentId: string, text: string) => Promise<void>;
   sendAgentMessageAtSafeBoundary?: (agentId: string, text: string) => Promise<void>;
   providerSnapshotManager: ProviderSnapshotManager;
-  daemonConfigStore?: Pick<DaemonConfigStore, "get">;
+  daemonConfigStore?: Pick<DaemonConfigStore, "get"> &
+    Partial<Pick<DaemonConfigStore, "getLeadRoutes">>;
   github?: ForgeService;
   workspaceGitService?: Pick<
     WorkspaceGitService,
@@ -639,6 +640,15 @@ function projectLaunchProfileReceipt(profile: LaunchableAgentProfile | undefined
       ...(profile.peerSubrole ? { peerSubrole: profile.peerSubrole } : {}),
     },
   };
+}
+
+function withLeadFallbackHint(error: unknown, fallbackRoute: string | undefined): unknown {
+  if (!fallbackRoute) return error;
+  const message = error instanceof Error ? error.message : String(error);
+  return new Error(
+    `${message}; Human-configured fallback Lead route: create a new Lead with provider '${fallbackRoute}' and report the route change and this error to the Human`,
+    { cause: error },
+  );
 }
 
 function resolvePeerPolicyProviderRoute(
@@ -1633,6 +1643,36 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
     return { enforcedMode, unattended: runMode === "unattended" };
   };
 
+  // Human-pinned Lead routes apply to agent-created Leads (for example a Supervisor on a provider
+  // that cannot host Lead). The first route is the default; later routes are explicit fallbacks.
+  const resolveHumanLeadRoutes = (requestedRole: PaseoRoleId | undefined): string[] | undefined => {
+    if (requestedRole !== "lead" || !resolveCallerAgent()) return undefined;
+    const routes = daemonConfigStore?.getLeadRoutes?.();
+    if (!routes?.length) return undefined;
+    return routes.map((route) => {
+      const resolved = resolveRequiredProviderModel(route);
+      return formatProviderModel(resolved.provider, resolved.model);
+    });
+  };
+
+  const selectHumanLeadRoute = (
+    requestedProvider: string | undefined,
+    leadRoutes: readonly string[],
+  ): { providerRoute: string; fallbackRoute?: string } => {
+    let providerRoute = leadRoutes[0];
+    if (requestedProvider) {
+      const requested = resolveRequiredProviderModel(requestedProvider);
+      providerRoute = formatProviderModel(requested.provider, requested.model);
+      if (!leadRoutes.includes(providerRoute)) {
+        throw new Error(
+          `Lead route '${providerRoute}' is not Human-approved; omit provider to use '${leadRoutes[0]}', or pass an exact fallback route from: ${leadRoutes.join(", ")}`,
+        );
+      }
+    }
+    const fallbackRoute = leadRoutes[leadRoutes.indexOf(providerRoute) + 1];
+    return fallbackRoute ? { providerRoute, fallbackRoute } : { providerRoute };
+  };
+
   // An omitted provider inherits the caller's route; a role-limited caller route (for example a
   // Supervisor-only Droid) cannot host another role, so name the fix instead of failing at bind.
   const assertInheritedProviderHostsRole = async (
@@ -1648,6 +1688,35 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
     );
   };
 
+  // Lead routes come from the Human config, then Peer policy, then the caller's own route.
+  const selectCreateAgentRoute = async (
+    requestedProvider: string | undefined,
+    requestedRole: PaseoRoleId | undefined,
+    allowedPeerRoutes: ReturnType<typeof resolvePeerDelegationAllowedRoutes>,
+  ): Promise<{ providerRoute: string; leadFallbackRoute?: string }> => {
+    const leadRoutes = resolveHumanLeadRoutes(requestedRole);
+    if (leadRoutes) {
+      const leadRoute = selectHumanLeadRoute(requestedProvider, leadRoutes);
+      return {
+        providerRoute: leadRoute.providerRoute,
+        ...(leadRoute.fallbackRoute ? { leadFallbackRoute: leadRoute.fallbackRoute } : {}),
+      };
+    }
+    const policyRoute = resolvePeerPolicyProviderRoute(requestedProvider ?? "", allowedPeerRoutes);
+    if (policyRoute) return { providerRoute: policyRoute };
+    const callerAgent = resolveCallerAgent();
+    const inheritedModel = callerAgent?.config?.model ?? callerAgent?.runtimeInfo?.model;
+    if (callerAgent && inheritedModel) {
+      await assertInheritedProviderHostsRole(callerAgent.provider, requestedRole);
+      return { providerRoute: formatProviderModel(callerAgent.provider, inheritedModel) };
+    }
+    throw new Error(
+      callerAgent
+        ? "create_agent could not inherit a model from the caller; call list_models and provide an exact provider/model route"
+        : "provider is required",
+    );
+  };
+
   const resolveCreateAgentProviderRoute = async (input: {
     requestedProvider?: string;
     requestedRole?: PaseoRoleId;
@@ -1660,24 +1729,15 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
     provider: AgentProvider;
     enforcedMode?: string;
     unattended?: boolean;
+    leadFallbackRoute?: string;
   }> => {
-    const requestedProvider = input.requestedProvider?.trim();
-    const callerAgent = resolveCallerAgent();
-    const inheritedModel = callerAgent?.config?.model ?? callerAgent?.runtimeInfo?.model;
     const allowedPeerRoutes =
       input.requestedRole === "peer" ? resolvePeerDelegationAllowedRoutes() : undefined;
-    let providerRoute = resolvePeerPolicyProviderRoute(requestedProvider ?? "", allowedPeerRoutes);
-    if (!providerRoute && callerAgent && inheritedModel) {
-      await assertInheritedProviderHostsRole(callerAgent.provider, input.requestedRole);
-      providerRoute = formatProviderModel(callerAgent.provider, inheritedModel);
-    }
-    if (!providerRoute) {
-      throw new Error(
-        callerAgent
-          ? "create_agent could not inherit a model from the caller; call list_models and provide an exact provider/model route"
-          : "provider is required",
-      );
-    }
+    const { providerRoute, leadFallbackRoute } = await selectCreateAgentRoute(
+      input.requestedProvider?.trim(),
+      input.requestedRole,
+      allowedPeerRoutes,
+    );
 
     const resolved = resolveRequiredProviderModel(providerRoute);
     assertPeerPolicyAllowsRoute(
@@ -1686,11 +1746,15 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
       resolved.model,
       allowedPeerRoutes,
     );
-    await assertRequestedProviderModelAvailable({
-      provider: resolved.provider,
-      model: resolved.model,
-      requestedRole: input.requestedRole,
-    });
+    try {
+      await assertRequestedProviderModelAvailable({
+        provider: resolved.provider,
+        model: resolved.model,
+        requestedRole: input.requestedRole,
+      });
+    } catch (error) {
+      throw withLeadFallbackHint(error, leadFallbackRoute);
+    }
     const modeEnforcement = await resolvePeerModeEnforcement({
       provider: resolved.provider,
       requestedRole: input.requestedRole,
@@ -1703,6 +1767,7 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
       providerRoute,
       provider: resolved.provider,
       ...modeEnforcement,
+      ...(leadFallbackRoute ? { leadFallbackRoute } : {}),
     };
   };
 
@@ -2813,7 +2878,7 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
     {
       title: "Create agent",
       description:
-        "Create an agent. A role-bound Lead creating a Peer can pass an exact Human-approved launchProfileId, or omit it to use the Human-configured default Peer subrole and provider priority. Omit provider/settings when profile routing is configured because the resolved profile supplies them. Other agent-scoped creation can inherit the caller route. Top-level creation requires provider/model. An initial prompt is always required.",
+        "Create an agent. A role-bound Lead creating a Peer can pass an exact Human-approved launchProfileId, or omit it to use the Human-configured default Peer subrole and provider priority. Omit provider/settings when profile routing is configured because the resolved profile supplies them. Creating a Lead from an agent uses the Human-configured Lead route when provider is omitted; a failed Lead route names the next Human fallback route. Other agent-scoped creation can inherit the caller route. Top-level creation requires provider/model. An initial prompt is always required.",
       inputSchema: createAgentInputSchema,
       outputSchema: {
         agentId: z.string(),
@@ -2836,6 +2901,7 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
       const resolvedArgs = await resolveCreateAgentToolArgs(args);
       const { parsedArgs, worktree } = resolvedArgs;
       let workspaceRollbackTransferred = false;
+      let leadFallbackRoute: string | undefined;
       try {
         const councilLaunch = councilSeatLaunch(parsedArgs.labels);
         await assertCanonicalCouncilSeatLaunch({
@@ -2867,6 +2933,7 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
           provider: selectedProvider,
           enforcedMode,
           unattended,
+          leadFallbackRoute: resolvedLeadFallbackRoute,
         } = await resolveCreateAgentProviderRoute({
           requestedProvider: launchSettings.requestedProvider,
           requestedRole: parsedArgs.role,
@@ -2875,6 +2942,7 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
           launchProfile,
           assignmentNoWrite: requiresGuardedLaunchMode(parsedArgs, executionProfileId),
         });
+        leadFallbackRoute = resolvedLeadFallbackRoute;
         const inheritedConfig = resolveInheritedProviderConfig(selectedProvider);
         workspaceRollbackTransferred = true;
         const {
@@ -2995,7 +3063,7 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
           resolvedArgs,
           workspaceRollbackTransferred,
         );
-        throw error;
+        throw withLeadFallbackHint(error, leadFallbackRoute);
       }
     },
   );

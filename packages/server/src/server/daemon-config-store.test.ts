@@ -1249,6 +1249,21 @@ describe("DaemonConfigStore reload", () => {
     expect(store.get().git).toEqual({ maxProcessesPerSecond: 12, maxProcessConcurrency: 3 });
   });
 
+  test("reloads Human Lead routes without a restart", () => {
+    const { paseoHome, store, persisted } = createReloadableStore();
+    expect(store.getLeadRoutes()).toBeUndefined();
+
+    const leadRoutes = ["claude/claude-fable-5-1", "claude/claude-opus-5-5"];
+    writeConfig(paseoHome, { ...persisted, daemon: { ...persisted.daemon, leadRoutes } });
+
+    expect(store.reload()).toEqual({
+      appliedPaths: ["daemon.leadRoutes"],
+      restartRequiredPaths: [],
+      overrideControlledPaths: [],
+    });
+    expect(store.getLeadRoutes()).toEqual(leadRoutes);
+  });
+
   test("applies the global plugin switch in both directions", () => {
     const { paseoHome, store, persisted } = createReloadableStore({
       initialPersisted: { version: 1, pluginsEnabled: false },
