@@ -1,3 +1,4 @@
+import type { PaseoRoleId } from "@getpaseo/protocol/role-binding";
 import type { Agent, WorkspaceDescriptor } from "@/stores/session-store";
 import { isWorkspaceRootAgent } from "@/subagents/policies";
 import { deriveSidebarStateBucket } from "./sidebar-agent-state";
@@ -6,6 +7,11 @@ export interface WorkspaceAgentActivity {
   agentId: string;
   status: WorkspaceDescriptor["status"];
   enteredAt: Date | null;
+  // Role of the root agent, when it is role-bound.
+  roleId?: PaseoRoleId;
+  // A Lead created by a Supervisor is reached from the Supervisor's subagents track, the
+  // same way a Peer is reached from its Lead, so its workspace stays out of the sidebar.
+  hiddenFromSidebar?: true;
 }
 
 function workspaceAgentStatus(agent: Agent): Agent["status"] {
@@ -33,25 +39,12 @@ export function buildWorkspaceAgentActivityIndex(
     }
     latestActivityAtByWorkspaceId.set(agent.workspaceId, enteredAt);
 
-    const status = deriveSidebarStateBucket({
-      status: workspaceAgentStatus(agent),
-      pendingPermissionCount: agent.pendingPermissions.length,
-      requiresAttention: agent.requiresAttention,
-      attentionReason: agent.attentionReason,
-    });
-    activityByWorkspaceId.set(agent.workspaceId, {
-      agentId: agent.id,
-      status,
-      enteredAt,
-    });
+    activityByWorkspaceId.set(agent.workspaceId, rootAgentActivity(agent, parentAgent, enteredAt));
   }
 
   for (const [workspaceId, activity] of activityByWorkspaceId) {
     const previousActivity = previous?.get(workspaceId);
-    if (
-      previousActivity?.agentId === activity.agentId &&
-      previousActivity.status === activity.status
-    ) {
+    if (previousActivity && isSameActivity(previousActivity, activity)) {
       activityByWorkspaceId.set(workspaceId, previousActivity);
     }
   }
@@ -60,6 +53,38 @@ export function buildWorkspaceAgentActivityIndex(
     return previous instanceof Map ? previous : new Map(previous);
   }
   return activityByWorkspaceId;
+}
+
+function rootAgentActivity(
+  agent: Agent,
+  parentAgent: Agent | undefined,
+  enteredAt: Date,
+): WorkspaceAgentActivity {
+  const status = deriveSidebarStateBucket({
+    status: workspaceAgentStatus(agent),
+    pendingPermissionCount: agent.pendingPermissions.length,
+    requiresAttention: agent.requiresAttention,
+    attentionReason: agent.attentionReason,
+  });
+  const roleId = agent.roleBinding?.roleId;
+  const hiddenFromSidebar = roleId === "lead" && parentAgent?.roleBinding?.roleId === "supervisor";
+  return {
+    agentId: agent.id,
+    status,
+    enteredAt,
+    ...(roleId ? { roleId } : {}),
+    ...(hiddenFromSidebar ? { hiddenFromSidebar: true } : {}),
+  };
+}
+
+// enteredAt is deliberately ignored: an unchanged status keeps its original entry time.
+function isSameActivity(previous: WorkspaceAgentActivity, next: WorkspaceAgentActivity): boolean {
+  return (
+    previous.agentId === next.agentId &&
+    previous.status === next.status &&
+    previous.roleId === next.roleId &&
+    previous.hiddenFromSidebar === next.hiddenFromSidebar
+  );
 }
 
 function areWorkspaceAgentActivityIndexesIdentical(

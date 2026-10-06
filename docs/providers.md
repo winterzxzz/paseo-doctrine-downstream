@@ -2,8 +2,9 @@
 
 This guide walks through adding a new agent provider end-to-end. There are two integration patterns, and this doc covers both.
 
-The shipped downstream runtime currently exposes Claude, Codex, Cursor, Antigravity, and custom
-providers derived from Codex. Other adapters documented below remain useful implementation references
+The shipped downstream runtime currently exposes Claude, Codex, Cursor, Antigravity, Factory Droid
+(installed from the ACP catalog as `factory-droid` with `extends: "acp"`), and custom providers derived
+from Codex. Other adapters documented below remain useful implementation references
 and upstream compatibility code, but they are disabled by Product policy and do not appear in Provider
 Settings.
 
@@ -218,6 +219,8 @@ Keep the protocol shape provider-agnostic. Do not add provider-specific renderer
 Kimi Code usage follows the CLI-managed credential file at `KIMI_CODE_HOME` or `~/.kimi-code/credentials/kimi-code.json`; do not probe the legacy `~/.kimi` path as the primary source for current Kimi Code installs.
 
 Cursor usage reads the desktop `state.vscdb` token first, then `cursor-agent`'s `~/.config/cursor/auth.json`. Headless hosts only have the CLI file.
+
+Factory Droid usage reads `FACTORY_API_KEY` from the daemon environment, else from `~/.factory/.env`, and calls `GET https://api.factory.ai/api/billing/limits` — the endpoint Factory's web app reads, not a published API. Each token-limit window with a `windowEnd` becomes a Session/Weekly/Monthly bar; a pool whose windows never started is omitted. A changed response shape degrades to `unavailable`. Droid's own login lives in a keychain file the fetcher never opens.
 
 ### Usage fetchers are read-only on credentials
 

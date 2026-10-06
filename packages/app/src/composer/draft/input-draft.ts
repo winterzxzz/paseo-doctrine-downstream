@@ -57,6 +57,8 @@ function requiredReadOnlyMode(roleBinding: ProviderRoleBindingSupport | undefine
     case "cursor-always-apply-plugin":
     case "antigravity-custom-agent":
       return "plan";
+    case "droid-home-capsule":
+      return "normal";
     default:
       return null;
   }

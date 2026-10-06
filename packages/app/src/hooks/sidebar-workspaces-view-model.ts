@@ -1,3 +1,4 @@
+import type { PaseoRoleId } from "@getpaseo/protocol/role-binding";
 import type { PrHint } from "@/git/pr-hint";
 import { selectPrHintFromStatus } from "@/git/pr-hint";
 import { type HostProjectListItem } from "@/projects/host-project-model";
@@ -11,7 +12,10 @@ import { projectDisplayNameFromProjectId } from "@/utils/project-display-name";
 import { aggregateSidebarStateBuckets } from "@/utils/sidebar-agent-state";
 import { shortenPath } from "@/utils/shorten-path";
 import type { WorkspaceAgentActivity } from "@/utils/workspace-agent-activity";
-import { resolveWorkspaceMapKeyByIdentity } from "@/utils/workspace-identity";
+import {
+  normalizeWorkspaceOpaqueId,
+  resolveWorkspaceMapKeyByIdentity,
+} from "@/utils/workspace-identity";
 
 const EMPTY_PROJECTS: SidebarProjectEntry[] = [];
 
@@ -52,6 +56,8 @@ export interface SidebarWorkspaceEntry extends SidebarStatusWorkspacePlacement {
   archiveUnpushedCommitCount: number | null;
   scripts: WorkspaceDescriptor["scripts"];
   hasRunningScripts: boolean;
+  // Role of the workspace's root agent; a Supervisor row is labelled "Sup: …".
+  rootRoleId?: PaseoRoleId | null;
 }
 
 export interface SidebarProjectEntry {
@@ -181,6 +187,7 @@ export function createSidebarWorkspaceEntry(input: {
     archiveUnpushedCommitCount: input.workspace.gitRuntime?.aheadOfOrigin ?? null,
     scripts: input.workspace.scripts,
     hasRunningScripts: input.workspace.scripts.some((script) => script.lifecycle === "running"),
+    rootRoleId: input.workspaceAgentActivity?.get(input.workspace.id)?.roleId ?? null,
   };
 }
 
@@ -283,6 +290,58 @@ export function deriveProjectStatusBucket(input: {
   }
 
   return aggregateSidebarStateBuckets(buckets);
+}
+
+function sidebarWorkspaceIdentityKey(serverId: string, workspaceId: string): string | null {
+  const normalized = normalizeWorkspaceOpaqueId(workspaceId);
+  return normalized ? `${serverId}:${normalized}` : null;
+}
+
+/**
+ * Workspaces the sidebar leaves out, as a newline-joined sorted key list so the store
+ * selector stays a primitive and only re-renders when the set actually changes.
+ */
+export function selectSidebarHiddenWorkspaceKeys(
+  sessions: Record<
+    string,
+    Pick<SidebarWorkspaceSessionSource, "workspaceAgentActivity"> | undefined
+  >,
+  serverIds: readonly string[],
+): string {
+  const keys: string[] = [];
+  for (const serverId of serverIds) {
+    const activity = sessions[serverId]?.workspaceAgentActivity;
+    if (!activity) continue;
+    for (const [workspaceId, entry] of activity) {
+      if (!entry.hiddenFromSidebar) continue;
+      const key = sidebarWorkspaceIdentityKey(serverId, workspaceId);
+      if (key) keys.push(key);
+    }
+  }
+  return keys.sort().join("\n");
+}
+
+export function omitHiddenSidebarWorkspaces(
+  model: SidebarWorkspacePlacementModel,
+  hiddenWorkspaceKeys: string,
+): SidebarWorkspacePlacementModel {
+  if (!hiddenWorkspaceKeys) {
+    return model;
+  }
+  const hidden = new Set(hiddenWorkspaceKeys.split("\n"));
+  const isVisible = (placement: SidebarWorkspacePlacement) => {
+    const key = sidebarWorkspaceIdentityKey(placement.serverId, placement.workspaceId);
+    return !key || !hidden.has(key);
+  };
+  const projects = model.projects.map((project) => {
+    const workspaces = project.workspaces.filter(isVisible);
+    return workspaces.length === project.workspaces.length ? project : { ...project, workspaces };
+  });
+  return {
+    ...model,
+    projects,
+    workspaces: projects.flatMap((project) => project.workspaces),
+  };
 }
 
 export function buildSidebarWorkspacePlacementModel(input: {

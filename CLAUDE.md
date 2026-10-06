@@ -2,7 +2,7 @@
 
 Paseo is a mobile app for monitoring and controlling your local AI coding agents from anywhere. Your dev environment, in your pocket. Connects directly to your actual development environment — your code stays on your machine.
 
-**Supported agents:** Claude Code, Codex, Cursor, Antigravity, and Codex-derived custom providers.
+**Supported agents:** Claude Code, Codex, Cursor, Antigravity, Factory Droid (ACP catalog), and Codex-derived custom providers.
 Compatibility adapters for other providers remain source-only and are disabled in the shipped runtime.
 
 ## Repository map

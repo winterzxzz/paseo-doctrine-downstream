@@ -23,6 +23,31 @@ describe("resolveSidebarWorkspacePrimaryLabel", () => {
     expect(label).toBe("fix/search");
   });
 
+  it("prefixes Supervisor rows with Sup: once", () => {
+    expect(
+      resolveSidebarWorkspacePrimaryLabel({
+        workspace: {
+          name: "Read fgtool setup guide",
+          currentBranch: null,
+          rootRoleId: "supervisor",
+        },
+        workspaceTitleSource: "title",
+      }),
+    ).toBe("Sup: Read fgtool setup guide");
+    expect(
+      resolveSidebarWorkspacePrimaryLabel({
+        workspace: { name: "Sup: already named", currentBranch: null, rootRoleId: "supervisor" },
+        workspaceTitleSource: "title",
+      }),
+    ).toBe("Sup: already named");
+    expect(
+      resolveSidebarWorkspacePrimaryLabel({
+        workspace: { name: "Lead: ship it", currentBranch: null, rootRoleId: "lead" },
+        workspaceTitleSource: "title",
+      }),
+    ).toBe("Lead: ship it");
+  });
+
   it("falls back to the workspace name in branch mode without a branch", () => {
     const label = resolveSidebarWorkspacePrimaryLabel({
       workspace: { name: "Local folder", currentBranch: null },

@@ -39,6 +39,8 @@ import { AntigravityNativeAgentClient } from "./providers/antigravity-native-age
 import { CodexAppServerAgentClient } from "./providers/codex-app-server-agent.js";
 import { CopilotACPAgentClient } from "./providers/copilot-acp-agent.js";
 import { CursorACPAgentClient } from "./providers/cursor-acp-agent.js";
+import { DroidACPAgentClient } from "./providers/droid-acp-agent.js";
+import { isDroidLaunchCommand } from "./providers/droid-acp-command.js";
 import { GenericACPAgentClient } from "./providers/generic-acp-agent.js";
 import { KimiACPAgentClient } from "./providers/kimi-acp-agent.js";
 import { KiroACPAgentClient } from "./providers/kiro-acp-agent.js";
@@ -93,6 +95,9 @@ function createDerivedAcpClient(
     executable === "cursor-agent.exe"
   ) {
     return new CursorACPAgentClient(acpOptions);
+  }
+  if (isDroidLaunchCommand(command)) {
+    return new DroidACPAgentClient(acpOptions);
   }
   if (providerId === "kimi") {
     return new KimiACPAgentClient(acpOptions);
@@ -240,6 +245,29 @@ const HUB_E2E_PROVIDER_CONTRACT: ProviderContract = {
     return {
       preapproved: toolPolicy.preapproved.map((grant) => ({ ...grant })),
     };
+  },
+};
+
+const DROID_PREAPPROVED_MCP_SERVER = "paseo";
+// Droid role launches carry the runtime Paseo MCP server in their capsule; the session
+// allows exactly these daemon-granted Paseo tools without a Human prompt.
+const DROID_ACP_PROVIDER_CONTRACT: ProviderContract = {
+  optionsSchema: EmptyProviderOptionsSchema,
+  supportsExactMcpPreapproval: true,
+  applyToolPolicy: (provider, toolPolicy) => {
+    for (const grant of toolPolicy.preapproved) {
+      if (
+        grant.kind !== "mcp" ||
+        grant.server !== DROID_PREAPPROVED_MCP_SERVER ||
+        !HUB_E2E_TOOL_NAME.test(grant.tool)
+      ) {
+        throw new ToolPolicyUnsupportedError(
+          provider,
+          `Provider '${provider}' accepts only exact MCP tool grants for the injected '${DROID_PREAPPROVED_MCP_SERVER}' server`,
+        );
+      }
+    }
+    return { preapproved: toolPolicy.preapproved.map((grant) => ({ ...grant })) };
   },
 };
 
@@ -901,6 +929,15 @@ function buildResolvedBuiltinProviders(
   return resolvedProviders;
 }
 
+function resolveDerivedAcpContract(
+  providerId: string,
+  command: readonly string[],
+): ProviderContract {
+  if (providerId === HUB_E2E_PROVIDER_ID) return HUB_E2E_PROVIDER_CONTRACT;
+  if (isDroidLaunchCommand(command)) return DROID_ACP_PROVIDER_CONTRACT;
+  return UNSUPPORTED_PROVIDER_CONTRACT;
+}
+
 function addDerivedProviders(
   resolvedProviders: Map<string, ResolvedProvider>,
   providerOverrides: Record<string, ProviderOverride>,
@@ -941,10 +978,7 @@ function addDerivedProviders(
         derivedFromProviderId: null,
         providerParams: override.params,
         createBaseClient: (logger) => createDerivedAcpClient(logger, command, override, providerId),
-        contract:
-          providerId === HUB_E2E_PROVIDER_ID
-            ? HUB_E2E_PROVIDER_CONTRACT
-            : UNSUPPORTED_PROVIDER_CONTRACT,
+        contract: resolveDerivedAcpContract(providerId, command),
       });
       continue;
     }

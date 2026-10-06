@@ -903,6 +903,36 @@ test("ordinary custom ACP providers remain fail-closed for exact MCP grants", ()
   ).toThrow(/cannot preapprove exact MCP tools for unattended execution/u);
 });
 
+test("enables the Factory Droid ACP catalog route but keeps other ACP providers disabled", () => {
+  const registry = buildProviderRegistry(logger, {
+    providerOverrides: {
+      "factory-droid": {
+        extends: "acp",
+        label: "Factory Droid",
+        command: ["npx", "-y", "droid@0.233.0", "exec", "--output-format", "acp-daemon"],
+        params: { supportsMcpServers: false },
+      },
+      "fast-agent": {
+        extends: "acp",
+        label: "fast-agent",
+        command: ["fast-agent-acp"],
+        enabled: true,
+      },
+    },
+  });
+
+  expect(registry["factory-droid"].enabled).toBe(true);
+  expect(registry["factory-droid"].supportsExactMcpPreapproval).toBe(true);
+  expect(registry["fast-agent"].enabled).toBe(false);
+  expect(registry["fast-agent"].supportsExactMcpPreapproval).toBe(false);
+  expect(() =>
+    registry["factory-droid"].applyToolPolicy(
+      { provider: "factory-droid", cwd: "/tmp/droid" },
+      { preapproved: [{ kind: "mcp", server: "other", tool: "anything" }] },
+    ),
+  ).toThrow(/accepts only exact MCP tool grants for the injected 'paseo' server/u);
+});
+
 test("ACP provider params can disable MCP support", () => {
   const registry = buildProviderRegistry(logger, {
     providerOverrides: {

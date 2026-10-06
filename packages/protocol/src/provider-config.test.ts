@@ -15,6 +15,13 @@ describe("provider Paseo-tool policy", () => {
     expect(isPaseoSupportedProvider("pi", { extends: "codex" })).toBe(false);
   });
 
+  test("allows Factory Droid only as an ACP catalog route", () => {
+    expect(isPaseoSupportedProvider("factory-droid", { extends: "acp" })).toBe(true);
+    expect(isPaseoSupportedProvider("factory-droid")).toBe(false);
+    expect(isPaseoSupportedProvider("fast-agent", { extends: "acp" })).toBe(false);
+    expect(isPaseoSupportedProvider("my-acp", { extends: "acp" })).toBe(false);
+  });
+
   test("accepts native Antigravity as a builtin provider without ACP inheritance", () => {
     expect(
       ProviderOverridesSchema.parse({

@@ -1,3 +1,4 @@
+import { isProviderRoleBindingSupportedForRole } from "@getpaseo/protocol/role-binding";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -491,6 +492,32 @@ describe("native Foundation role materialization", () => {
         ...assignmentBinding("lead", cwd),
       }),
     ).rejects.toThrow("no qualified native durable role-instruction channel");
+  });
+
+  test("admits the exact Factory Droid ACP launch for Supervisor only", () => {
+    const droid = ["npx", "-y", "droid@0.233.0", "exec", "--output-format", "acp-daemon"];
+    const support = resolveProviderRoleBindingSupport(
+      "factory-droid",
+      null,
+      null,
+      undefined,
+      droid,
+    );
+    expect(support).toMatchObject({
+      status: "supported",
+      injectionMethod: "droid-home-capsule",
+      roleIds: ["supervisor"],
+    });
+    expect(isProviderRoleBindingSupportedForRole(support, "supervisor")).toBe(true);
+    expect(isProviderRoleBindingSupportedForRole(support, "lead")).toBe(false);
+    expect(isProviderRoleBindingSupportedForRole(support, "peer")).toBe(false);
+    expect(
+      resolveProviderRoleBindingSupport("factory-droid", null, null, undefined, [
+        ...droid,
+        "--auto",
+        "high",
+      ]),
+    ).toMatchObject({ status: "unsupported", roleIds: ["supervisor"] });
   });
 
   test("supports Pi and OMP through their native durable instruction channels", () => {

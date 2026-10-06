@@ -40,6 +40,9 @@ const NO_WRITE_MODE_BY_INJECTION_METHOD: Partial<Record<RoleBindingInjectionMeth
   "cursor-project-rule-capsule": "plan",
   "cursor-always-apply-plugin": "plan",
   "antigravity-custom-agent": "plan",
+  // Droid "normal" (Auto Off) auto-approves only reads; every other action reaches the
+  // permission gate, which refuses `allow` for a no-write session.
+  "droid-home-capsule": "normal",
   "mock-launch-context": "read-only",
 };
 

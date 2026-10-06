@@ -4,7 +4,7 @@ import { ACP_PROVIDER_CATALOG, type AcpProviderCatalogEntry } from "@/data/acp-p
 
 export type AcpProviderCatalogItem = AcpProviderCatalogEntry;
 
-const SUPPORTED_ACP_PROVIDER_IDS = new Set(["cursor"]);
+const SUPPORTED_ACP_PROVIDER_IDS = new Set(["cursor", "factory-droid"]);
 
 export function getAcpProviderCatalog(): AcpProviderCatalogItem[] {
   return ACP_PROVIDER_CATALOG.filter((entry) => SUPPORTED_ACP_PROVIDER_IDS.has(entry.id));

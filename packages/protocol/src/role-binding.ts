@@ -17,6 +17,7 @@ export const RoleBindingInjectionMethodSchema = z.enum([
   "cursor-project-rule-capsule",
   "cursor-always-apply-plugin",
   "antigravity-custom-agent",
+  "droid-home-capsule",
   "mock-launch-context",
 ]);
 export type RoleBindingInjectionMethod = z.infer<typeof RoleBindingInjectionMethodSchema>;

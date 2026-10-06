@@ -14,6 +14,7 @@ function agent(input: {
   pendingPermissionCount?: number;
   archivedAt?: string | null;
   parentAgentId?: string | null;
+  roleId?: "lead" | "peer" | "supervisor";
 }): Agent {
   return {
     serverId: "host-a",
@@ -62,6 +63,9 @@ function agent(input: {
     archivedAt: input.archivedAt ? new Date(input.archivedAt) : null,
     parentAgentId: input.parentAgentId ?? null,
     labels: {},
+    ...(input.roleId
+      ? { roleBinding: { roleId: input.roleId } as unknown as Agent["roleBinding"] }
+      : {}),
   };
 }
 
@@ -318,5 +322,50 @@ describe("workspace agent activity index", () => {
       status: "needs_input",
       enteredAt: new Date("2026-06-01T10:05:00.000Z"),
     });
+  });
+
+  it("hides a Supervisor-created Lead workspace but keeps Human-created Leads visible", () => {
+    const index = buildWorkspaceAgentActivityIndex(
+      new Map([
+        [
+          "sup",
+          agent({
+            id: "sup",
+            workspaceId: "workspace-sup",
+            updatedAt: "2026-06-01T10:00:00.000Z",
+            roleId: "supervisor",
+          }),
+        ],
+        [
+          "lead-from-sup",
+          agent({
+            id: "lead-from-sup",
+            workspaceId: "workspace-lead",
+            updatedAt: "2026-06-01T10:01:00.000Z",
+            parentAgentId: "sup",
+            roleId: "lead",
+          }),
+        ],
+        [
+          "lead-from-human",
+          agent({
+            id: "lead-from-human",
+            workspaceId: "workspace-human-lead",
+            updatedAt: "2026-06-01T10:02:00.000Z",
+            roleId: "lead",
+          }),
+        ],
+      ]),
+    );
+
+    expect(index.get("workspace-sup")).toMatchObject({ agentId: "sup", roleId: "supervisor" });
+    expect(index.get("workspace-sup")?.hiddenFromSidebar).toBeUndefined();
+    expect(index.get("workspace-lead")).toMatchObject({
+      agentId: "lead-from-sup",
+      roleId: "lead",
+      hiddenFromSidebar: true,
+    });
+    expect(index.get("workspace-human-lead")).toMatchObject({ roleId: "lead" });
+    expect(index.get("workspace-human-lead")?.hiddenFromSidebar).toBeUndefined();
   });
 });

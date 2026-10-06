@@ -10,6 +10,7 @@ import { ClaudeQuotaProvider } from "./providers/claude.js";
 import { CodexQuotaProvider } from "./providers/codex.js";
 import { CopilotQuotaProvider } from "./providers/copilot.js";
 import { CursorQuotaProvider } from "./providers/cursor.js";
+import { FactoryDroidQuotaProvider } from "./providers/factory-droid.js";
 import { GrokQuotaProvider } from "./providers/grok.js";
 import { KimiQuotaProvider } from "./providers/kimi.js";
 import { MiniMaxQuotaProvider } from "./providers/minimax.js";
@@ -1948,5 +1949,83 @@ describe("KimiQuotaProvider usage windows", () => {
       "coding_limit_300_time_unit_minute",
       "coding_limit_300_time_unit_minute_2",
     ]);
+  });
+});
+
+describe("FactoryDroidQuotaProvider usage windows", () => {
+  let homeDir: string;
+
+  beforeEach(() => {
+    homeDir = mkdtempSync(join(tmpdir(), "factory-droid-usage-"));
+  });
+
+  afterEach(() => {
+    delete process.env["FACTORY_API_KEY"];
+    rmSync(homeDir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  const limits = {
+    usesTokenRateLimitsBilling: true,
+    limits: {
+      standard: {
+        fiveHour: { usedPercent: 72, windowEnd: "2026-10-06T07:39:58.600Z", secondsRemaining: 1 },
+        weekly: { usedPercent: 12, windowEnd: "2026-10-10T11:52:17.863Z", secondsRemaining: 1 },
+        monthly: { usedPercent: 3, windowEnd: "2026-11-02T11:52:17.863Z", secondsRemaining: 1 },
+      },
+      core: {
+        fiveHour: { usedPercent: 0, windowEnd: null, secondsRemaining: null },
+        weekly: { usedPercent: 0, windowEnd: null, secondsRemaining: null },
+        monthly: { usedPercent: 0, windowEnd: null, secondsRemaining: null },
+      },
+    },
+    extraUsageBalanceCents: 0,
+    extraUsageAllowed: true,
+  };
+
+  it("reads the key from ~/.factory/.env and maps active limit windows", async () => {
+    mkdirSync(join(homeDir, ".factory"), { recursive: true });
+    writeFileSync(join(homeDir, ".factory", ".env"), "FACTORY_API_KEY=fk-test-key\n");
+    const fetchApi = vi.fn(async () => jsonResponse(limits));
+    const provider = new FactoryDroidQuotaProvider({
+      logger: createLogger(),
+      fetch: fetchApi as unknown as typeof fetch,
+      homeDir,
+    });
+
+    const usage = await provider.fetchUsage();
+
+    expect(fetchApi).toHaveBeenCalledWith(
+      "https://api.factory.ai/api/billing/limits",
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer fk-test-key" }),
+      }),
+    );
+    expect(usage).toMatchObject({
+      providerId: "factory-droid",
+      status: "available",
+      balances: [],
+      windows: [
+        { id: "five_hour", label: "Session", usedPct: 72, tone: "warning" },
+        { id: "weekly", label: "Weekly", usedPct: 12, resetsAt: "2026-10-10T11:52:17.863Z" },
+        { id: "monthly", label: "Monthly", usedPct: 3, remainingPct: 97 },
+      ],
+    });
+  });
+
+  it("is unavailable without a key and when Factory rejects the request", async () => {
+    const fetchApi = vi.fn(async () => jsonResponse({}, 401));
+    const provider = new FactoryDroidQuotaProvider({
+      logger: createLogger(),
+      fetch: fetchApi as unknown as typeof fetch,
+      homeDir,
+    });
+
+    expect((await provider.fetchUsage()).status).toBe("unavailable");
+    expect(fetchApi).not.toHaveBeenCalled();
+
+    process.env["FACTORY_API_KEY"] = "fk-env-key";
+    expect((await provider.fetchUsage()).status).toBe("unavailable");
+    expect(fetchApi).toHaveBeenCalledTimes(1);
   });
 });

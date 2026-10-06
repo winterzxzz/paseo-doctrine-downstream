@@ -24,6 +24,7 @@ import {
 } from "@getpaseo/protocol/policy-owner";
 import { z } from "zod";
 
+import { checkDroidACPRoleCommand, isDroidLaunchCommand } from "./providers/droid-acp-command.js";
 import { ROLE_DEFAULT_TOOLS } from "./role-profiles.js";
 import { inspectWorkspaceProtocol } from "../../utils/workspace-protocol-file.js";
 import {
@@ -186,6 +187,22 @@ function resolveAntigravityNativeRoleBindingSupport(
   };
 }
 
+function resolveDroidACPRoleBindingSupport(
+  command: readonly string[] | undefined,
+): ProviderRoleBindingSupport {
+  const check = checkDroidACPRoleCommand(command);
+  if (!check.ok) {
+    return { status: "unsupported", reason: check.reason, roleIds: ["supervisor"] };
+  }
+  return {
+    status: "supported",
+    injectionMethod: "droid-home-capsule",
+    roleIds: ["supervisor"],
+    notice:
+      "Factory Droid runs each role agent from a private Droid home capsule (AGENTS.md + mcp.json) and has a Supervisor-only eligibility ceiling.",
+  };
+}
+
 function resolveConfiguredACPRoleBindingSupport(
   nativeRoleBinding: ProviderNativeRoleBindingConfig | undefined,
   command: readonly string[] | undefined,
@@ -202,6 +219,9 @@ function resolveConfiguredACPRoleBindingSupport(
   }
   if (commandMatchesExecutable(command, ["cursor-agent", "cursor-agent.exe"])) {
     return resolveCursorACPRoleBindingSupport(command);
+  }
+  if (isDroidLaunchCommand(command)) {
+    return resolveDroidACPRoleBindingSupport(command);
   }
   return null;
 }

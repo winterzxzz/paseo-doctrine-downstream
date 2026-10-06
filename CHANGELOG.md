@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.10.3-paseo.65 - 2026-10-06
+
+### Fixed
+
+- Cache replica của app giờ lưu Foundation receipts của agent (`roleBinding`, `launchContract`,
+  `launchProfile`, `coordinationSignals`). Trước đó, sau khi tải lại trang, agent không đổi lấy từ
+  cache bị mất role vì đồng bộ changes-only không gửi lại agent đó, làm Lead do Supervisor tạo hiện
+  lại trên sidebar và mất tiền tố `Sup:`. Schema cache lên version 2 nên cache cũ bị xóa và đồng bộ
+  lại một lần.
+
+## 0.10.3-paseo.64 - 2026-10-06
+
+### Added
+
+- Factory Droid chọn được cho role Supervisor. Mỗi agent Droid có role chạy trong một Droid home
+  capsule riêng (`~/.paseo/role-capsules/droid/`, qua `FACTORY_HOME_OVERRIDE`): `AGENTS.md` giữ
+  role binding, `mcp.json` giữ runtime Paseo MCP, login Droid được symlink nên Paseo không đọc
+  credential. Paseo tự allow-once đúng các Paseo tool đã grant; quyền khác vẫn hỏi Human. Lead/Peer
+  chưa được admit cho Droid.
+- Usage hiển thị Factory Droid (Session/Weekly/Monthly) từ `FACTORY_API_KEY` trong môi trường daemon
+  hoặc `~/.factory/.env`.
+
+### Changed
+
+- ACP catalog pin Factory Droid lên `droid@0.233.0`, bản đã qua canary role.
+
+## 0.10.3-paseo.63 - 2026-10-06
+
+### Changed
+
+- Sidebar: workspace có root agent là Supervisor hiển thị `Sup: <tên>`, giống title `Lead: …` /
+  `Peer …: …`. Chỉ đổi phần hiển thị, title lưu trên daemon giữ nguyên.
+- Sidebar: workspace của Lead do Supervisor tạo không còn hiện thành dòng riêng; mở Lead từ track
+  subagents của Supervisor, giống Peer được mở từ track của Lead. Lead do Human tạo vẫn hiện.
+
+## 0.10.3-paseo.62 - 2026-10-06
+
+### Added
+
+- Factory Droid (`factory-droid`, ACP catalog, `droid@0.197.0`) được mở trong shipped runtime: thêm từ
+  Settings → Providers → ACP catalog. Gate chỉ nhận đúng ID `factory-droid` với `extends: "acp"`; các
+  provider ACP khác và custom ACP vẫn tắt.
+
 ## 0.10.3-paseo.61 - 2026-10-03
 
 Bản này tích hợp upstream Paseo `v0.10.3` (qua `v0.10.0`, `v0.10.1`, `v0.10.2`) vào downstream line

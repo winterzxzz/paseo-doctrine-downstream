@@ -488,9 +488,16 @@ interface ACPAgentSessionOptions {
   agentId?: string;
   launchEnv?: Record<string, string>;
   sessionCleanup?: () => Promise<void> | void;
+  forwardMcpServers?: boolean;
+  resolveMcpToolIdentity?: ACPSessionLaunchPreparation["resolveMcpToolIdentity"];
   waitForInitialCommands?: boolean;
   initialCommandsWaitTimeoutMs?: number;
   terminateProcess?: ProcessTerminator;
+}
+
+export interface ACPMcpToolIdentity {
+  server: string;
+  tool: string;
 }
 
 export interface ACPSessionLaunchPreparation {
@@ -498,6 +505,13 @@ export interface ACPSessionLaunchPreparation {
   env?: Record<string, string>;
   featureValues?: Record<string, unknown>;
   cleanup?: () => Promise<void> | void;
+  /** False when the provider loads MCP servers from its own launch config, not ACP session/new. */
+  forwardMcpServers?: boolean;
+  /**
+   * Exact MCP tool behind a permission request. A daemon-preapproved grant for that exact
+   * server/tool pair is answered with allow-once; anything unresolved still reaches the Human.
+   */
+  resolveMcpToolIdentity?: (request: RequestPermissionRequest) => ACPMcpToolIdentity | null;
 }
 
 export interface SpawnedACPProcess {
@@ -1008,6 +1022,8 @@ export class ACPAgentClient implements AgentClient {
             ? { ...launchContext?.env, ...sessionLaunch?.env }
             : undefined,
         sessionCleanup: sessionLaunch?.cleanup,
+        forwardMcpServers: sessionLaunch?.forwardMcpServers,
+        resolveMcpToolIdentity: sessionLaunch?.resolveMcpToolIdentity,
         extensionCommandsParser: this.extensionCommandsParser,
         waitForInitialCommands: this.waitForInitialCommands,
         initialCommandsWaitTimeoutMs: this.initialCommandsWaitTimeoutMs,
@@ -1070,6 +1086,8 @@ export class ACPAgentClient implements AgentClient {
           ? { ...launchContext?.env, ...sessionLaunch?.env }
           : undefined,
       sessionCleanup: sessionLaunch?.cleanup,
+      forwardMcpServers: sessionLaunch?.forwardMcpServers,
+      resolveMcpToolIdentity: sessionLaunch?.resolveMcpToolIdentity,
       extensionCommandsParser: this.extensionCommandsParser,
       waitForInitialCommands: this.waitForInitialCommands,
       initialCommandsWaitTimeoutMs: this.initialCommandsWaitTimeoutMs,
@@ -1706,6 +1724,8 @@ export class ACPAgentSession implements AgentSession, ACPClient {
   ) => Promise<void>;
   private readonly agentId?: string;
   private readonly launchEnv?: Record<string, string>;
+  private readonly forwardMcpServers: boolean;
+  private readonly resolveMcpToolIdentity?: ACPSessionLaunchPreparation["resolveMcpToolIdentity"];
   private readonly sessionCleanup?: () => Promise<void> | void;
   private readonly subscribers = new Set<(event: AgentStreamEvent) => void>();
   private readonly pendingPermissions = new Map<string, PendingPermission>();
@@ -1766,6 +1786,8 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     this.availableModes = options.defaultModes;
     this.agentId = options.agentId;
     this.launchEnv = options.launchEnv;
+    this.forwardMcpServers = options.forwardMcpServers ?? true;
+    this.resolveMcpToolIdentity = options.resolveMcpToolIdentity;
     this.sessionCleanup = options.sessionCleanup;
     this.initialHandle = options.handle;
     this.config = { ...config, provider: options.provider };
@@ -2534,6 +2556,15 @@ export class ACPAgentSession implements AgentSession, ACPClient {
       }
     }
 
+    const preapprovedOption = this.selectPreapprovedMcpOption(params);
+    if (preapprovedOption) {
+      this.logger.info(
+        { toolCallId: params.toolCall.toolCallId, optionId: preapprovedOption.optionId },
+        "Allowing daemon-preapproved exact MCP tool",
+      );
+      return { outcome: { outcome: "selected", optionId: preapprovedOption.optionId } };
+    }
+
     // Match Zed acp.rs:3189-3220 when Paseo is not handling the request locally.
     const requestId = randomUUID();
     let toolSnapshot =
@@ -2561,6 +2592,18 @@ export class ACPAgentSession implements AgentSession, ACPClient {
       turnId: this.activeForegroundTurnId ?? undefined,
     });
     return promise;
+  }
+
+  private selectPreapprovedMcpOption(params: RequestPermissionRequest): PermissionOption | null {
+    const identity = this.resolveMcpToolIdentity?.(params);
+    if (!identity) return null;
+    const granted = this.config.toolPolicy?.preapproved.some(
+      (grant) =>
+        grant.kind === "mcp" && grant.server === identity.server && grant.tool === identity.tool,
+    );
+    if (!granted) return null;
+    // Never allow-always: a persisted provider grant would outlive this session's policy.
+    return params.options.find((option) => option.kind === "allow_once") ?? null;
   }
 
   async sessionUpdate(params: SessionNotification): Promise<void> {
@@ -2843,7 +2886,9 @@ export class ACPAgentSession implements AgentSession, ACPClient {
   }
 
   private acpMcpServers(): McpServer[] {
-    return this.capabilities.supportsMcpServers ? normalizeMcpServers(this.config.mcpServers) : [];
+    return this.capabilities.supportsMcpServers && this.forwardMcpServers
+      ? normalizeMcpServers(this.config.mcpServers)
+      : [];
   }
 
   private applySessionState(response: SessionStateResponse): void {

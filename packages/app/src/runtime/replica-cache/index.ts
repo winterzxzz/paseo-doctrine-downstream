@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  AgentSnapshotPayloadSchema,
   AgentStatusSchema,
   AgentTimelineItemPayloadSchema,
   WorkspaceGitHubRuntimePayloadSchema,
@@ -250,6 +251,12 @@ const StoredAgentSnapshotSchema = z.strictObject({
   attentionReason: z.enum(["finished", "error", "permission"]).nullable().optional(),
   attentionTimestamp: IsoDateSchema.nullable().optional(),
   archivedAt: IsoDateSchema.nullable().optional(),
+  // Immutable Foundation receipts. A changes-only directory sync never resends an unchanged
+  // agent, so a cached row without them would drop the agent's role until it next changes.
+  roleBinding: AgentSnapshotPayloadSchema.shape.roleBinding,
+  launchContract: AgentSnapshotPayloadSchema.shape.launchContract,
+  launchProfile: AgentSnapshotPayloadSchema.shape.launchProfile,
+  coordinationSignals: AgentSnapshotPayloadSchema.shape.coordinationSignals,
 });
 
 const StoredAgentSchema = z.strictObject({
@@ -604,6 +611,20 @@ function serializeAgentTurn(agent: Agent): NonNullable<StoredAgent["turn"]> {
   };
 }
 
+function serializeFoundationReceipts(
+  agent: Agent,
+): Pick<
+  StoredAgent["snapshot"],
+  "roleBinding" | "launchContract" | "launchProfile" | "coordinationSignals"
+> {
+  return {
+    ...(agent.roleBinding ? { roleBinding: agent.roleBinding } : {}),
+    ...(agent.launchContract ? { launchContract: agent.launchContract } : {}),
+    ...(agent.launchProfile ? { launchProfile: agent.launchProfile } : {}),
+    ...(agent.coordinationSignals ? { coordinationSignals: agent.coordinationSignals } : {}),
+  };
+}
+
 function serializeAgent(agent: Agent): StoredAgent {
   const snapshot = {
     id: agent.id,
@@ -655,6 +676,7 @@ function serializeAgent(agent: Agent): StoredAgent {
     attentionReason: agent.attentionReason ?? null,
     attentionTimestamp: agent.attentionTimestamp?.toISOString() ?? null,
     archivedAt: agent.archivedAt?.toISOString() ?? null,
+    ...serializeFoundationReceipts(agent),
   };
   return {
     snapshot,

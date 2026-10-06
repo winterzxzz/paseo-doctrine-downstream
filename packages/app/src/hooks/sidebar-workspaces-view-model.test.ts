@@ -12,6 +12,8 @@ import {
   createSidebarWorkspaceEntry,
   deriveProjectStatusBucket,
   deriveSidebarLoadingState,
+  omitHiddenSidebarWorkspaces,
+  selectSidebarHiddenWorkspaceKeys,
   shouldShowSidebarHostLabels,
   type ProjectStatusSession,
   type SidebarProjectEntry,
@@ -940,5 +942,59 @@ describe("deriveProjectStatusBucket", () => {
         },
       }),
     ).toBe("done");
+  });
+});
+
+describe("sidebar role-hidden workspaces", () => {
+  it("omits Supervisor-created Lead workspaces and labels the Supervisor row's role", () => {
+    const model = buildSidebarWorkspacePlacementModel({
+      projects: [
+        project({
+          projectKey: "repo",
+          projectName: "repo",
+          iconWorkingDir: "/repo",
+          hosts: [
+            { serverId: "host-a", iconWorkingDir: "/repo", worktreeSupport: "supported" as const },
+          ],
+          workspaceKeys: ["host-a:sup", "host-a:lead", "host-a:other"],
+        }),
+      ],
+    });
+    const workspaceAgentActivity = new Map([
+      [
+        "sup",
+        { agentId: "s", status: "done" as const, enteredAt: null, roleId: "supervisor" as const },
+      ],
+      [
+        "lead",
+        {
+          agentId: "l",
+          status: "running" as const,
+          enteredAt: null,
+          roleId: "lead" as const,
+          hiddenFromSidebar: true as const,
+        },
+      ],
+    ]);
+
+    const hiddenKeys = selectSidebarHiddenWorkspaceKeys({ "host-a": { workspaceAgentActivity } }, [
+      "host-a",
+    ]);
+    expect(hiddenKeys).toBe("host-a:lead");
+
+    const visible = omitHiddenSidebarWorkspaces(model, hiddenKeys);
+    expect(visible.workspaces.map((placement) => placement.workspaceId)).toEqual(["sup", "other"]);
+    expect(visible.projects[0]?.workspaces.map((placement) => placement.workspaceId)).toEqual([
+      "sup",
+      "other",
+    ]);
+    expect(omitHiddenSidebarWorkspaces(model, "")).toBe(model);
+
+    const entry = createSidebarWorkspaceEntry({
+      serverId: "host-a",
+      workspace: { ...workspaceWithForge(undefined, "https://example.com/pr/1"), id: "sup" },
+      workspaceAgentActivity,
+    });
+    expect(entry.rootRoleId).toBe("supervisor");
   });
 });

@@ -175,12 +175,14 @@ export type AgentProviderRuntimeSettingsMap = Partial<
 >;
 
 const PASEO_SUPPORTED_PROVIDER_IDS = new Set(["claude", "codex", "cursor", "gemini-antigravity"]);
+const PASEO_SUPPORTED_ACP_CATALOG_PROVIDER_IDS = new Set(["factory-droid"]);
 
 /**
  * Product support policy. Paseo currently exposes the native Claude, Codex,
- * Cursor and Antigravity routes, plus user-defined routes derived from Codex.
- * Other adapters remain in source for compatibility and development fixtures,
- * but cannot be enabled in the shipped runtime.
+ * Cursor and Antigravity routes, the Factory Droid ACP catalog route, plus
+ * user-defined routes derived from Codex. Other adapters remain in source for
+ * compatibility and development fixtures, but cannot be enabled in the shipped
+ * runtime.
  */
 export function isPaseoSupportedProvider(
   providerId: string,
@@ -188,6 +190,7 @@ export function isPaseoSupportedProvider(
 ): boolean {
   return (
     PASEO_SUPPORTED_PROVIDER_IDS.has(providerId) ||
+    (PASEO_SUPPORTED_ACP_CATALOG_PROVIDER_IDS.has(providerId) && override?.extends === "acp") ||
     (!BUILTIN_PROVIDER_IDS.includes(providerId as (typeof BUILTIN_PROVIDER_IDS)[number]) &&
       override?.extends === "codex")
   );

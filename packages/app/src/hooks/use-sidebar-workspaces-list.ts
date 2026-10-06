@@ -14,6 +14,8 @@ import {
   createSidebarWorkspaceEntry,
   deriveProjectStatusBucket,
   deriveSidebarLoadingState,
+  omitHiddenSidebarWorkspaces,
+  selectSidebarHiddenWorkspaceKeys,
   type ProjectStatusSession,
   type SidebarProjectEntry,
   type SidebarWorkspaceEntry,
@@ -140,12 +142,21 @@ export function useSidebarWorkspacesList(options?: {
 
   const hostProjects = useHostProjects(directoryServerIds);
 
+  const hiddenWorkspaceKeys = useStoreWithEqualityFn(
+    useSessionStore,
+    (state) => (isActive ? selectSidebarHiddenWorkspaceKeys(state.sessions, serverIds) : ""),
+    Object.is,
+  );
+
   const sidebarModel = useMemo(
     () =>
-      buildSidebarWorkspacePlacementModel({
-        projects: hostProjects,
-      }),
-    [hostProjects],
+      omitHiddenSidebarWorkspaces(
+        buildSidebarWorkspacePlacementModel({
+          projects: hostProjects,
+        }),
+        hiddenWorkspaceKeys,
+      ),
+    [hiddenWorkspaceKeys, hostProjects],
   );
 
   const projects = sidebarModel.projects.length > 0 ? sidebarModel.projects : EMPTY_PROJECTS;

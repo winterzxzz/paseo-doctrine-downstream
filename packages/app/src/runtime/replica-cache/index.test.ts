@@ -426,6 +426,35 @@ describe("ReplicaCache", () => {
     });
   });
 
+  it("round-trips Foundation role receipts so changes-only sync keeps agent roles", async () => {
+    const storage = new MemoryStorage();
+    const writer = createCache(storage);
+    const supervisor = agent("supervisor");
+    supervisor.roleBinding = {
+      roleId: "supervisor",
+      definitionVersion: "3.2.0-topology-recovery",
+      definitionDigest: "a".repeat(64),
+      bindingDigest: "b".repeat(64),
+      provider: "claude",
+      injectionMethod: "claude-system-prompt",
+      qualification: "implementation-supported",
+      workspaceProtocol: {
+        status: "bound",
+        readership: "full",
+        path: "/repo/WORKSPACE_PROTOCOL.md",
+      },
+      createdAt: "2026-10-05T09:29:45.795Z",
+    };
+    writer.commitDirectoryMutations(SERVER_ID, [
+      { kind: "agent", type: "upsert", id: supervisor.id, value: supervisor },
+    ]);
+    await writer.flush();
+
+    const restored = await createCache(storage).readDirectory(SERVER_ID);
+
+    expect(restored.agents.get("supervisor")?.roleBinding).toEqual(supervisor.roleBinding);
+  });
+
   it("coalesces timeline values before serialization", async () => {
     const storage = new MemoryStorage();
     const cache = createCache(storage);

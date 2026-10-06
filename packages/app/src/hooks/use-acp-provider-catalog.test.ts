@@ -11,8 +11,8 @@ function findProvider(id: string) {
 }
 
 describe("ACP provider catalog", () => {
-  it("offers only Cursor on the currently supported product surface", () => {
-    expect(getAcpProviderCatalog().map((entry) => entry.id)).toEqual(["cursor"]);
+  it("offers only Cursor and Factory Droid on the currently supported product surface", () => {
+    expect(getAcpProviderCatalog().map((entry) => entry.id)).toEqual(["cursor", "factory-droid"]);
     expect(getAcpProviderCatalog().map((entry) => entry.id)).not.toContain("minimax-code");
     expect(getAcpProviderCatalog().map((entry) => entry.id)).not.toContain("fast-agent");
     expect(getAcpProviderCatalog().map((entry) => entry.id)).not.toContain("hermes");

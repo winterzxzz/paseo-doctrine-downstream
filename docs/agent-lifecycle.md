@@ -183,6 +183,8 @@ Closing a tab on a **subagent** (any agent with `parentAgentId`) is **layout-onl
 
 The asymmetry is intentional: a subagent's persistent relationship lives in the parent's track. Same-workspace subagents are not auto-opened as tabs; the user opens one from that track when needed. A cross-workspace subagent is also auto-opened as a tab in its own workspace so opening that workspace does not appear empty. It remains in the parent's track until it is actually detached.
 
+The sidebar applies one role rule on top of placement (`packages/app/src/utils/workspace-agent-activity.ts`). A workspace whose root agent is a Lead created by a Supervisor stays out of the sidebar: the Human reaches that Lead from the Supervisor's track, the same way a Peer sharing its Lead's workspace is reached from the Lead's track. A Lead the Human created, or one whose Supervisor is not loaded, keeps its row. A row whose root agent is a Supervisor is labelled `Sup: <name>`, matching the `Lead: …` and `Peer …: …` titles that creators write for their children. The prefix is display-only; the stored workspace title is unchanged.
+
 ## Workspace activity
 
 Agent lifecycle status stays literal: a parent agent is `idle` when its own turn is idle, even if a child is running.

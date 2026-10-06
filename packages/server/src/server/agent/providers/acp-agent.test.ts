@@ -1318,6 +1318,60 @@ describe("ACPAgentSession Zed parity", () => {
     });
   });
 
+  test("allows only daemon-preapproved exact MCP tools and keeps provider-config MCP off ACP", async () => {
+    const session = new ACPAgentSession(
+      {
+        provider: "factory-droid",
+        cwd: "/tmp/paseo-acp-test",
+        mcpServers: { paseo: { type: "http", url: "http://127.0.0.1:1/mcp" } },
+        toolPolicy: { preapproved: [{ kind: "mcp", server: "paseo", tool: "beads_status" }] },
+      },
+      {
+        provider: "factory-droid",
+        logger: createTestLogger(),
+        defaultCommand: ["droid", "exec", "--output-format", "acp-daemon"],
+        defaultModes: [],
+        capabilities: {
+          supportsStreaming: true,
+          supportsSessionPersistence: true,
+          supportsDynamicModes: true,
+          supportsMcpServers: true,
+          supportsReasoningStream: true,
+          supportsToolInvocations: true,
+        },
+        forwardMcpServers: false,
+        resolveMcpToolIdentity: (request) => {
+          const [server, tool] = request.toolCall.title?.split("___") ?? [];
+          return server && tool ? { server, tool } : null;
+        },
+      },
+    );
+    const events: AgentStreamEvent[] = [];
+    asInternals<ACPSessionInternals>(session).sessionId = "session-1";
+    session.subscribe((event) => {
+      events.push(event);
+    });
+    const options: PermissionOption[] = [
+      { optionId: "allow-once", name: "Allow", kind: "allow_once" },
+      { optionId: "allow-always", name: "Always", kind: "allow_always" },
+      { optionId: "reject-once", name: "Reject", kind: "reject_once" },
+    ];
+    const request = (title: string): RequestPermissionRequest => ({
+      sessionId: "session-1",
+      toolCall: { toolCallId: title, title, kind: "other", status: "pending" },
+      options,
+    });
+
+    expect(asInternals<ACPSessionInternals>(session).acpMcpServers()).toEqual([]);
+    await expect(session.requestPermission(request("paseo___beads_status"))).resolves.toEqual({
+      outcome: { outcome: "selected", optionId: "allow-once" },
+    });
+
+    void session.requestPermission(request("paseo___create_agent"));
+    await Promise.resolve();
+    expect(events.filter((event) => event.type === "permission_requested")).toHaveLength(1);
+  });
+
   test("carries the provider-classified transport shadow into permission metadata", async () => {
     const session = createSessionWithConfig({
       provider: "cursor",

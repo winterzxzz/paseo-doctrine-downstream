@@ -429,8 +429,8 @@ One deliberate non-violation: `AgentFileExplorerState.directories`/`files` cache
 
 Each provider implements the `AgentClient` interface in `agent/agent-sdk-types.ts`. Provider implementations live in `agent/providers/`.
 
-The shipped downstream runtime exposes Claude Code, Codex, Cursor, Antigravity, and user-defined
-providers derived from Codex. Copilot, OpenCode, Pi, OMP, Devin, and other compatibility adapters may
+The shipped downstream runtime exposes Claude Code, Codex, Cursor, Antigravity, Factory Droid (ACP
+catalog entry `factory-droid`), and user-defined providers derived from Codex. Copilot, OpenCode, Pi, OMP, Devin, and other compatibility adapters may
 remain in source for upstream parity and tests, but the daemon filters them out of the user-facing
 provider registry and they cannot be enabled through Provider Settings.
 
@@ -443,6 +443,7 @@ Provider implementations and compatibility adapters live in the same directory:
 | Cursor               | ACP wrapper (`acp-agent`)            | Supported              | Provider-managed                                   |
 | Antigravity          | Native Antigravity CLI               | Supported              | Provider-managed                                   |
 | Codex-derived custom | OpenAI-compatible Codex adapter      | Supported when defined | Provider-managed                                   |
+| Factory Droid        | ACP + private Droid home capsule     | Supported when added   | Capsule `~/.paseo/role-capsules/droid/` for roles  |
 | Other adapters       | ACP, OpenCode, Pi, OMP, or fixtures  | Source-only/disabled   | Provider-specific                                  |
 
 All providers:

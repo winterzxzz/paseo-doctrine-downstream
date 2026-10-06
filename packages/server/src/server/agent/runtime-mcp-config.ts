@@ -8,7 +8,7 @@ import type { AgentSessionConfig, McpServerConfig } from "./agent-sdk-types.js";
 import { findExecutable } from "../../executable-resolution/executable-resolution.js";
 import { execCommand } from "../../utils/spawn.js";
 
-const PASEO_MCP_SERVER_NAME = "paseo";
+export const PASEO_MCP_SERVER_NAME = "paseo";
 const TRUSTED_SEMBLE_MCP_SERVER_NAME = "semble";
 const TRUSTED_SEMBLE_TOOLS = ["search", "find_related"] as const;
 const TRUSTED_SEMBLE_PACKAGE = "semble[mcp]==0.5.4";
