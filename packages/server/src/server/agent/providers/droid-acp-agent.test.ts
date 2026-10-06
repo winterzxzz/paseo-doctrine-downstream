@@ -4,7 +4,11 @@ import { join } from "node:path";
 import type { RequestPermissionRequest } from "@agentclientprotocol/sdk";
 import { describe, expect, test } from "vitest";
 
-import { materializeDroidRoleCapsule, resolveDroidMcpToolIdentity } from "./droid-acp-agent.js";
+import {
+  markDroidUnattendedMode,
+  materializeDroidRoleCapsule,
+  resolveDroidMcpToolIdentity,
+} from "./droid-acp-agent.js";
 import { checkDroidACPRoleCommand, isDroidLaunchCommand } from "./droid-acp-command.js";
 
 const NPX_DROID = ["npx", "-y", "droid@0.233.0", "exec", "--output-format", "acp-daemon"] as const;
@@ -40,6 +44,21 @@ describe("Factory Droid ACP launch shape", () => {
     }
     expect(checkDroidACPRoleCommand(["droid", "exec", "--output-format", "text"]).ok).toBe(false);
     expect(checkDroidACPRoleCommand(["droid", "--output-format", "acp-daemon"]).ok).toBe(false);
+  });
+});
+
+describe("Factory Droid modes", () => {
+  test("marks only Auto (High) as the unattended mode", () => {
+    const modes = markDroidUnattendedMode([
+      { id: "normal", label: "Auto (Off)" },
+      { id: "auto-low", label: "Auto (Low)" },
+      { id: "auto-high", label: "Auto (High)" },
+    ]);
+    expect(modes.filter((mode) => mode.isUnattended).map((mode) => mode.id)).toEqual(["auto-high"]);
+    expect(modes.find((mode) => mode.id === "normal")).toEqual({
+      id: "normal",
+      label: "Auto (Off)",
+    });
   });
 });
 

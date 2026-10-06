@@ -8,8 +8,12 @@ import type { Logger } from "pino";
 
 import type {
   AgentLaunchContext,
+  AgentMode,
   AgentSessionConfig,
+  FetchCatalogOptions,
   McpServerConfig,
+  ProviderCatalog,
+  ProviderRefreshContext,
 } from "../agent-sdk-types.js";
 import { PASEO_MCP_SERVER_NAME } from "../runtime-mcp-config.js";
 import type { ACPMcpToolIdentity, ACPSessionLaunchPreparation } from "./acp-agent.js";
@@ -157,6 +161,16 @@ export async function materializeDroidRoleCapsule(input: {
   };
 }
 
+// Droid "Auto (High)" auto-approves every action, so it is the unattended mode that bypass-policy
+// role launches (Peer delegation, Supervisor bootstrap) resolve to. ACP modes carry no such flag.
+export const DROID_UNATTENDED_MODE_ID = "auto-high";
+
+export function markDroidUnattendedMode(modes: AgentMode[]): AgentMode[] {
+  return modes.map((mode) =>
+    mode.id === DROID_UNATTENDED_MODE_ID ? { ...mode, isUnattended: true } : mode,
+  );
+}
+
 export class DroidACPAgentClient extends GenericACPAgentClient {
   private readonly roleCommand: [string, ...string[]];
   private readonly roleCapsuleRoot?: string;
@@ -174,6 +188,14 @@ export class DroidACPAgentClient extends GenericACPAgentClient {
     this.roleCommand = options.command;
     this.roleCapsuleRoot = options.roleCapsuleRoot;
     this.factoryHome = options.factoryHome;
+  }
+
+  override async fetchCatalog(
+    options: FetchCatalogOptions,
+    context?: ProviderRefreshContext,
+  ): Promise<ProviderCatalog> {
+    const catalog = await super.fetchCatalog(options, context);
+    return { ...catalog, modes: markDroidUnattendedMode(catalog.modes) };
   }
 
   protected override async prepareSessionLaunch(
