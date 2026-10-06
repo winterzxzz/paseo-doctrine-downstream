@@ -1630,6 +1630,21 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
     return { enforcedMode, unattended: runMode === "unattended" };
   };
 
+  // An omitted provider inherits the caller's route; a role-limited caller route (for example a
+  // Supervisor-only Droid) cannot host another role, so name the fix instead of failing at bind.
+  const assertInheritedProviderHostsRole = async (
+    provider: AgentProvider,
+    requestedRole: PaseoRoleId | undefined,
+  ): Promise<void> => {
+    if (!requestedRole) return;
+    const providerEntry = await providerSnapshotManager.getProvider({ provider, wait: true });
+    const eligibleRoles = providerEntry.roleBinding?.roleIds;
+    if (!eligibleRoles || eligibleRoles.includes(requestedRole)) return;
+    throw new Error(
+      `create_agent inherited the caller provider '${provider}', which cannot host role '${requestedRole}' (eligible role(s): ${eligibleRoles.join(", ")}); call list_models and pass an exact provider/model route from a provider that supports '${requestedRole}'`,
+    );
+  };
+
   const resolveCreateAgentProviderRoute = async (input: {
     requestedProvider?: string;
     requestedRole?: PaseoRoleId;
@@ -1650,6 +1665,7 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
       input.requestedRole === "peer" ? resolvePeerDelegationAllowedRoutes() : undefined;
     let providerRoute = resolvePeerPolicyProviderRoute(requestedProvider ?? "", allowedPeerRoutes);
     if (!providerRoute && callerAgent && inheritedModel) {
+      await assertInheritedProviderHostsRole(callerAgent.provider, input.requestedRole);
       providerRoute = formatProviderModel(callerAgent.provider, inheritedModel);
     }
     if (!providerRoute) {
@@ -2854,7 +2870,7 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
           requestedMode: launchSettings.requestedMode,
           requestedCwd: resolvedArgs.cwd,
           launchProfile,
-          assignmentNoWrite: isNoWritePeerAssignment(parsedArgs),
+          assignmentNoWrite: isNoWriteAssignment(parsedArgs),
         });
         const inheritedConfig = resolveInheritedProviderConfig(selectedProvider);
         workspaceRollbackTransferred = true;
@@ -3001,9 +3017,9 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
         worktree: CreateAgentFromMcpInput["worktree"];
       };
 
-  function isNoWritePeerAssignment(parsedArgs: ResolvedCreateAgentToolArgs["parsedArgs"]): boolean {
+  function isNoWriteAssignment(parsedArgs: ResolvedCreateAgentToolArgs["parsedArgs"]): boolean {
     return (
-      parsedArgs.role === "peer" && parsedArgs.assignment?.mutationBoundary.mode === "no-write"
+      parsedArgs.role !== undefined && parsedArgs.assignment?.mutationBoundary.mode === "no-write"
     );
   }
 

@@ -93,7 +93,8 @@ chạy nó trên baseline trước khi sửa code: `git worktree add --detach <d
 upstream-vX.Y.Z` cho baseline upstream), `npm ci --ignore-scripts`, `npm run build:server`. Test đỏ ở
 cả baseline không phải regression của merge.
 
-- `PASEO_FORCE_BYPASS` mặc định bật và đổi hành vi role/mode. Chạy server test với
+- `PASEO_FORCE_BYPASS` mặc định bật và đổi hành vi role/mode (xem
+  [native-role-binding.md](native-role-binding.md)). Chạy server test với
   `PASEO_FORCE_BYPASS=0` (script đã đặt sẵn).
 - Node 25 có `localStorage` built-in che bản của jsdom. Chạy app test với
   `NODE_OPTIONS=--no-experimental-webstorage` (script đã đặt sẵn).

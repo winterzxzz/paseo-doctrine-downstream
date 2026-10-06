@@ -63,9 +63,7 @@ import { assertAgentPromptLease } from "./lead-handoffs.js";
 import {
   assertRoleAssignmentModeAllowed,
   assertRoleAssignmentPermissionResponseAllowed,
-  enforceRoleAssignmentCapability,
-  FORCE_AGENT_BYPASS,
-  forceUnattendedSessionMode,
+  resolveAssignmentLaunchMode,
 } from "./assignment-capability-boundary.js";
 import type { AgentOwner } from "./agent-owner.js";
 import {
@@ -2468,9 +2466,7 @@ export class AgentManager {
 
   async setAgentMode(agentId: string, modeId: string): Promise<AgentProviderNotice | null> {
     const agent = this.requireSessionAgent(agentId);
-    if (!FORCE_AGENT_BYPASS) {
-      assertRoleAssignmentModeAllowed(agent.roleBinding, modeId);
-    }
+    assertRoleAssignmentModeAllowed(agent.roleBinding, modeId);
     const notice = (await agent.session.setMode(modeId)) ?? null;
     await this.drainSessionEvents(agentId);
     const currentMode = (await agent.session.getCurrentMode()) ?? modeId;
@@ -5939,9 +5935,7 @@ export class AgentManager {
       });
       launchContract = materializeLaunchContract(roleBinding, providerBinding);
     }
-    storedConfig = FORCE_AGENT_BYPASS
-      ? forceUnattendedSessionMode(storedConfig)
-      : enforceRoleAssignmentCapability(storedConfig, roleBinding);
+    storedConfig = resolveAssignmentLaunchMode(storedConfig, roleBinding);
     if (roleBinding && launchContract) {
       assertPersistedRoleBindingMatches(roleBinding, storedConfig.provider);
       assertPersistedLaunchContractMatches(launchContract, storedConfig);
@@ -6138,9 +6132,7 @@ export class AgentManager {
               ...(roleBinding.roleProfile
                 ? { allowedSkills: roleBinding.roleProfile.allowedSkills }
                 : {}),
-              noWrite: FORCE_AGENT_BYPASS
-                ? false
-                : roleBinding.assignment?.mutationBoundary.mode === "no-write",
+              noWrite: roleBinding.assignment?.mutationBoundary.mode === "no-write",
             },
           }
         : {}),

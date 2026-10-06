@@ -6,6 +6,7 @@ import {
   assertRoleAssignmentPermissionResponseAllowed,
   enforceRoleAssignmentCapability,
   requiredNoWriteMode,
+  resolveAssignmentLaunchMode,
 } from "./assignment-capability-boundary.js";
 import type { PersistedRoleBinding } from "./role-binding.js";
 
@@ -70,6 +71,47 @@ test("no-write Claude assignment pins guarded default mode for the strict tool b
       roleBinding({ injectionMethod: "claude-system-prompt" }),
     ),
   ).toMatchObject({ modeId: "default" });
+});
+
+test("forced bypass still pins a no-write Lead assignment to its no-write mode", () => {
+  const config: AgentSessionConfig = {
+    provider: "claude",
+    cwd: "/workspace/repo",
+    modeId: "bypassPermissions",
+  };
+
+  expect(
+    resolveAssignmentLaunchMode(
+      config,
+      roleBinding({ injectionMethod: "claude-system-prompt" }),
+      true,
+    ),
+  ).toMatchObject({ modeId: "default" });
+});
+
+test("forced bypass launches a write-authorized assignment in unattended mode", () => {
+  const config: AgentSessionConfig = {
+    provider: "claude",
+    cwd: "/workspace/repo",
+    modeId: "default",
+  };
+
+  expect(
+    resolveAssignmentLaunchMode(
+      config,
+      roleBinding({ injectionMethod: "claude-system-prompt", mutationMode: "bounded-write" }),
+      true,
+    ),
+  ).toMatchObject({ modeId: "bypassPermissions" });
+});
+
+test("no-write session cannot switch into bypass mode", () => {
+  expect(() =>
+    assertRoleAssignmentModeAllowed(
+      roleBinding({ injectionMethod: "claude-system-prompt" }),
+      "bypassPermissions",
+    ),
+  ).toThrow("assignment_capability_boundary_required");
 });
 
 test("bounded-write assignment preserves the requested provider capability", () => {

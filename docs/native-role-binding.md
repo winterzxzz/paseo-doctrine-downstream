@@ -111,6 +111,16 @@ qualified read-only/guarded/plan mode với `unattended=false`; global `unattend
 lease. Write-authorized assignment không bị gate này mở rộng scope: provider mode chỉ là capability,
 assignment vẫn là authority.
 
+Downstream override `PASEO_FORCE_BYPASS` (mặc định bật) đưa mọi Lead, Peer, Supervisor và top-level agent
+vào unattended mode của provider (`bypassPermissions`/`full-access`), **trừ** assignment `no-write`:
+assignment đó, với mọi role, vẫn launch bằng qualified no-write mode ở trên, giữ mode-switch lock và
+`noWrite` adapter boundary. `create_agent` preflight no-write mode cho mọi role trước provider launch.
+`PASEO_FORCE_BYPASS=0` trả write-authorized và unbound agent về run-mode resolution của upstream.
+
+`create_agent` không có `provider` sẽ kế thừa route của caller. Route đó phải host được role được yêu cầu:
+Supervisor chạy trên Factory Droid (chỉ `supervisor`) phải truyền exact provider/model route từ
+`list_models` khi tạo Lead, nếu không daemon từ chối trước launch và nêu role mà provider hỗ trợ.
+
 ### Hai Codex route độc lập với role
 
 - Built-in `codex` là Codex native subscription. Preflight gọi app-server `account/read`, chỉ nhận

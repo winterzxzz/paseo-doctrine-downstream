@@ -14,9 +14,11 @@ export const ASSIGNMENT_CAPABILITY_BOUNDARY_ERROR = "assignment_capability_bound
 /**
  * Downstream override: when enabled, every agent (Lead, Peer, Supervisor, and
  * top-level) launches in its provider's unattended ("Bypass"/"Full Access")
- * mode and the no-write capability boundary is disabled, so read-only
- * assignments become advisory rather than provider-enforced. Set
- * PASEO_FORCE_BYPASS=0 to restore upstream role/assignment enforcement.
+ * mode unless its assignment carries an explicit `no-write` mutation boundary.
+ * A no-write assignment always keeps its daemon-pinned no-write mode, so a
+ * read-only Lead/Peer/Supervisor is provider-enforced rather than advisory.
+ * Set PASEO_FORCE_BYPASS=0 to restore upstream run-mode resolution for
+ * write-authorized and unbound agents too.
  */
 export const FORCE_AGENT_BYPASS = process.env.PASEO_FORCE_BYPASS !== "0";
 
@@ -67,6 +69,22 @@ export function requiredNoWriteMode(roleBinding: PersistedRoleBinding | undefine
     );
   }
   return modeId;
+}
+
+/**
+ * Resolve the launch mode for a session: an explicit no-write assignment is
+ * pinned to its qualified no-write mode; everything else follows the
+ * FORCE_AGENT_BYPASS override.
+ */
+export function resolveAssignmentLaunchMode(
+  config: AgentSessionConfig,
+  roleBinding: PersistedRoleBinding | undefined,
+  forceBypass: boolean = FORCE_AGENT_BYPASS,
+): AgentSessionConfig {
+  if (forceBypass && !requiresTechnicalNoWrite(roleBinding)) {
+    return forceUnattendedSessionMode(config);
+  }
+  return enforceRoleAssignmentCapability(config, roleBinding);
 }
 
 export function enforceRoleAssignmentCapability(
