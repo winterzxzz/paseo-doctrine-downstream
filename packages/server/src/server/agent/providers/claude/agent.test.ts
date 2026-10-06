@@ -827,6 +827,14 @@ describe("ClaudeAgentSession features", () => {
         behavior: "allow",
         updatedInput: { roomId: "room-1" },
       });
+      // A no-write session cannot approve escalations, so read tools must not wait on Human.
+      for (const toolName of ["Read", "Glob", "Grep", "WebFetch", "WebSearch", "ToolSearch"]) {
+        const toolInput = { pattern: "**/lib/src/*.dart" };
+        await expect(canUseTool?.(toolName, toolInput, {})).resolves.toEqual({
+          behavior: "allow",
+          updatedInput: toolInput,
+        });
+      }
     } finally {
       await session.close();
     }

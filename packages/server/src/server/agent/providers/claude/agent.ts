@@ -2071,7 +2071,22 @@ class ClaudeContextUsageState {
   }
 }
 
-const NO_WRITE_WEB_READ_TOOLS = new Set(["WebFetch", "WebSearch"]);
+// The strict tool surface of a no-write session: no tool here can change state.
+const NO_WRITE_TOOL_SURFACE = [
+  "Read",
+  "Glob",
+  "Grep",
+  "WebFetch",
+  "WebSearch",
+  "AskUserQuestion",
+  "Skill",
+  "ToolSearch",
+];
+// A no-write session refuses every `allow` response, so any surface tool Claude asks about
+// would deadlock. Admit them all except AskUserQuestion, whose answer must come from Human.
+const NO_WRITE_AUTO_ALLOWED_TOOLS = new Set(
+  NO_WRITE_TOOL_SURFACE.filter((tool) => tool !== "AskUserQuestion"),
+);
 
 class ClaudeAgentSession implements AgentSession {
   readonly provider = "claude" as const;
@@ -3498,16 +3513,7 @@ class ClaudeAgentSession implements AgentSession {
       ]),
     );
     if (this.noWrite) {
-      base.tools = [
-        "Read",
-        "Glob",
-        "Grep",
-        "WebFetch",
-        "WebSearch",
-        "AskUserQuestion",
-        "Skill",
-        "ToolSearch",
-      ];
+      base.tools = [...NO_WRITE_TOOL_SURFACE];
       base.allowDangerouslySkipPermissions = false;
     }
   }
@@ -4831,9 +4837,7 @@ class ClaudeAgentSession implements AgentSession {
         updatedInput: input,
       };
     }
-    // A no-write session refuses every `allow` response, so web reads in its strict
-    // read-only tool surface would deadlock; they change no state, so admit them here.
-    if (this.noWrite && NO_WRITE_WEB_READ_TOOLS.has(toolName)) {
+    if (this.noWrite && NO_WRITE_AUTO_ALLOWED_TOOLS.has(toolName)) {
       return {
         behavior: "allow",
         updatedInput: input,
