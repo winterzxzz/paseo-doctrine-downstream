@@ -297,6 +297,7 @@ export function HostAgentsPage({ serverId }: { serverId: string }) {
           <RoleProfilesCard serverId={serverId} />
           <PeerDelegationProfilesCard serverId={serverId} />
           <InjectPaseoToolsCard serverId={serverId} />
+          <DefaultFastModeCard serverId={serverId} />
           <BrowserToolsOptInCard serverId={serverId} />
           <AppendSystemPromptCard serverId={serverId} />
         </SettingsSection>
@@ -919,6 +920,39 @@ function InjectPaseoToolsCard({ serverId }: { serverId: string }) {
           value={config?.mcp.injectIntoAgents !== false}
           onValueChange={handleValueChange}
           accessibilityLabel={t("settings.host.orchestration.enableTools.accessibilityLabel")}
+        />
+      </View>
+    </View>
+  );
+}
+
+function DefaultFastModeCard({ serverId }: { serverId: string }) {
+  const isConnected = useHostRuntimeIsConnected(serverId);
+  const { config, patchConfig } = useDaemonConfig(serverId);
+
+  const handleValueChange = useCallback(
+    (next: boolean) => {
+      void patchConfig({ defaultFastMode: next });
+    },
+    [patchConfig],
+  );
+
+  if (!isConnected) return null;
+
+  return (
+    <View style={settingsStyles.card} testID="host-page-default-fast-mode-card">
+      <View style={settingsStyles.row}>
+        <View style={settingsStyles.rowContent}>
+          <Text style={settingsStyles.rowTitle}>Default fast mode</Text>
+          <Text style={settingsStyles.rowHint}>
+            Enable fast mode by default for all new agents. Lower latency at higher token cost.
+          </Text>
+        </View>
+        <Switch
+          value={config?.defaultFastMode === true}
+          onValueChange={handleValueChange}
+          accessibilityLabel="Default fast mode"
+          testID="host-page-default-fast-mode-switch"
         />
       </View>
     </View>

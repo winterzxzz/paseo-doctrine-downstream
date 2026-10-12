@@ -404,6 +404,7 @@ function makeConfig(providers: MutableDaemonConfig["providers"] = {}): MutableDa
     providers,
     metadataGeneration: { providers: [] },
     autoArchiveAfterMerge: false,
+    defaultFastMode: false,
     enableTerminalAgentHooks: false,
     appendSystemPrompt: "",
   };

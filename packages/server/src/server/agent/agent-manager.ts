@@ -460,6 +460,7 @@ export interface AgentManagerOptions {
   resolveRoleProfilePreferences?: (roleId: PaseoRoleId) => RoleProfilePreferences | undefined;
   verifyRoleResourceGrants?: RoleResourceGrantVerifier;
   bundledPolicyPacks?: BundledPolicyPackRegistry<SlpBundledPolicyContribution>;
+  defaultFastMode?: boolean;
   appendSystemPrompt?: string;
   agentStreamCoalesceWindowMs?: number;
   durableTimelineCoalesceWindowMs?: number;
@@ -924,6 +925,7 @@ export class AgentManager {
   private readonly verifyRoleResourceGrants?: RoleResourceGrantVerifier;
   private readonly bundledPolicyPacks: BundledPolicyPackRegistry<SlpBundledPolicyContribution>;
   private readonly trustedSembleRuntime: TrustedSembleRuntime | null;
+  private defaultFastMode: boolean;
   private appendSystemPrompt: string;
   private onAgentAttention?: AgentAttentionCallback;
   private readonly pendingAgentAttentions: AgentAttentionCallbackParams[] = [];
@@ -950,6 +952,7 @@ export class AgentManager {
     this.resolveRoleProfilePreferences = options.resolveRoleProfilePreferences ?? (() => undefined);
     this.verifyRoleResourceGrants = options.verifyRoleResourceGrants;
     this.bundledPolicyPacks = resolveBundledPolicyPacks(options);
+    this.defaultFastMode = options.defaultFastMode === true;
     this.appendSystemPrompt = options.appendSystemPrompt ?? "";
     this.logger = options.logger.child({
       module: "agent",
@@ -1105,6 +1108,10 @@ export class AgentManager {
    */
   getMcpAuthToken(): string | null {
     return this.mcpAuthToken;
+  }
+
+  setDefaultFastMode(enabled: boolean): void {
+    this.defaultFastMode = enabled;
   }
 
   setAppendSystemPrompt(prompt: string | null | undefined): void {
@@ -5834,6 +5841,10 @@ export class AgentManager {
       if (defaultModelId) {
         normalized.model = defaultModelId;
       }
+    }
+
+    if (this.defaultFastMode && normalized.featureValues?.fast_mode === undefined) {
+      normalized.featureValues = { ...normalized.featureValues, fast_mode: true };
     }
 
     return this.applyProviderConfiguration(normalized);

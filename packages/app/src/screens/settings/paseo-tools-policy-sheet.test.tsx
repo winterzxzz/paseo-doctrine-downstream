@@ -179,6 +179,7 @@ function makeConfig(overrides: Partial<MutableDaemonConfig> = {}): MutableDaemon
     providers: {},
     metadataGeneration: { providers: [] },
     autoArchiveAfterMerge: false,
+    defaultFastMode: false,
     enableTerminalAgentHooks: false,
     appendSystemPrompt: "",
     ...overrides,
