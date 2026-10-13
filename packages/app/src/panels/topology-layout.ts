@@ -83,3 +83,43 @@ export function layoutProjectTopologyXFirst(
 
   return positions;
 }
+
+const PACKED_COLUMN_GAP = 296;
+
+/**
+ * Layout for a page that stacks many graphs: relationship trees keep the
+ * left-to-right layout, while agents with no relationship at all fill a grid
+ * underneath instead of each taking a full-width lane.
+ */
+export function layoutProjectTopologyPacked(
+  nodes: readonly TopologyNode[],
+  edges: readonly TopologyLayoutEdge[],
+  columns: number,
+): Map<string, TopologyPosition> {
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const related = new Set<string>();
+  for (const edge of edges) {
+    if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) continue;
+    related.add(edge.source);
+    related.add(edge.target);
+  }
+  const positions = layoutProjectTopologyXFirst(
+    nodes.filter((node) => related.has(node.id)),
+    edges,
+  );
+  let gridTop = 0;
+  for (const position of positions.values()) {
+    gridTop = Math.max(gridTop, position.y + VERTICAL_LANE_GAP);
+  }
+  const safeColumns = Math.max(1, Math.floor(columns));
+  let index = 0;
+  for (const node of nodes) {
+    if (related.has(node.id)) continue;
+    positions.set(node.id, {
+      x: (index % safeColumns) * PACKED_COLUMN_GAP,
+      y: gridTop + Math.floor(index / safeColumns) * VERTICAL_LANE_GAP,
+    });
+    index += 1;
+  }
+  return positions;
+}

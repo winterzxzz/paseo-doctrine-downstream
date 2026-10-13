@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TopologyNode } from "@/panels/topology-model";
-import { layoutProjectTopologyXFirst } from "@/panels/topology-layout";
+import { layoutProjectTopologyPacked, layoutProjectTopologyXFirst } from "@/panels/topology-layout";
 
 function roleFromId(id: string): TopologyNode["role"] {
   if (id.startsWith("peer")) return "peer";
@@ -83,5 +83,28 @@ describe("layoutProjectTopologyXFirst", () => {
     expect(positions.get("lead")).toEqual({ x: 360, y: 117.5 });
     expect(positions.get("peer-1")).toEqual({ x: 720, y: 0 });
     expect(positions.get("peer-2")).toEqual({ x: 720, y: 235 });
+  });
+});
+
+describe("layoutProjectTopologyPacked", () => {
+  it("keeps relationship trees and packs unrelated agents into a grid below", () => {
+    const positions = layoutProjectTopologyPacked(
+      [node("lead"), node("lead-solo-1"), node("peer-1"), node("lead-solo-2"), node("lead-solo-3")],
+      [{ source: "lead", target: "peer-1" }],
+      2,
+    );
+
+    expect(positions.get("lead")).toEqual({ x: 0, y: 0 });
+    expect(positions.get("peer-1")).toEqual({ x: 360, y: 0 });
+    expect(positions.get("lead-solo-1")).toEqual({ x: 0, y: 235 });
+    expect(positions.get("lead-solo-2")).toEqual({ x: 296, y: 235 });
+    expect(positions.get("lead-solo-3")).toEqual({ x: 0, y: 470 });
+  });
+
+  it("starts the grid at the top when nothing is related", () => {
+    const positions = layoutProjectTopologyPacked([node("lead-1"), node("lead-2")], [], 4);
+
+    expect(positions.get("lead-1")).toEqual({ x: 0, y: 0 });
+    expect(positions.get("lead-2")).toEqual({ x: 296, y: 0 });
   });
 });
