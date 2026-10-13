@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { router } from "expo-router";
-import { ListChecks, Plus, RotateCw, ShieldCheck } from "lucide-react-native";
+import { ListChecks, Plus, RotateCw, ShieldCheck, X } from "lucide-react-native";
 import { Pressable, ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import type {
@@ -221,12 +221,7 @@ function CompactIssuesSurface(props: AvailableIssuesSurfaceProps) {
 }
 
 function DesktopIssuesSurface(props: AvailableIssuesSurfaceProps) {
-  let emptyTitle = "Select an issue";
-  if (props.issues.length === 0) {
-    emptyTitle = props.filter === "all" ? "No issues yet" : "No matching issues";
-  }
-
-  let detail: ReactNode;
+  let detail: ReactNode = null;
   if (props.creating) {
     detail = (
       <CreateIssuePanel
@@ -246,13 +241,6 @@ function DesktopIssuesSurface(props: AvailableIssuesSurfaceProps) {
         compact={false}
       />
     );
-  } else {
-    detail = (
-      <IssuesEmpty
-        title={emptyTitle}
-        description="This is the durable project work graph shared across Paseo workspaces."
-      />
-    );
   }
 
   return (
@@ -260,7 +248,7 @@ function DesktopIssuesSurface(props: AvailableIssuesSurfaceProps) {
       <View style={styles.desktopListPane}>
         <IssuesList {...props} selectedIssueId={props.creating ? null : props.selectedIssueId} />
       </View>
-      <View style={styles.desktopDetailPane}>{detail}</View>
+      {detail ? <View style={styles.desktopDetailPane}>{detail}</View> : null}
     </View>
   );
 }
@@ -527,7 +515,11 @@ function IssueDetail({
   if (issueQuery.isLoading) {
     return (
       <View style={styles.detail}>
-        {compact ? <BackHeader title={issueId} onBack={handleBack} /> : <DetailHeader />}
+        {compact ? (
+          <BackHeader title={issueId} onBack={handleBack} />
+        ) : (
+          <DetailHeader onClose={handleBack} />
+        )}
         <CenteredLoading />
       </View>
     );
@@ -535,7 +527,11 @@ function IssueDetail({
   if (issueQuery.error || !issueQuery.data) {
     return (
       <View style={styles.detail}>
-        {compact ? <BackHeader title="Issue unavailable" onBack={handleBack} /> : <DetailHeader />}
+        {compact ? (
+          <BackHeader title="Issue unavailable" onBack={handleBack} />
+        ) : (
+          <DetailHeader onClose={handleBack} />
+        )}
         <IssuesEmpty
           title="Issue unavailable"
           description={
@@ -552,7 +548,11 @@ function IssueDetail({
 
   return (
     <View style={styles.detail} testID={`issue-detail-${issueId}`}>
-      {compact ? <BackHeader title={issueId} onBack={handleBack} /> : <DetailHeader />}
+      {compact ? (
+        <BackHeader title={issueId} onBack={handleBack} />
+      ) : (
+        <DetailHeader onClose={handleBack} />
+      )}
       <IssueDetailContent
         key={JSON.stringify([serverId, projectId, issueQuery.data.id])}
         issue={issueQuery.data}
@@ -564,9 +564,22 @@ function IssueDetail({
   );
 }
 
-function DetailHeader() {
-  const title = useMemo(() => <ScreenTitle>Issue</ScreenTitle>, []);
-  return <ScreenHeader left={title} />;
+function DetailHeader({ title = "Issue", onClose }: { title?: string; onClose: () => void }) {
+  const left = useMemo(() => <ScreenTitle>{title}</ScreenTitle>, [title]);
+  const right = useMemo(
+    () => (
+      <Button
+        variant="ghost"
+        size="xs"
+        leftIcon={X}
+        onPress={onClose}
+        accessibilityLabel="Close issue panel"
+        testID="issue-detail-close"
+      />
+    ),
+    [onClose],
+  );
+  return <ScreenHeader left={left} right={right} />;
 }
 
 function IssueDetailContent({
@@ -853,7 +866,11 @@ function CreateIssuePanel({
 
   return (
     <View style={styles.detail} testID="issue-create-form">
-      {compact ? <BackHeader title="New issue" onBack={onCancel} /> : <DetailHeader />}
+      {compact ? (
+        <BackHeader title="New issue" onBack={onCancel} />
+      ) : (
+        <DetailHeader title="New issue" onClose={onCancel} />
+      )}
       <ScrollView style={styles.detailScroll}>
         <View style={[styles.formContent, compact && styles.detailContentCompact]}>
           <View style={styles.formHero}>
