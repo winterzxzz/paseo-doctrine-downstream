@@ -1235,18 +1235,27 @@ export const ru: TranslationResources = {
         openFolder: "Открыть в файловом менеджере",
         openFolderFailed: "Не удалось открыть папку",
         remove: "Удалить проект",
+        archiveAll: "Архивировать все рабочие пространства",
+        archivingAll: "Архивация...",
         removing: "Удаление...",
       },
       confirmations: {
         removeTitle: "Удалить проект?",
         removeMessage:
           "Удалить проект «{{projectName}}» с боковой панели?\n\nФайлы на диске не будут изменены.",
+        archiveAllTitle: "Архивировать все рабочие пространства?",
+        archiveAllMessage:
+          'Архивировать все рабочие пространства ({{count}}) в "{{projectName}}"?\n\nИх агенты и терминалы будут закрыты. Проект останется в боковой панели.',
+        archiveAllRisk:
+          "Из них {{count}} — worktree с незакоммиченными изменениями или неотправленными коммитами. Эта работа будет потеряна.",
+        archiveAllConfirm: "Архивировать все",
         removeConfirm: "Удалить",
         cancel: "Отмена",
       },
       toasts: {
         hostDisconnected: "Хост не подключён",
         removeFailed: "Не удалось удалить некоторые рабочие пространства.",
+        archiveAllFailed: "Не удалось архивировать {{count}} из {{total}} рабочих пространств",
         updateHostToRemove: "Обновите хост, чтобы удалять проекты.",
       },
       empty: {

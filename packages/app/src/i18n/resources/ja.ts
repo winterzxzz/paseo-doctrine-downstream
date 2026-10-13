@@ -1231,18 +1231,27 @@ export const ja: TranslationResources = {
         openFolder: "Open in file manager",
         openFolderFailed: "Couldn't open folder",
         remove: "プロジェクトを削除",
+        archiveAll: "すべてのワークスペースをアーカイブ",
+        archivingAll: "アーカイブ中...",
         removing: "削除中...",
       },
       confirmations: {
         removeTitle: "プロジェクトを削除しますか？",
         removeMessage:
           '"{{projectName}}"をサイドバーから削除しますか？\n\nディスク上のファイルは変更されません。',
+        archiveAllTitle: "すべてのワークスペースをアーカイブしますか？",
+        archiveAllMessage:
+          '"{{projectName}}" のワークスペース {{count}} 件をすべてアーカイブしますか？\n\nエージェントとターミナルは終了します。プロジェクトはサイドバーに残ります。',
+        archiveAllRisk:
+          "そのうち {{count}} 件は未コミットの変更または未プッシュのコミットがあるワークツリーです。その作業は失われます。",
+        archiveAllConfirm: "すべてアーカイブ",
         removeConfirm: "削除",
         cancel: "キャンセル",
       },
       toasts: {
         hostDisconnected: "ホストが接続されていません",
         removeFailed: "一部のワークスペースの削除に失敗しました",
+        archiveAllFailed: "{{total}} 件中 {{count}} 件のワークスペースをアーカイブできませんでした",
         updateHostToRemove: "プロジェクトを削除するにはホストを更新してください。",
       },
       empty: {

@@ -1224,18 +1224,27 @@ export const ko: TranslationResources = {
         openFolder: "파일 관리자에서 열기",
         openFolderFailed: "폴더를 열 수 없습니다.",
         remove: "프로젝트 제거",
+        archiveAll: "모든 워크스페이스 보관",
+        archivingAll: "보관 중...",
         removing: "제거하는 중...",
       },
       confirmations: {
         removeTitle: "프로젝트를 제거할까요?",
         removeMessage:
           '"{{projectName}}"을(를) 사이드바에서 제거할까요?\n\n디스크의 파일은 변경되지 않습니다.',
+        archiveAllTitle: "모든 워크스페이스를 보관할까요?",
+        archiveAllMessage:
+          '"{{projectName}}"의 워크스페이스 {{count}}개를 모두 보관할까요?\n\n에이전트와 터미널이 종료됩니다. 프로젝트는 사이드바에 남습니다.',
+        archiveAllRisk:
+          "그중 {{count}}개는 커밋되지 않은 변경 또는 푸시되지 않은 커밋이 있는 워크트리입니다. 해당 작업은 사라집니다.",
+        archiveAllConfirm: "모두 보관",
         removeConfirm: "제거",
         cancel: "취소",
       },
       toasts: {
         hostDisconnected: "호스트가 연결되어 있지 않습니다",
         removeFailed: "일부 워크스페이스를 제거하지 못했습니다",
+        archiveAllFailed: "워크스페이스 {{total}}개 중 {{count}}개를 보관하지 못했습니다",
         updateHostToRemove: "프로젝트를 제거하려면 호스트를 업데이트하세요.",
       },
       empty: {

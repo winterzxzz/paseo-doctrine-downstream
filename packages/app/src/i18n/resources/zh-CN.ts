@@ -1208,17 +1208,25 @@ export const zhCN: TranslationResources = {
         openFolder: "Open in file manager",
         openFolderFailed: "Couldn't open folder",
         remove: "移除 project",
+        archiveAll: "归档所有工作区",
+        archivingAll: "正在归档...",
         removing: "正在移除...",
       },
       confirmations: {
         removeTitle: "移除 project？",
         removeMessage: "从侧边栏移除「{{projectName}}」？\n\n磁盘上的文件不会被更改。",
+        archiveAllTitle: "归档所有工作区？",
+        archiveAllMessage:
+          '归档 "{{projectName}}" 中的全部 {{count}} 个工作区？\n\n其中的代理和终端将被关闭。项目会保留在侧边栏。',
+        archiveAllRisk: "其中 {{count}} 个是包含未提交更改或未推送提交的工作树。这些工作将丢失。",
+        archiveAllConfirm: "全部归档",
         removeConfirm: "移除",
         cancel: "取消",
       },
       toasts: {
         hostDisconnected: "Host 未连接",
         removeFailed: "部分 workspace 移除失败",
+        archiveAllFailed: "{{total}} 个工作区中有 {{count}} 个归档失败",
         updateHostToRemove: "更新 host 以移除 projects。",
       },
       empty: {

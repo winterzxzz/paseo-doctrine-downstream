@@ -1225,18 +1225,27 @@ export const en = {
         openFolder: "Open in file manager",
         openFolderFailed: "Couldn't open folder",
         remove: "Remove project",
+        archiveAll: "Archive all workspaces",
+        archivingAll: "Archiving...",
         removing: "Removing...",
       },
       confirmations: {
         removeTitle: "Remove project?",
         removeMessage:
           'Remove "{{projectName}}" from the sidebar?\n\nFiles on disk will not be changed.',
+        archiveAllTitle: "Archive all workspaces?",
+        archiveAllMessage:
+          'Archive all {{count}} workspaces in "{{projectName}}"?\n\nTheir agents and terminals are closed. The project stays in the sidebar.',
+        archiveAllRisk:
+          "{{count}} of them are worktrees with uncommitted changes or unpushed commits. That work will be lost.",
+        archiveAllConfirm: "Archive all",
         removeConfirm: "Remove",
         cancel: "Cancel",
       },
       toasts: {
         hostDisconnected: "Host is not connected",
         removeFailed: "Failed to remove some workspaces",
+        archiveAllFailed: "Failed to archive {{count}} of {{total}} workspaces",
         updateHostToRemove: "Update the host to remove projects.",
       },
       empty: {

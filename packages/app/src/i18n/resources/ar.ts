@@ -1217,18 +1217,27 @@ export const ar: TranslationResources = {
         openFolder: "Open in file manager",
         openFolderFailed: "Couldn't open folder",
         remove: "إزالة المشروع",
+        archiveAll: "أرشفة كل مساحات العمل",
+        archivingAll: "جارٍ الأرشفة...",
         removing: "جارٍ الإزالة...",
       },
       confirmations: {
         removeTitle: "هل تريد إزالة المشروع؟",
         removeMessage:
           'هل تريد إزالة "{{projectName}}" من الشريط الجانبي؟\n\n لن يتم تغيير الملفات الموجودة على القرص.',
+        archiveAllTitle: "أرشفة كل مساحات العمل؟",
+        archiveAllMessage:
+          'أرشفة كل مساحات العمل ({{count}}) في "{{projectName}}"؟\n\nسيتم إغلاق وكلائها وطرفياتها. يبقى المشروع في الشريط الجانبي.',
+        archiveAllRisk:
+          "{{count}} منها أشجار عمل بها تغييرات غير مودعة أو إيداعات غير مدفوعة. سيُفقد ذلك العمل.",
+        archiveAllConfirm: "أرشفة الكل",
         removeConfirm: "يزيل",
         cancel: "يلغي",
       },
       toasts: {
         hostDisconnected: "Host غير متصل",
         removeFailed: "فشل في إزالة بعض مساحات العمل",
+        archiveAllFailed: "تعذرت أرشفة {{count}} من {{total}} مساحة عمل",
         updateHostToRemove: "قم بتحديث Host لإزالة المشاريع.",
       },
       empty: {

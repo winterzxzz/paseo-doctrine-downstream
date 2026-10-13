@@ -1253,18 +1253,27 @@ export const fr: TranslationResources = {
         openFolder: "Open in file manager",
         openFolderFailed: "Couldn't open folder",
         remove: "Supprimer le projet",
+        archiveAll: "Archiver tous les espaces de travail",
+        archivingAll: "Archivage...",
         removing: "Suppression...",
       },
       confirmations: {
         removeTitle: "Supprimer le projet?",
         removeMessage:
           "Supprimer «{{projectName}}» de la barre latérale?\n\nLes fichiers sur le disque ne seront pas modifiés.",
+        archiveAllTitle: "Archiver tous les espaces de travail ?",
+        archiveAllMessage:
+          'Archiver les {{count}} espaces de travail de "{{projectName}}" ?\n\nLeurs agents et terminaux sont fermés. Le projet reste dans la barre latérale.',
+        archiveAllRisk:
+          "{{count}} d'entre eux sont des worktrees avec des modifications non validées ou des commits non poussés. Ce travail sera perdu.",
+        archiveAllConfirm: "Tout archiver",
         removeConfirm: "Retirer",
         cancel: "Annuler",
       },
       toasts: {
         hostDisconnected: "Hostn'est pas connecté",
         removeFailed: "Échec de la suppression de certains espaces de travail",
+        archiveAllFailed: "Échec de l'archivage de {{count}} espaces de travail sur {{total}}",
         updateHostToRemove: "Mettez à jour le host pour supprimer des projets.",
       },
       empty: {

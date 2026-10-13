@@ -1243,18 +1243,27 @@ export const ptBR: TranslationResources = {
         openFolder: "Open in file manager",
         openFolderFailed: "Couldn't open folder",
         remove: "Remover projeto",
+        archiveAll: "Arquivar todos os workspaces",
+        archivingAll: "Arquivando...",
         removing: "Removendo...",
       },
       confirmations: {
         removeTitle: "Remover projeto?",
         removeMessage:
           'Remover "{{projectName}}" da barra lateral?\n\nOs arquivos no disco não serão alterados.',
+        archiveAllTitle: "Arquivar todos os workspaces?",
+        archiveAllMessage:
+          'Arquivar todos os {{count}} workspaces de "{{projectName}}"?\n\nSeus agentes e terminais são encerrados. O projeto permanece na barra lateral.',
+        archiveAllRisk:
+          "{{count}} deles são worktrees com alterações não commitadas ou commits não enviados. Esse trabalho será perdido.",
+        archiveAllConfirm: "Arquivar todos",
         removeConfirm: "Remover",
         cancel: "Cancelar",
       },
       toasts: {
         hostDisconnected: "Host não está conectado",
         removeFailed: "Falha ao remover alguns workspaces",
+        archiveAllFailed: "Falha ao arquivar {{count}} de {{total}} workspaces",
         updateHostToRemove: "Atualize o host para remover projetos.",
       },
       empty: {
