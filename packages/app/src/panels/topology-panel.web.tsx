@@ -327,7 +327,7 @@ function RelationshipEdge({
 
 const NODE_TYPES = { agent: AgentTopologyNode };
 const EDGE_TYPES = { relationship: RelationshipEdge };
-const FIT_VIEW_OPTIONS = { padding: 0.24, minZoom: 0.4, maxZoom: 1.15 };
+const FIT_VIEW_OPTIONS = { padding: 0.12, minZoom: 0.4, maxZoom: 1.15 };
 
 /**
  * The panel is often mounted while its tab is hidden or still resizing, which
@@ -505,7 +505,9 @@ function TopologyCanvas({
     (_event: React.MouseEvent, node: FlowNode) => onOpenAgent(node.id),
     [onOpenAgent],
   );
-  const handleMoveStart = useCallback((event: MouseEvent | TouchEvent | null) => {
+  // onMove only fires for a real viewport change, so clicking a node (which
+  // starts and ends a zero-distance pan) does not count as the user moving.
+  const handleMove = useCallback((event: MouseEvent | TouchEvent | null) => {
     if (event) userMovedRef.current = true;
   }, []);
   return (
@@ -518,7 +520,7 @@ function TopologyCanvas({
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
         onNodeClick={handleNodeClick}
-        onMoveStart={handleMoveStart}
+        onMove={handleMove}
         colorMode={colorScheme}
         fitView
         fitViewOptions={FIT_VIEW_OPTIONS}

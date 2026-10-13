@@ -33,7 +33,7 @@ export function useTopologyPanelDescriptor(
 }
 
 export function useTopologyPanelState() {
-  const { serverId, workspaceId, openTab } = usePaneContext();
+  const { serverId, workspaceId, openTab, openTargetToSide } = usePaneContext();
   const workspace = useWorkspace(serverId, workspaceId);
   const supportsIssues = useHostFeature(serverId, "beadsIssues");
   const projectId = workspace?.projectId ?? "";
@@ -65,9 +65,11 @@ export function useTopologyPanelState() {
     () => new Set(topology.nodes.flatMap((node) => node.issueIds)).size,
     [topology.nodes],
   );
+  // Keep the graph on screen: the conversation opens in the side pane where the
+  // layout can split, and falls back to a tab in this pane where it cannot.
   const openAgent = useCallback(
-    (agentId: string) => openTab({ kind: "agent", agentId }),
-    [openTab],
+    (agentId: string) => (openTargetToSide ?? openTab)({ kind: "agent", agentId }),
+    [openTab, openTargetToSide],
   );
   return {
     ...session,

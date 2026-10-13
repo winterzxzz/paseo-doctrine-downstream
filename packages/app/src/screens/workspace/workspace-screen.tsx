@@ -3649,7 +3649,7 @@ function WorkspaceScreenContent({
         onOpenTargetToSide:
           canRenderDesktopPaneSplits &&
           input.paneId !== null &&
-          input.paneId === explorerSidebarPaneId
+          (input.paneId === explorerSidebarPaneId || input.tab.target.kind === "topology")
             ? (target) => {
                 if (!persistenceKey) return;
                 const tabId = openWorkspaceTargetBeside({
