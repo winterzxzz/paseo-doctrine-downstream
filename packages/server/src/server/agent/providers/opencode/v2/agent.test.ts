@@ -16,15 +16,6 @@ function terminalEvents(events: AgentStreamEvent[]) {
   );
 }
 
-function terminalEvents(events: AgentStreamEvent[]) {
-  return events.filter(
-    (event) =>
-      event.type === "turn_completed" ||
-      event.type === "turn_failed" ||
-      event.type === "turn_canceled",
-  );
-}
-
 describe("OpenCode v2 session lifecycle", () => {
   test("completes from execution events without a long-lived HTTP wait", async () => {
     const harness = new V2Harness();

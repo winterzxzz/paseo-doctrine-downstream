@@ -3959,9 +3959,8 @@ describe("plugin provider overrides and launch", () => {
       logger,
       providerOverrides: {
         [registration.id]: {
-          extends: "acp",
+          extends: "codex",
           label: "Own provider",
-          command: [process.execPath],
           enabled: true,
         },
       },
