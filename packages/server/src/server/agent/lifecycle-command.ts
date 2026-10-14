@@ -8,6 +8,8 @@ import {
 import type { StoredAgentRecord } from "./agent-storage.js";
 import type { AgentProviderNotice } from "./agent-sdk-types.js";
 import { councilLabelKeys } from "@getpaseo/protocol/council-labels";
+import { getParentAgentIdFromLabels } from "@getpaseo/protocol/agent-labels";
+import { recordHumanArchiveWriteLeaseRelease } from "./lead-handoffs.js";
 
 export type LifecycleAgentSnapshot = Pick<ManagedAgent, "id" | "cwd" | "lifecycle">;
 
@@ -38,6 +40,7 @@ export interface LifecycleAgentManager {
 
 export interface LifecycleAgentStorage {
   get(agentId: string): Promise<StoredAgentRecord | null>;
+  list(): Promise<StoredAgentRecord[]>;
   upsert(record: StoredAgentRecord): Promise<void>;
 }
 
@@ -116,10 +119,26 @@ export interface ArchiveAgentResult {
   record: StoredAgentRecord;
 }
 
+export interface ArchiveAgentCommandOptions {
+  /**
+   * Who asked for the archive. Only a Human-facing archive or close of a role-bound Lead/Peer
+   * records a durable write-lease release receipt. Agent-initiated and automatic archives leave
+   * write-lease authority to the existing handoff rules.
+   */
+  initiator?: "human" | "agent" | "automatic";
+}
+
 export async function archiveAgentCommand(
   dependencies: AgentLifecycleCommandDependencies,
   agentId: string,
+  options: ArchiveAgentCommandOptions = {},
 ): Promise<ArchiveAgentResult> {
+  // Snapshot the unarchived subagent tree before archive so a Human-rooted cascade can be told
+  // apart from agents that were already archived (or are later detached instead of archived).
+  const cascadeCandidateIds =
+    options.initiator === "human"
+      ? await listUnarchivedDescendantIds(dependencies.agentStorage, agentId)
+      : [];
   const liveAgent = dependencies.agentManager.getAgent(agentId);
   let record: StoredAgentRecord | null;
   if (liveAgent) {
@@ -133,6 +152,19 @@ export async function archiveAgentCommand(
 
   if (!record) {
     throw new Error(`Agent not found in storage after archive: ${agentId}`);
+  }
+  if (!record.archivedAt) {
+    throw new Error(`Agent missing archivedAt after archive: ${agentId}`);
+  }
+  if (options.initiator === "human") {
+    record = (await recordHumanArchiveWriteLeaseRelease(dependencies, agentId)) ?? record;
+    for (const descendantId of cascadeCandidateIds) {
+      // recordHumanArchiveWriteLeaseRelease skips descendants that stayed unarchived (detached)
+      // and roles without a write lease.
+      await recordHumanArchiveWriteLeaseRelease(dependencies, descendantId, {
+        triggeredByAgentId: agentId,
+      });
+    }
   }
   if (!record.archivedAt) {
     throw new Error(`Agent missing archivedAt after archive: ${agentId}`);
@@ -235,6 +267,30 @@ export async function setAgentModeCommand(
 ): Promise<{ modeId: string; notice: AgentProviderNotice | null }> {
   const notice = await dependencies.agentManager.setAgentMode(input.agentId, input.modeId);
   return { modeId: input.modeId, notice };
+}
+
+async function listUnarchivedDescendantIds(
+  storage: LifecycleAgentStorage,
+  rootAgentId: string,
+): Promise<string[]> {
+  const childrenByParent = new Map<string, string[]>();
+  for (const record of await storage.list()) {
+    if (record.archivedAt) continue;
+    const parentId = getParentAgentIdFromLabels(record.labels);
+    if (!parentId) continue;
+    childrenByParent.set(parentId, [...(childrenByParent.get(parentId) ?? []), record.id]);
+  }
+  const descendants: string[] = [];
+  const queue = [...(childrenByParent.get(rootAgentId) ?? [])];
+  const seen = new Set<string>([rootAgentId]);
+  while (queue.length > 0) {
+    const id = queue.shift() as string;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    descendants.push(id);
+    queue.push(...(childrenByParent.get(id) ?? []));
+  }
+  return descendants;
 }
 
 async function archiveStoredAgent(

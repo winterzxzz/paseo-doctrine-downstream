@@ -8,7 +8,7 @@ export const SLP_COORDINATION_TOOL_DESCRIPTIONS = {
   prepareLeadHandoff:
     "Persist an immutable adjacent-Lead handoff packet. The predecessor remains write Owner; this does not authorize or release either Lead.",
   transitionLeadHandoff:
-    "Record explicit Human authorization/release or the designated successor's acknowledgement/rejection. Final release requires an idle predecessor, closes its runtime while retaining the durable record, transfers current write ownership, and blocks later predecessor prompts without detaching, archiving, or changing role binding.",
+    "Record explicit Human authorization/release or the designated successor's acknowledgement/rejection. Final release requires an idle predecessor, closes its runtime while retaining the durable record, transfers current write ownership, and blocks later predecessor prompts without detaching, archiving, or changing role binding. A Human archive or close of a role-bound Lead/Peer is also a release: it stores a writeLeaseRelease receipt (archivedAt, actor human) that get_agent_status and list_agents report. A successor may treat that receipt as break-before-make evidence; an archive without the receipt, or an unarchived predecessor, is not a release.",
   signalAgent:
     "Send a durable advisory handoff or detach recommendation to a role-bound Lead. Delivery waits for an idle boundary and never replaces an active run.",
   askAttentionQuestion:

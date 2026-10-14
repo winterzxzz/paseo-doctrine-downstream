@@ -71,3 +71,20 @@ export const PrepareLeadHandoffInputSchema = LeadHandoffPacketSchema.pick({
 export type LeadHandoffPacket = z.infer<typeof LeadHandoffPacketSchema>;
 export type LeadHandoffTransition = z.infer<typeof LeadHandoffTransitionSchema>;
 export type PrepareLeadHandoffInput = z.infer<typeof PrepareLeadHandoffInputSchema>;
+
+/**
+ * Durable receipt that a Human archive (or close) ended a role-bound Lead/Peer write lease.
+ * `reason` and `actor` stay open strings so a later daemon can add values without breaking
+ * older clients; today the daemon writes `human_archive` or `human_archive_cascade` / `human`.
+ */
+export const AgentWriteLeaseReleaseSchema = z.object({
+  reason: z.string().min(1),
+  actor: z.string().min(1),
+  roleId: z.string().min(1).optional(),
+  /** Set on cascade receipts: the Human-archived root agent whose archive released this one. */
+  triggeredByAgentId: z.string().min(1).optional(),
+  archivedAt: z.string().min(1),
+  releasedAt: z.string().min(1),
+});
+
+export type AgentWriteLeaseRelease = z.infer<typeof AgentWriteLeaseReleaseSchema>;

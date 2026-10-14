@@ -85,7 +85,10 @@ async function requireAdjacentLeads(
   if (predecessor.roleBinding?.roleId !== "lead" || successor.roleBinding?.roleId !== "lead") {
     throw new Error("Adjacent-Lead handoff requires two role-bound Leads");
   }
-  if (successor.leadHandoffs?.some((packet) => packet.status === "predecessor_released")) {
+  if (
+    successor.writeLeaseRelease ||
+    successor.leadHandoffs?.some((packet) => packet.status === "predecessor_released")
+  ) {
     throw new Error(
       "A released predecessor identity cannot become a successor; create a fresh role-bound Lead",
     );
@@ -105,6 +108,7 @@ async function requirePredecessorLead(
     !predecessor ||
     predecessor.internal ||
     predecessor.archivedAt ||
+    predecessor.writeLeaseRelease ||
     predecessor.roleBinding?.roleId !== "lead" ||
     !predecessor.workspaceId
   ) {
@@ -291,24 +295,67 @@ export async function transitionLeadHandoff(
   });
 }
 
+export const HUMAN_ARCHIVE_WRITE_LEASE_RELEASE_REASON = "human_archive";
+export const HUMAN_ARCHIVE_CASCADE_WRITE_LEASE_RELEASE_REASON = "human_archive_cascade";
+
+const WRITE_LEASE_ROLE_IDS = new Set<string>(["lead", "peer"]);
+
+/**
+ * Record that a Human archive (or close) ended a role-bound Lead/Peer write lease.
+ * The receipt is durable and sticky: unarchiving the agent does not clear it, so the
+ * archived identity cannot silently regain write authority. Agent-initiated archives
+ * must not call this; they follow the ordinary archive authority rules.
+ */
+export async function recordHumanArchiveWriteLeaseRelease(
+  dependencies: Pick<LeadHandoffDependencies, "agentStorage">,
+  agentId: string,
+  cascade?: { triggeredByAgentId: string },
+): Promise<StoredAgentRecord | null> {
+  const record = await dependencies.agentStorage.get(agentId);
+  if (!record || record.internal || !record.archivedAt) return record;
+  const roleId = record.roleBinding?.roleId;
+  if (!roleId || !WRITE_LEASE_ROLE_IDS.has(roleId)) return record;
+  if (record.writeLeaseRelease) return record;
+  const next: StoredAgentRecord = {
+    ...record,
+    writeLeaseRelease: {
+      reason: cascade
+        ? HUMAN_ARCHIVE_CASCADE_WRITE_LEASE_RELEASE_REASON
+        : HUMAN_ARCHIVE_WRITE_LEASE_RELEASE_REASON,
+      actor: "human",
+      roleId,
+      ...(cascade ? { triggeredByAgentId: cascade.triggeredByAgentId } : {}),
+      archivedAt: record.archivedAt,
+      releasedAt: new Date().toISOString(),
+    },
+  };
+  await dependencies.agentStorage.upsert(next);
+  return next;
+}
+
+function findHandoffRelease(record: StoredAgentRecord): LeadHandoffPacket | undefined {
+  return record.leadHandoffs?.find(
+    (packet) =>
+      packet.status === "predecessor_released" && packet.currentWriteOwnerAgentId !== record.id,
+  );
+}
+
 export function hasReleasedAgentWriteLease(record: StoredAgentRecord | null): boolean {
   if (!record) return false;
-  return Boolean(
-    record.leadHandoffs?.some(
-      (packet) =>
-        packet.status === "predecessor_released" && packet.currentWriteOwnerAgentId !== record.id,
-    ),
-  );
+  return Boolean(record.writeLeaseRelease || findHandoffRelease(record));
 }
 
 export function assertAgentPromptLease(record: StoredAgentRecord | null): void {
   if (!record) return;
-  const released = record.leadHandoffs?.find(
-    (packet) =>
-      packet.status === "predecessor_released" && packet.currentWriteOwnerAgentId !== record.id,
-  );
-  if (!released) return;
-  throw new Error(
-    `agent_write_lease_released: ${record.id}; successor=${released.currentWriteOwnerAgentId}; handoff=${released.id}`,
-  );
+  const released = findHandoffRelease(record);
+  if (released) {
+    throw new Error(
+      `agent_write_lease_released: ${record.id}; successor=${released.currentWriteOwnerAgentId}; handoff=${released.id}`,
+    );
+  }
+  if (record.writeLeaseRelease) {
+    throw new Error(
+      `agent_write_lease_released: ${record.id}; reason=${record.writeLeaseRelease.reason}; archivedAt=${record.writeLeaseRelease.archivedAt}; create a fresh role-bound identity`,
+    );
+  }
 }

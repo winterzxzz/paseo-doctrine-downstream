@@ -3,7 +3,12 @@ import { expect, test, vi } from "vitest";
 import { AgentManager } from "./agent-manager.js";
 import type { StoredAgentRecord } from "./agent-storage.js";
 import { startAgentRun } from "./agent-prompt.js";
-import { prepareLeadHandoff, transitionLeadHandoff } from "./lead-handoffs.js";
+import {
+  hasReleasedAgentWriteLease,
+  prepareLeadHandoff,
+  recordHumanArchiveWriteLeaseRelease,
+  transitionLeadHandoff,
+} from "./lead-handoffs.js";
 import { createTestLogger } from "../../test-utils/test-logger.js";
 
 function lead(id: string): StoredAgentRecord {
@@ -155,4 +160,44 @@ test("core dispatch and final release share one race boundary", async () => {
 
   expect(testCase.records.get("lead-old")?.leadHandoffs?.[0].status).toBe("successor_acknowledged");
   testCase.setInFlight(false);
+});
+
+test("a Human-archived Lead stays released after unarchive and cannot be prompted or reused", async () => {
+  const testCase = scenario();
+  testCase.records.set("lead-old", {
+    ...lead("lead-old"),
+    archivedAt: "2026-08-08T01:00:00.000Z",
+  });
+  const released = await recordHumanArchiveWriteLeaseRelease(testCase.dependencies, "lead-old");
+  expect(released?.writeLeaseRelease).toMatchObject({
+    reason: "human_archive",
+    actor: "human",
+    archivedAt: "2026-08-08T01:00:00.000Z",
+  });
+
+  // Unarchive clears archivedAt but keeps the receipt.
+  const record = testCase.records.get("lead-old") as StoredAgentRecord;
+  testCase.records.set("lead-old", { ...record, archivedAt: null });
+  expect(hasReleasedAgentWriteLease(testCase.records.get("lead-old") ?? null)).toBe(true);
+
+  await expect(testCase.manager.runAgent("lead-old", "resume work")).rejects.toThrow(
+    "agent_write_lease_released",
+  );
+  await expect(
+    prepareLeadHandoff(testCase.dependencies, {
+      predecessorAgentId: "lead-new",
+      proposedSuccessorAgentId: "lead-old",
+      currentWriteOwnerAgentId: "lead-new",
+      objective: "Reuse released identity",
+      scope: ["src/**"],
+      currentState: "Ready",
+      decisions: [],
+      failedApproaches: [],
+      successfulPatterns: [],
+      evidenceIndex: [{ ref: "test", claim: "Ready" }],
+      activeRisksAndBlockers: [],
+      exactResumePoint: "Start",
+      stopCondition: "Stop",
+    }),
+  ).rejects.toThrow("released predecessor identity cannot become a successor");
 });

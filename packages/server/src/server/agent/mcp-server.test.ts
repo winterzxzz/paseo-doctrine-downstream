@@ -236,6 +236,7 @@ function buildAgentManagerSpies() {
     getAgent: vi.fn(),
     listAgents: vi.fn().mockReturnValue([]),
     getTimeline: vi.fn().mockReturnValue([]),
+    getDurableTimelineRows: vi.fn().mockResolvedValue([]),
     resumeAgentFromPersistence: vi.fn(),
     hydrateTimelineFromProvider: vi.fn().mockResolvedValue(undefined),
     appendTimelineItem: vi.fn().mockResolvedValue(undefined),
@@ -8264,24 +8265,23 @@ describe("agent snapshot MCP serialization", () => {
     ]);
   });
 
-  it("loads archived agents before reading get_agent_activity", async () => {
+  it("reads archived agents from durable storage without resuming them", async () => {
     const { agentManager, agentStorage, spies } = createTestDeps();
-    const record = createStoredRecord({ id: "archived-activity-agent" });
-    const snapshot = {
-      id: "archived-activity-agent",
-      currentModeId: "default",
-    } as ManagedAgent;
-    spies.agentManager.getAgent
-      .mockReturnValueOnce(null)
-      .mockReturnValue(snapshot)
-      .mockReturnValue(snapshot);
+    const writeLeaseRelease = {
+      reason: "human_archive",
+      actor: "human",
+      roleId: "lead",
+      archivedAt: "2026-04-12T00:00:00.000Z",
+      releasedAt: "2026-04-12T00:00:01.000Z",
+    };
+    const record = createStoredRecord({ id: "archived-activity-agent", writeLeaseRelease });
+    spies.agentManager.getAgent.mockReturnValue(null);
     spies.agentStorage.get.mockResolvedValue(record);
-    spies.agentManager.resumeAgentFromPersistence.mockResolvedValue(snapshot);
-    spies.agentManager.getTimeline.mockReturnValue([
+    spies.agentManager.getDurableTimelineRows.mockResolvedValue([
       {
-        kind: "status",
+        seq: 1,
         timestamp: "2026-04-11T00:00:00.000Z",
-        text: "Agent resumed",
+        item: { type: "assistant_message", text: "Final archived answer" },
       },
     ]);
 
@@ -8299,12 +8299,50 @@ describe("agent snapshot MCP serialization", () => {
         agentId: "archived-activity-agent",
         updateCount: 1,
         currentModeId: "default",
+        archivedAt: "2026-04-12T00:00:00.000Z",
+        writeLeaseRelease,
+        timelineSource: "durable_storage",
       }),
     );
-    expect(spies.agentManager.resumeAgentFromPersistence).toHaveBeenCalled();
-    expect(spies.agentManager.hydrateTimelineFromProvider).toHaveBeenCalledWith(
-      "archived-activity-agent",
-      { broadcast: expect.any(Function) },
+    expect(String(response.structuredContent.content)).toContain("Final archived answer");
+    expect(String(response.structuredContent.content)).toContain("write lease released by human");
+    expect(spies.agentManager.resumeAgentFromPersistence).not.toHaveBeenCalled();
+    expect(spies.agentManager.createAgent).not.toHaveBeenCalled();
+    expect(spies.agentManager.hydrateTimelineFromProvider).not.toHaveBeenCalled();
+    expect(spies.agentManager.unarchiveSnapshot).not.toHaveBeenCalled();
+    expect(spies.agentStorage.upsert).not.toHaveBeenCalled();
+  });
+
+  it("get_agent_status reports a resident archived agent as archived with its release receipt", async () => {
+    const { agentManager, agentStorage, spies } = createTestDeps();
+    const writeLeaseRelease = {
+      reason: "human_archive",
+      actor: "human",
+      roleId: "lead",
+      archivedAt: "2026-04-12T00:00:00.000Z",
+      releasedAt: "2026-04-12T00:00:01.000Z",
+    };
+    spies.agentManager.getAgent.mockReturnValue(
+      createManagedAgent({ id: "resident-archived", lifecycle: "idle" }),
+    );
+    spies.agentStorage.get.mockResolvedValue(
+      createStoredRecord({ id: "resident-archived", writeLeaseRelease }),
+    );
+
+    const server = await createAgentMcpServer({
+      agentManager,
+      agentStorage,
+      logger,
+      providerSnapshotManager: createClaudeOnlyManager(),
+    });
+    const tool = registeredTool(server, "get_agent_status");
+    const response = await tool.handler({ agentId: "resident-archived" });
+
+    expect(response.structuredContent.snapshot).toEqual(
+      expect.objectContaining({
+        archivedAt: "2026-04-12T00:00:00.000Z",
+        writeLeaseRelease,
+      }),
     );
   });
 

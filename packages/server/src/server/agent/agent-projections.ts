@@ -310,6 +310,12 @@ function projectStoredLeadHandoffs(
   return record.leadHandoffs ? { leadHandoffs: record.leadHandoffs } : {};
 }
 
+function projectStoredWriteLeaseRelease(
+  record: StoredAgentRecord,
+): Pick<AgentSnapshotPayload, "writeLeaseRelease"> | Record<string, never> {
+  return record.writeLeaseRelease ? { writeLeaseRelease: record.writeLeaseRelease } : {};
+}
+
 function projectStoredLaunchProfile(
   record: StoredAgentRecord,
 ): Pick<AgentSnapshotPayload, "launchProfile"> | Record<string, never> {
@@ -376,6 +382,7 @@ export function buildStoredAgentPayload(
     ...projectStoredLaunchProfile(record),
     ...projectStoredCoordinationSignals(record),
     ...projectStoredLeadHandoffs(record),
+    ...projectStoredWriteLeaseRelease(record),
     ...(providerAvailable ? {} : { providerUnavailable: true }),
   };
 }
@@ -400,6 +407,7 @@ export function toAgentListItemPayload(agent: AgentSnapshotPayload): AgentListIt
     attentionTimestamp: agent.attentionTimestamp ?? null,
     labels: agent.labels,
     ...(agent.providerUnavailable ? { providerUnavailable: true } : {}),
+    ...(agent.writeLeaseRelease ? { writeLeaseRelease: agent.writeLeaseRelease } : {}),
   };
 }
 

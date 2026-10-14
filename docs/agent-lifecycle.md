@@ -134,6 +134,11 @@ Archiving runs through `AgentManager.archiveAgent` (`packages/server/src/server/
 
 Cascade is what keeps subagent fleets from outliving their orchestrator.
 
+A Human-facing archive or close of a role-bound Lead or Peer also releases its write lease with a
+durable `writeLeaseRelease` receipt; agent-initiated and automatic archives do not. Unarchive keeps
+the receipt, so the identity stays released. See
+[docs/slp-coordination-handoff.md](slp-coordination-handoff.md#human-archive-là-release).
+
 Workspace archive is a separate lifecycle. Archiving or removing a worktree can close a surviving
 agent record without setting the agent's `archivedAt`, while its `workspaceId` still points at the
 archived workspace. History navigation must not infer workspace lifecycle from `agent.archivedAt`

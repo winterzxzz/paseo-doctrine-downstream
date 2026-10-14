@@ -22,6 +22,10 @@ class FakeLifecycleAgentStorage implements LifecycleAgentStorage {
     return this.records.get(agentId) ?? null;
   }
 
+  async list(): Promise<StoredAgentRecord[]> {
+    return Array.from(this.records.values());
+  }
+
   async upsert(record: StoredAgentRecord): Promise<void> {
     this.upserts.push(record);
     this.records.set(record.id, record);
@@ -250,6 +254,133 @@ describe("agent lifecycle commands", () => {
     expect(manager.archivedAgentIds).toEqual([]);
   });
 
+  test("a Human archive of a role-bound Lead records a durable write-lease release receipt", async () => {
+    const storage = new FakeLifecycleAgentStorage();
+    const manager = new FakeLifecycleAgentManager(storage);
+    manager.liveAgents.set("lead-1", managedAgent("lead-1", "idle"));
+    storage.records.set("lead-1", roleBoundAgent("lead-1", "lead"));
+
+    const result = await archiveAgentCommand(
+      { agentManager: manager, agentStorage: storage, logger },
+      "lead-1",
+      { initiator: "human" },
+    );
+
+    expect(result.record.writeLeaseRelease).toEqual({
+      reason: "human_archive",
+      actor: "human",
+      roleId: "lead",
+      archivedAt: "2026-05-10T10:00:00.000Z",
+      releasedAt: expect.any(String),
+    });
+    expect(storage.records.get("lead-1")?.writeLeaseRelease?.archivedAt).toBe(
+      "2026-05-10T10:00:00.000Z",
+    );
+  });
+
+  test("a Human re-archive of an already archived Lead records the missing receipt", async () => {
+    const storage = new FakeLifecycleAgentStorage();
+    const manager = new FakeLifecycleAgentManager(storage);
+    storage.records.set("lead-1", {
+      ...roleBoundAgent("lead-1", "lead"),
+      archivedAt: "2026-05-10T08:00:00.000Z",
+    });
+
+    const result = await archiveAgentCommand(
+      { agentManager: manager, agentStorage: storage, logger },
+      "lead-1",
+      { initiator: "human" },
+    );
+
+    expect(result.record.writeLeaseRelease).toMatchObject({
+      reason: "human_archive",
+      archivedAt: "2026-05-10T08:00:00.000Z",
+    });
+  });
+
+  test("agent-initiated archives and non-lease roles record no release receipt", async () => {
+    const storage = new FakeLifecycleAgentStorage();
+    const manager = new FakeLifecycleAgentManager(storage);
+    storage.records.set("lead-1", roleBoundAgent("lead-1", "lead"));
+    storage.records.set("supervisor-1", roleBoundAgent("supervisor-1", "supervisor"));
+    storage.records.set("plain-1", storedAgent("plain-1"));
+
+    const agentArchive = await archiveAgentCommand(
+      { agentManager: manager, agentStorage: storage, logger },
+      "lead-1",
+      { initiator: "agent" },
+    );
+    const supervisorArchive = await archiveAgentCommand(
+      { agentManager: manager, agentStorage: storage, logger },
+      "supervisor-1",
+      { initiator: "human" },
+    );
+    const plainArchive = await archiveAgentCommand(
+      { agentManager: manager, agentStorage: storage, logger },
+      "plain-1",
+      { initiator: "human" },
+    );
+
+    expect(agentArchive.record.writeLeaseRelease).toBeUndefined();
+    expect(supervisorArchive.record.writeLeaseRelease).toBeUndefined();
+    expect(plainArchive.record.writeLeaseRelease).toBeUndefined();
+  });
+
+  test("a Human-rooted cascade releases archived Lead/Peer descendants; agent cascades do not", async () => {
+    const run = async (initiator: "human" | "agent") => {
+      const storage = new FakeLifecycleAgentStorage();
+      const manager = new FakeLifecycleAgentManager(storage);
+      const child = (id: string, roleId: "lead" | "peer" | "supervisor", parent: string) => ({
+        ...roleBoundAgent(id, roleId),
+        labels: { [PARENT_AGENT_ID_LABEL]: parent },
+      });
+      storage.records.set("lead-1", roleBoundAgent("lead-1", "lead"));
+      storage.records.set("peer-1", child("peer-1", "peer", "lead-1"));
+      storage.records.set("peer-2", child("peer-2", "peer", "peer-1"));
+      storage.records.set("peer-detached", child("peer-detached", "peer", "lead-1"));
+      storage.records.set("peer-old", {
+        ...child("peer-old", "peer", "lead-1"),
+        archivedAt: "2026-05-10T07:00:00.000Z",
+      });
+      manager.liveAgents.set("lead-1", managedAgent("lead-1", "idle"));
+      const archiveRoot = manager.archiveAgent.bind(manager);
+      manager.archiveAgent = async (agentId) => {
+        const result = await archiveRoot(agentId);
+        // Simulate AgentManager.cascadeArchiveChildren: archive the subtree, detach one child.
+        for (const id of ["peer-1", "peer-2"]) {
+          const record = storage.records.get(id) as StoredAgentRecord;
+          storage.records.set(id, { ...record, archivedAt: result.archivedAt });
+        }
+        return result;
+      };
+      await archiveAgentCommand(
+        { agentManager: manager, agentStorage: storage, logger },
+        "lead-1",
+        { initiator },
+      );
+      return storage;
+    };
+
+    const human = await run("human");
+    for (const id of ["peer-1", "peer-2"]) {
+      expect(human.records.get(id)?.writeLeaseRelease).toEqual({
+        reason: "human_archive_cascade",
+        actor: "human",
+        roleId: "peer",
+        triggeredByAgentId: "lead-1",
+        archivedAt: "2026-05-10T10:00:00.000Z",
+        releasedAt: expect.any(String),
+      });
+    }
+    expect(human.records.get("peer-detached")?.writeLeaseRelease).toBeUndefined();
+    expect(human.records.get("peer-old")?.writeLeaseRelease).toBeUndefined();
+
+    const agent = await run("agent");
+    for (const id of ["lead-1", "peer-1", "peer-2"]) {
+      expect(agent.records.get(id)?.writeLeaseRelease).toBeUndefined();
+    }
+  });
+
   test("normalizes metadata updates and rejects empty updates", async () => {
     const storage = new FakeLifecycleAgentStorage();
     storage.records.set("agent-1", storedAgent("agent-1"));
@@ -388,5 +519,24 @@ function storedAgent(id: string): StoredAgentRecord {
     config: null,
     persistence: null,
     archivedAt: null,
+  };
+}
+
+function roleBoundAgent(id: string, roleId: "lead" | "peer" | "supervisor"): StoredAgentRecord {
+  return {
+    ...storedAgent(id),
+    workspaceId: "workspace-1",
+    roleBinding: {
+      roleId,
+      definitionVersion: "test",
+      definitionDigest: "definition",
+      bindingDigest: "binding",
+      provider: "codex",
+      injectionMethod: "codex-config",
+      qualification: "implementation-supported",
+      workspaceProtocol: { status: "missing", path: "/workspace/project/WORKSPACE_PROTOCOL.md" },
+      createdAt: "2026-05-10T09:00:00.000Z",
+      instructions: "test",
+    },
   };
 }

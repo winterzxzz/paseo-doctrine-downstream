@@ -155,6 +155,29 @@ retention áp dụng cho handoff chạy sau khi file-backed store được activ
 giữ packet/receipts nhưng không được claim có timeline backfill. Nếu runtime tools chưa available, dừng ở
 manual frozen packet và báo UNKNOWN; không dùng chat prose giả làm receipt.
 
+### Human archive là release
+
+Human archive hoặc close (app, CLI, MCP không gắn agent) một role-bound Lead/Peer cũng là release.
+`archiveAgentCommand` với `initiator: "human"` ghi durable receipt `writeLeaseRelease`
+(`reason: human_archive`, `actor: human`, `roleId`, `archivedAt`, `releasedAt`) lên record
+(`recordHumanArchiveWriteLeaseRelease` trong `packages/server/src/server/agent/lead-handoffs.ts`).
+Archive do agent gọi `archive_agent` hoặc auto-archive không ghi receipt và không mở rộng authority.
+Re-archive một agent đã archive từ Human-facing caller vẫn ghi receipt còn thiếu.
+Lead/Peer con cháu bị cascade-archive cùng root đó nhận receipt `reason: human_archive_cascade` với
+`triggeredByAgentId` là root; con bị detach hoặc đã archive từ trước thì không. Cascade từ archive do
+agent khởi tạo không ghi receipt.
+
+Receipt là sticky: whole-record upsert cũ không xóa được nó, và unarchive không xóa nó. Sau đó
+`hasReleasedAgentWriteLease` trả true nên agent đó giống released predecessor: không resume runtime,
+prompt bị từ chối bằng `agent_write_lease_released`, không làm predecessor hoặc successor của handoff
+mới. Muốn quay lại vai trò đó thì tạo fresh role-bound identity.
+
+Successor kiểm tra qua `get_agent_status` hoặc `list_agents` (`includeArchived`): `archivedAt` cộng
+`writeLeaseRelease` là break-before-make evidence hợp lệ; archive không có receipt thì không phải
+release. `get_agent_activity` đọc timeline của agent archived hoặc released từ durable store, không
+resume, và trả `archivedAt`, `writeLeaseRelease`, `timelineSource`. Snapshot của agent đang resident
+lấy `archivedAt` từ durable record, và `list_agents` ẩn agent đó khi không có `includeArchived`.
+
 ## Skill usage
 
 Skill paseo-handoff phân loại hai lane:

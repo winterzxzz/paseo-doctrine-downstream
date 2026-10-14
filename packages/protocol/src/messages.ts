@@ -52,7 +52,7 @@ import {
   CoordinationSignalResolutionSchema,
   CoordinationSignalSchema,
 } from "./coordination-signal.js";
-import { LeadHandoffPacketSchema } from "./lead-handoff.js";
+import { AgentWriteLeaseReleaseSchema, LeadHandoffPacketSchema } from "./lead-handoff.js";
 import { WORKSPACE_LABEL_COLORS } from "./workspace-labels.js";
 import {
   ChatCreateRequestSchema,
@@ -1011,6 +1011,7 @@ export const AgentSnapshotPayloadSchema = z.object({
   launchProfile: AgentProfileLaunchReceiptSchema.optional(),
   coordinationSignals: z.array(CoordinationSignalSchema).optional(),
   leadHandoffs: z.array(LeadHandoffPacketSchema).optional(),
+  writeLeaseRelease: AgentWriteLeaseReleaseSchema.optional(),
   continuityAwareness: AgentContinuityAwarenessSchema.optional(),
 });
 
@@ -1035,6 +1036,7 @@ export const AgentListItemPayloadSchema = z.object({
   attentionTimestamp: z.string().nullable().optional(),
   labels: z.record(z.string(), z.string()).default({}),
   providerUnavailable: z.boolean().optional(),
+  writeLeaseRelease: AgentWriteLeaseReleaseSchema.optional(),
 });
 
 export type AgentListItemPayload = z.infer<typeof AgentListItemPayloadSchema>;

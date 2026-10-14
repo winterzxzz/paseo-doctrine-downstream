@@ -299,6 +299,32 @@ describe("AgentStorage", () => {
     expect(recordAfterSnapshot?.archivedAt).toBe(archivedAt);
   });
 
+  test("a write-lease release receipt survives stale upserts, unarchive, and snapshots", async () => {
+    const agentId = "agent-released";
+    await storage.applySnapshot(createManagedAgent({ id: agentId, lifecycle: "idle" }));
+    const staleRecord = await storage.get(agentId);
+    const writeLeaseRelease = {
+      reason: "human_archive",
+      actor: "human",
+      roleId: "lead",
+      archivedAt: "2025-01-03T00:00:00.000Z",
+      releasedAt: "2025-01-03T00:00:01.000Z",
+    };
+    await storage.upsert({
+      ...staleRecord!,
+      archivedAt: writeLeaseRelease.archivedAt,
+      writeLeaseRelease,
+    });
+
+    await storage.upsert({ ...staleRecord!, archivedAt: null });
+    await storage.applySnapshot(createManagedAgent({ id: agentId, lifecycle: "running" }));
+
+    const reloaded = new AgentStorage(storagePath, logger);
+    const record = await reloaded.get(agentId);
+    expect(record?.archivedAt).toBeNull();
+    expect(record?.writeLeaseRelease).toEqual(writeLeaseRelease);
+  });
+
   test("applySnapshot preserves durable coordination and handoff metadata", async () => {
     const agentId = "lead-predecessor";
     await storage.applySnapshot(createManagedAgent({ id: agentId, lifecycle: "idle" }));

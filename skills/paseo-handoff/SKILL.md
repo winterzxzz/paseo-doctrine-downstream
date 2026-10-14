@@ -92,6 +92,18 @@ Require an exact Human handoff/replacement mandate and a role-bound predecessor 
    transition_lead_handoff with successor_acknowledged, or rejects the packet with discrepancies.
 6. Only after successor ACK may Human record predecessor_released.
 
+**Predecessor archived by Human.** A Human archive or close of a role-bound Lead/Peer is a
+release too. The daemon stores a durable `writeLeaseRelease` receipt (`reason: human_archive`,
+`actor: human`, `archivedAt`, `releasedAt`) on the archived record. A successor verifies it with
+`get_agent_status <predecessorId>` (or `list_agents` with `includeArchived`): `archivedAt` set
+and `writeLeaseRelease` present is valid break-before-make evidence, and the successor may take
+the write lease without a handoff packet. Reconstruct context from `get_agent_activity`, which
+reads the archived timeline from durable storage without resuming the predecessor. An archive
+without the receipt (for example an agent-initiated or automatic archive) is not a release:
+report BLOCKED and ask Human to archive the predecessor, which records the receipt. Unarchiving
+never restores the predecessor's write authority; its prompts stay refused with
+`agent_write_lease_released`.
+
 Human authorization and release have no elapsed-time cooling delay. The packet, successor ACK, and safe
 idle boundary are the gates. Automated coordination signals remain advisory: do not turn one signal into
 replacement or authority transfer, and require repeated or independently corroborated evidence before

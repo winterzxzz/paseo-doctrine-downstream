@@ -232,6 +232,10 @@ export async function serializeSnapshotWithMetadata(
     continuityAwareness: buildContinuityAwareness(snapshot, timeline),
     ...(record?.coordinationSignals ? { coordinationSignals: record.coordinationSignals } : {}),
     ...(record?.leadHandoffs ? { leadHandoffs: record.leadHandoffs } : {}),
+    // The durable record owns archive state. A runtime resident for history reads must not
+    // look unarchived to orchestration callers.
+    ...(record?.archivedAt ? { archivedAt: record.archivedAt } : {}),
+    ...(record?.writeLeaseRelease ? { writeLeaseRelease: record.writeLeaseRelease } : {}),
   };
 }
 

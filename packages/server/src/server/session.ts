@@ -128,6 +128,7 @@ import {
   detachAgentCommand,
   setAgentModeCommand,
   updateAgentCommand,
+  type ArchiveAgentCommandOptions,
 } from "./agent/lifecycle-command.js";
 import {
   buildContinuityAwareness,
@@ -3533,7 +3534,9 @@ export class Session {
   private async handleArchiveAgentRequest(agentId: string, requestId: string): Promise<void> {
     this.sessionLogger.info({ agentId }, `Archiving agent ${agentId}`);
 
-    const { archivedAt } = await this.archiveAgentForClose(agentId);
+    // A WebSocket archive request is a Human-facing gesture (app, CLI); it releases a
+    // role-bound Lead/Peer write lease with a durable receipt.
+    const { archivedAt } = await this.archiveAgentForClose(agentId, { initiator: "human" });
 
     this.emit({
       type: "agent_archived",
@@ -3547,6 +3550,7 @@ export class Session {
 
   private async archiveAgentForClose(
     agentId: string,
+    options: ArchiveAgentCommandOptions = {},
   ): Promise<{ agentId: string; archivedAt: string }> {
     const { archivedAt, record: archivedRecord } = await archiveAgentCommand(
       {
@@ -3555,6 +3559,7 @@ export class Session {
         logger: this.sessionLogger,
       },
       agentId,
+      options,
     );
 
     if (this.agentUpdates.hasSubscription()) {
@@ -3758,7 +3763,7 @@ export class Session {
 
   private async handleCloseItemsRequest(msg: CloseItemsRequest): Promise<void> {
     const archiveResults = await Promise.allSettled(
-      msg.agentIds.map((agentId) => this.archiveAgentForClose(agentId)),
+      msg.agentIds.map((agentId) => this.archiveAgentForClose(agentId, { initiator: "human" })),
     );
     const agents = [];
     for (let i = 0; i < archiveResults.length; i += 1) {

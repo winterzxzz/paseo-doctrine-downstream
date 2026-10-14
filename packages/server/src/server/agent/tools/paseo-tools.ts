@@ -18,7 +18,12 @@ import {
 import { ensureValidJson } from "../../json-utils.js";
 import type { Logger } from "pino";
 
-import type { AgentMode, AgentProvider, AgentSessionConfig } from "../agent-sdk-types.js";
+import type {
+  AgentMode,
+  AgentProvider,
+  AgentSessionConfig,
+  AgentTimelineItem,
+} from "../agent-sdk-types.js";
 import type { AgentManager, ManagedAgent } from "../agent-manager.js";
 import {
   AgentProfileLaunchReceiptSchema,
@@ -168,11 +173,16 @@ import {
 } from "@getpaseo/protocol/coordination-signal";
 import { requestCoordinationSignal, resolveCoordinationSignal } from "../coordination-signals.js";
 import {
+  AgentWriteLeaseReleaseSchema,
   LeadHandoffPacketSchema,
   LeadHandoffTransitionSchema,
   PrepareLeadHandoffInputSchema,
 } from "@getpaseo/protocol/lead-handoff";
-import { prepareLeadHandoff, transitionLeadHandoff } from "../lead-handoffs.js";
+import {
+  hasReleasedAgentWriteLease,
+  prepareLeadHandoff,
+  transitionLeadHandoff,
+} from "../lead-handoffs.js";
 import type { CouncilCaseStore } from "../../council/council-case-store.js";
 
 export interface PaseoToolHostDependencies {
@@ -4008,7 +4018,10 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
             includeArchived || isStoredAgentProviderAvailable(record, registeredProviderIds),
         )
         .map((record) => buildStoredAgentPayload(record, registeredProviderIds));
-      const agents = [...liveAgents, ...storedAgents]
+      const agents = [
+        ...liveAgents.filter((agent) => includeArchived || !agent.archivedAt),
+        ...storedAgents,
+      ]
         .map(toAgentListItemPayload)
         .filter((agent) => !requestedCwd || isSameOrDescendantPath(requestedCwd, agent.cwd))
         .filter((agent) => !statusFilter || statusFilter.has(agent.status))
@@ -4068,6 +4081,8 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
           logger: childLogger,
         },
         agentId,
+        // Only a Human-facing (non-agent-scoped) caller releases a write lease by archiving.
+        { initiator: callerAgentId ? "agent" : "human" },
       );
       return {
         content: [],
@@ -5017,7 +5032,8 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
     "get_agent_activity",
     {
       title: "Get agent activity",
-      description: "Return recent agent timeline entries as a curated summary.",
+      description:
+        "Return recent agent timeline entries as a curated summary. Archived or write-lease-released agents are read from durable storage and stay archived and unloaded; the output reports archivedAt and any writeLeaseRelease receipt.",
       inputSchema: {
         agentId: z.string(),
         limit: z
@@ -5030,16 +5046,38 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
         updateCount: z.number(),
         currentModeId: z.string().nullable(),
         content: z.string(),
+        archivedAt: z.string().nullable().optional(),
+        writeLeaseRelease: AgentWriteLeaseReleaseSchema.optional(),
+        timelineSource: z.enum(["runtime", "durable_storage"]).optional(),
       },
     },
     async ({ agentId, limit }) => {
-      await ensureAgentLoaded(agentId, {
-        agentManager,
-        agentStorage,
-        logger: childLogger,
-      });
-      const timeline = agentManager.getTimeline(agentId);
-      const snapshot = agentManager.getAgent(agentId);
+      const record = await agentStorage.get(agentId);
+      const resident = agentManager.getAgent(agentId);
+      let timeline: AgentTimelineItem[];
+      let currentModeId: string | null;
+      let timelineSource: "runtime" | "durable_storage";
+      if (!resident && record && (record.archivedAt || hasReleasedAgentWriteLease(record))) {
+        // Inspection is read-only: never resume (and so never resurrect) an archived or
+        // released agent. Its committed timeline lives in durable storage.
+        if (record.internal) {
+          throw new Error(`Agent ${agentId} not found`);
+        }
+        timeline = (await agentManager.getDurableTimelineRows(agentId)).map((row) => row.item);
+        currentModeId = record.lastModeId ?? null;
+        timelineSource = "durable_storage";
+      } else {
+        if (!resident) {
+          await ensureAgentLoaded(agentId, {
+            agentManager,
+            agentStorage,
+            logger: childLogger,
+          });
+        }
+        timeline = agentManager.getTimeline(agentId);
+        currentModeId = agentManager.getAgent(agentId)?.currentModeId ?? null;
+        timelineSource = "runtime";
+      }
 
       const selection = selectItemsByProjectedLimit({
         items: timeline,
@@ -5054,16 +5092,22 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
         limit && shownProjected < totalProjected
           ? `Showing ${shownProjected} of ${totalProjected} ${noun} (limited to ${limit})`
           : `Showing all ${totalProjected} ${noun}`;
+      const lifecycleHeader = describeInspectedAgentLifecycle(record, timelineSource);
 
-      const contentWithCount = `${countHeader}\n\n${curatedContent}`;
+      const contentWithCount = lifecycleHeader
+        ? `${lifecycleHeader}\n${countHeader}\n\n${curatedContent}`
+        : `${countHeader}\n\n${curatedContent}`;
 
       return {
         content: [],
         structuredContent: ensureValidJson({
           agentId,
           updateCount: timeline.length,
-          currentModeId: snapshot?.currentModeId ?? null,
+          currentModeId,
           content: contentWithCount,
+          archivedAt: record?.archivedAt ?? null,
+          ...(record?.writeLeaseRelease ? { writeLeaseRelease: record.writeLeaseRelease } : {}),
+          timelineSource,
         }),
       };
     },
@@ -5221,4 +5265,26 @@ function archiveWorktreeDependencies(
       ),
     sessionLogger: context.logger,
   };
+}
+
+function describeInspectedAgentLifecycle(
+  record: StoredAgentRecord | null,
+  timelineSource: "runtime" | "durable_storage",
+): string | null {
+  if (!record) return null;
+  const source =
+    timelineSource === "durable_storage"
+      ? "Read from durable storage; the agent was not resumed."
+      : "Read from an already-resident runtime.";
+  const release = record.writeLeaseRelease;
+  if (release) {
+    return `Agent lifecycle: archived at ${release.archivedAt}; write lease released by ${release.actor} (${release.reason}) at ${release.releasedAt}. ${source}`;
+  }
+  if (record.archivedAt) {
+    return `Agent lifecycle: archived at ${record.archivedAt}; no write-lease release receipt. ${source}`;
+  }
+  if (hasReleasedAgentWriteLease(record)) {
+    return `Agent lifecycle: write lease released by adjacent-Lead handoff. ${source}`;
+  }
+  return null;
 }

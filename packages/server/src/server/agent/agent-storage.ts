@@ -16,7 +16,10 @@ import { AgentOwnerSchema, daemonExecutionKey, type DaemonAgentOwner } from "./a
 import { PersistedRoleBindingSchema } from "./role-binding.js";
 import { PersistedLaunchContractSchema } from "./launch-contract.js";
 import { CoordinationSignalSchema } from "@getpaseo/protocol/coordination-signal";
-import { LeadHandoffPacketSchema } from "@getpaseo/protocol/lead-handoff";
+import {
+  AgentWriteLeaseReleaseSchema,
+  LeadHandoffPacketSchema,
+} from "@getpaseo/protocol/lead-handoff";
 
 const SERIALIZABLE_CONFIG_SCHEMA = z
   .object({
@@ -99,6 +102,7 @@ const STORED_AGENT_SCHEMA = z.object({
   beadsStatusCheckpoint: BEADS_STATUS_CHECKPOINT_SCHEMA.optional(),
   coordinationSignals: z.array(CoordinationSignalSchema).optional(),
   leadHandoffs: z.array(LeadHandoffPacketSchema).optional(),
+  writeLeaseRelease: AgentWriteLeaseReleaseSchema.optional(),
   eventPolicyStates: z
     .record(
       z.string(),
@@ -150,6 +154,9 @@ function preserveCoordinationMetadata(
   }
   if (existing?.leadHandoffs !== undefined) {
     record.leadHandoffs = existing.leadHandoffs;
+  }
+  if (existing?.writeLeaseRelease !== undefined) {
+    record.writeLeaseRelease = existing.writeLeaseRelease;
   }
   if (existing?.eventPolicyStates !== undefined) {
     record.eventPolicyStates = existing.eventPolicyStates;
@@ -248,7 +255,14 @@ export class AgentStorage {
   }
 
   private queueRecordWrite(record: StoredAgentRecord): Promise<void> {
-    return this.queueRecordMutation(record.id, () => record);
+    return this.queueRecordMutation(record.id, (existing) => {
+      // A Human-archive write-lease release is a durable revocation receipt. A whole-record
+      // upsert built from an older read must not silently drop it and restore write authority.
+      if (existing?.writeLeaseRelease && !record.writeLeaseRelease) {
+        return { ...record, writeLeaseRelease: existing.writeLeaseRelease };
+      }
+      return record;
+    });
   }
 
   private queueRecordMutation(
