@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import type { PanelRegistration } from "@/panels/panel-registry";
+import { definePanel } from "@/panels/panel-registry";
 import {
   TopologyGraph,
   summarizeTopologyStatuses,
@@ -74,13 +74,10 @@ function TopologyPanel() {
   );
 }
 
-export const topologyPanelRegistration: PanelRegistration<"topology"> = {
-  kind: "topology",
-  supportedHosts: ["main"],
-  resourceKey: () => "topology",
+export const topologyPanelRegistration = definePanel("topology", {
   component: TopologyPanel,
   useDescriptor: useTopologyPanelDescriptor,
-};
+});
 
 const styles = StyleSheet.create((theme) => ({
   container: {

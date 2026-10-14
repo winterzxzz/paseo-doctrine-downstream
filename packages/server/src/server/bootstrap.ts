@@ -1,10 +1,11 @@
+import type { PluginRegistries } from "@getpaseo/protocol/plugin-registry";
 import { describeHookWorkspace } from "./plugins/lifecycle/index.js";
 import express from "express";
 import { createServer as createHTTPServer } from "http";
 import { constants, existsSync, unlinkSync } from "fs";
 import { open, stat } from "fs/promises";
 import { randomUUID } from "node:crypto";
-import { hostname as getHostname } from "node:os";
+import { getHostName } from "./host-name.js";
 import path from "node:path";
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { toNodeHandler } from "@modelcontextprotocol/node";
@@ -141,6 +142,7 @@ import { createPaseoWorktree as createRegisteredPaseoWorktree } from "./paseo-wo
 import { createWorkspaceProvisioningService } from "./session/workspace-provisioning/workspace-provisioning-service.js";
 import { createPaseoWorktreeWorkflow } from "./worktree-session.js";
 import { DownloadTokenStore } from "./file-download/token-store.js";
+import { formatAttachmentContentDisposition } from "./file-download/content-disposition.js";
 import type { OpenAiSpeechProviderConfig } from "./speech/providers/openai/config.js";
 import type { LocalSpeechProviderConfig } from "./speech/providers/local/config.js";
 import type { RequestedSpeechProviders } from "./speech/speech-types.js";
@@ -267,6 +269,7 @@ import {
 } from "./hub/relationship-remote.js";
 import { DaemonExecutions } from "./hub/daemon-executions.js";
 import { PluginService } from "./plugins/index.js";
+import { BuiltinPluginLoader } from "./plugins/builtin/index.js";
 import { ManagedPluginSources } from "./plugins/managed-source.js";
 import { resolveApprovedPeerRoster } from "./agent/peer-roster.js";
 
@@ -457,6 +460,8 @@ export interface PaseoDaemonConfig {
   skillSelection?: AgentSkillSelection;
   pluginsEnabled?: boolean;
   plugins?: Record<string, PluginSource>;
+  pluginRegistries?: PluginRegistries;
+  pluginRegistryUrl?: string;
   staticDir: string;
   mcpDebug: boolean;
   isDev?: boolean;
@@ -523,6 +528,7 @@ export interface PaseoDaemon {
 }
 
 export interface PaseoDaemonDependencies {
+  builtinPlugins?: BuiltinPluginLoader;
   hubRelationshipRemote?: HubRelationshipRemote;
   hubRelationshipClock?: HubRelationshipClock;
   hubRelationshipRetryPolicy?: HubRelationshipRetryPolicy;
@@ -543,6 +549,10 @@ async function resolveDaemonTrustedSembleRuntime(
     return dependencies.trustedSembleRuntime ?? null;
   }
   return await resolveTrustedSembleRuntimeForDaemon(paseoHome, logger);
+}
+
+function resolveBuiltinPluginLoader(dependencies: PaseoDaemonDependencies): BuiltinPluginLoader {
+  return dependencies.builtinPlugins ?? new BuiltinPluginLoader();
 }
 
 function createBootstrapManagedProcessRegistry(
@@ -576,7 +586,7 @@ function mountWebUi(app: express.Application, config: PaseoDaemonConfig, logger:
     createWebUiMiddleware({
       enabled: config.webUi?.enabled ?? false,
       distDir: config.webUi?.distDir ?? null,
-      label: getHostname(),
+      label: getHostName(),
       logger,
     }),
   );
@@ -713,8 +723,16 @@ export async function createPaseoDaemon(
   });
   const browserToolsPolicy = new DaemonConfigBrowserToolsPolicy(daemonConfigStore);
   const browserToolsBroker = new BrowserToolsBroker({});
-  const pluginRuntime = new PluginService(logger, daemonConfigStore, daemonVersion, {
-    managedSources: new ManagedPluginSources(config.paseoHome),
+  const pluginRuntime: PluginService = new PluginService(logger, daemonConfigStore, daemonVersion, {
+    usageAgents: {
+      hasAgent: (id) => agentManager.getAgent(id) !== null,
+      usageSession: (id) => agentManager.usageSession(id),
+    },
+    managedSources: new ManagedPluginSources(config.paseoHome, {
+      registries: config.pluginRegistries,
+      defaultUrl: config.pluginRegistryUrl,
+    }),
+    builtinPlugins: resolveBuiltinPluginLoader(dependencies),
     settingsDirectory: path.join(config.paseoHome, "plugin-settings"),
   });
 
@@ -926,7 +944,7 @@ export async function createPaseoDaemon(
     res.json({
       status: "server_info",
       serverId,
-      hostname: getHostname(),
+      hostname: getHostName(),
       version: daemonVersion,
       ...DAEMON_BUILD_PROVENANCE,
       listen: formatListenTarget(boundListenTarget ?? listenTarget),
@@ -959,9 +977,8 @@ export async function createPaseoDaemon(
         return;
       }
 
-      const safeFileName = entry.fileName.replace(/["\r\n]/g, "_");
       res.setHeader("Content-Type", entry.mimeType);
-      res.setHeader("Content-Disposition", `attachment; filename="${safeFileName}"`);
+      res.setHeader("Content-Disposition", formatAttachmentContentDisposition(entry.fileName));
       res.setHeader("Content-Length", fileStats.size.toString());
 
       const stream = fileHandle.createReadStream();
@@ -1342,7 +1359,6 @@ export async function createPaseoDaemon(
         emit: emitExternalSessionMessage,
         sessionLogger: logger,
         terminalManager,
-        archiveWorkspaceRecord: archiveWorkspaceRecordExternal,
         serviceProxy,
         scriptRuntimeStore,
         getDaemonTcpPort: () => (boundListenTarget?.type === "tcp" ? boundListenTarget.port : null),
@@ -1427,7 +1443,7 @@ export async function createPaseoDaemon(
   });
   const hubRelationships = new HubRelationshipController({
     paseoHome: config.paseoHome,
-    hostname: getHostname(),
+    hostname: getHostName(),
     serverId,
     daemonPublicKey: daemonKeyPair.publicKeyB64,
     logger,
@@ -1670,9 +1686,8 @@ export async function createPaseoDaemon(
       serviceProxyPublicBaseUrl,
       resolveScriptHealth: (hostname) => scriptHealthMonitor.getHealthForHostname(hostname),
       logger,
-      // MCP operations do not belong to one WebSocket session, so lifecycle
-      // status updates fan out to every connected client.
       emit: (message) => wsServer?.broadcast(wrapSessionMessage(message)),
+      publishStatusUpdate: (message) => wsServer?.publishScriptStatusUpdate(message),
       spawnWorkspaceScript,
       assertAutomationAllowed: (workspaceId) =>
         assertWorkspaceAutomationAllowedForWorkspace(workspaceRegistry, workspaceId),
@@ -1991,6 +2006,7 @@ export async function createPaseoDaemon(
             );
             pluginRuntime.bindPaseoSessionHost(wsServer);
             await pluginRuntime.start();
+            providerSnapshotManager.settlePluginProviders();
             wsServer.beginAcceptingConnections();
             relayRuntime = createRelayRuntime({
               config: {
@@ -2075,6 +2091,13 @@ export async function createPaseoDaemon(
     await attempt("websocket-ingress", () => wsServer?.prepareForShutdown());
     await attempt("agent-registration-ingress", () => agentManager.prepareForShutdown());
     await attempt("agent-runtime-close", () => closeAllAgents(logger, agentManager));
+    await attempt("plugin-lifecycle-events", () =>
+      withTimeout({
+        promise: pluginRuntime.drainEvents(),
+        timeoutMs: AGENT_CLOSE_TIMEOUT_MS,
+        label: "drain plugin lifecycle events",
+      }),
+    );
     await attempt("durable-agent-timeline", () => agentManager.flushForShutdown());
     await attempt("agent-storage-detach", () => detachAgentStoragePersistence());
     await attempt("agent-storage-flush", () => agentStorage.flush());

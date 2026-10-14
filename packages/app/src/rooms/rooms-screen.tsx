@@ -21,7 +21,7 @@ import { ScreenTitle } from "@/components/headers/screen-title";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { MAX_CONTENT_WIDTH, useIsCompactFormFactor } from "@/constants/layout";
+import { useIsCompactFormFactor } from "@/constants/layout";
 import {
   MessageInput,
   type AttachmentMenuItem,
@@ -980,7 +980,7 @@ const styles = StyleSheet.create((theme) => ({
   },
   messageList: {
     width: "100%",
-    maxWidth: MAX_CONTENT_WIDTH,
+    maxWidth: theme.contentMaxWidth,
     alignSelf: "center",
     paddingHorizontal: theme.spacing[4],
     paddingVertical: theme.spacing[4],
@@ -1047,7 +1047,7 @@ const styles = StyleSheet.create((theme) => ({
   },
   composer: {
     width: "100%",
-    maxWidth: MAX_CONTENT_WIDTH,
+    maxWidth: theme.contentMaxWidth,
     alignSelf: "center",
     paddingHorizontal: theme.spacing[4],
     paddingVertical: theme.spacing[3],

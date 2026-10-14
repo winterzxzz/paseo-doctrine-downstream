@@ -1,6 +1,7 @@
+import type { TFunction } from "i18next";
 import type { SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
 import type { WorkspaceTitleSource } from "@/hooks/use-settings";
-import { STATUS_BUCKET_LABELS } from "@/hooks/sidebar-status-view-model";
+import { getStatusBucketLabel } from "@/hooks/sidebar-status-view-model";
 
 type SidebarWorkspaceLabelSource = Pick<SidebarWorkspaceEntry, "name" | "currentBranch"> &
   Partial<Pick<SidebarWorkspaceEntry, "rootRoleId">>;
@@ -33,6 +34,7 @@ export function resolveSidebarWorkspaceAccessibilityLabel(input: {
   hostBadgeLabel?: string | null;
   pullRequestLabel?: string | null;
   serviceLabel?: string | null;
+  t: TFunction;
 }): string {
   return [
     input.leadingProjectName,
@@ -42,7 +44,7 @@ export function resolveSidebarWorkspaceAccessibilityLabel(input: {
     input.serviceLabel,
     input.workspace.statusBucket === "done"
       ? null
-      : STATUS_BUCKET_LABELS[input.workspace.statusBucket],
+      : getStatusBucketLabel(input.workspace.statusBucket, input.t),
   ]
     .filter((label): label is string => Boolean(label))
     .join(", ");

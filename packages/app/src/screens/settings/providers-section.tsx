@@ -22,7 +22,7 @@ import {
   type AcpProviderCatalogItem,
 } from "@/hooks/use-acp-provider-catalog";
 import { ProviderCatalogList } from "@/components/provider-catalog-list";
-import { getProviderIcon } from "@/components/provider-icons";
+import { useProviderIcon } from "@/components/provider-icons";
 import { PaseoToolsPolicySheet } from "@/screens/settings/paseo-tools-policy-sheet";
 import { Alert as InlineAlert } from "@/components/ui/alert";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -285,7 +285,7 @@ function ProviderRow({
   const { t } = useTranslation();
   const { theme } = useUnistyles();
   const isCompact = useIsCompactFormFactor();
-  const ProviderIcon = getProviderIcon(def.id, serverId);
+  const ProviderIcon = useProviderIcon(def.id, serverId);
   const providerError =
     enabled &&
     entry.status === "error" &&

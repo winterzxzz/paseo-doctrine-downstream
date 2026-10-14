@@ -9,14 +9,14 @@ export interface ResolveAgentIdentifierInput {
 
 export type ResolveAgentIdentifierResult =
   | { ok: true; agentId: string }
-  | { ok: false; error: string };
+  | { ok: false; notFound: boolean; error: string };
 
 export async function resolveAgentIdentifier(
   input: ResolveAgentIdentifierInput,
 ): Promise<ResolveAgentIdentifierResult> {
   const trimmed = input.identifier.trim();
   if (!trimmed) {
-    return { ok: false, error: "Agent identifier cannot be empty" };
+    return { ok: false, notFound: false, error: "Agent identifier cannot be empty" };
   }
 
   const stored = await input.agentStorage.list();
@@ -37,6 +37,7 @@ export async function resolveAgentIdentifier(
   if (prefixMatches.length > 1) {
     return {
       ok: false,
+      notFound: false,
       error: `Agent identifier "${trimmed}" is ambiguous (${formatAgentIds(prefixMatches)})`,
     };
   }
@@ -48,13 +49,14 @@ export async function resolveAgentIdentifier(
   if (titleMatches.length > 1) {
     return {
       ok: false,
+      notFound: false,
       error: `Agent title "${trimmed}" is ambiguous (${formatAgentIds(
         titleMatches.map((record) => record.id),
       )})`,
     };
   }
 
-  return { ok: false, error: `Agent not found: ${trimmed}` };
+  return { ok: false, notFound: true, error: `Agent not found: ${trimmed}` };
 }
 
 function formatAgentIds(agentIds: string[]): string {

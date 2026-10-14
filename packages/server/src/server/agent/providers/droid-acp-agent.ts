@@ -26,7 +26,6 @@ interface DroidACPAgentClientOptions {
   env?: Record<string, string>;
   providerId?: string;
   label?: string;
-  providerParams?: unknown;
   roleCapsuleRoot?: string;
   factoryHome?: string;
 }
@@ -183,7 +182,6 @@ export class DroidACPAgentClient extends GenericACPAgentClient {
       env: options.env,
       providerId: options.providerId,
       label: options.label,
-      providerParams: options.providerParams,
     });
     this.roleCommand = options.command;
     this.roleCapsuleRoot = options.roleCapsuleRoot;

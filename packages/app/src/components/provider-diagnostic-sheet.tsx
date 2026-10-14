@@ -28,11 +28,11 @@ import { useToast } from "@/contexts/toast-context";
 import { CODE_SURFACE_DATASET } from "@/styles/code-surface";
 import { useDaemonConfig } from "@/hooks/use-daemon-config";
 import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
+import { useTimeAgo } from "@/hooks/use-time-ago";
 import { useHostRuntimeClient } from "@/runtime/host-runtime";
 import { useHostFeature } from "@/runtime/host-features";
 import { settingsStyles } from "@/styles/settings";
 import { resolveProviderLabel } from "@/utils/provider-definitions";
-import { formatTimeAgo } from "@/utils/time";
 import { compareMatchScores, scoreTextFields } from "@getpaseo/protocol/search/text-match";
 import type { AgentModelDefinition, AgentProvider } from "@getpaseo/protocol/agent-types";
 import type { ProviderProfileModel } from "@getpaseo/protocol/provider-config";
@@ -420,8 +420,16 @@ interface ProviderModalBodyProps {
   theme: { iconSize: { md: number }; colors: { foregroundMuted: string } };
 }
 
+function resolveProviderErrorMessage(
+  entry: { status: string; error?: string | null } | undefined,
+  t: TFunction,
+): string | null {
+  if (entry?.status !== "error") return null;
+  return entry.error ?? t("settings.providers.diagnostic.unknownError");
+}
+
 interface ProviderSheetFooterInput {
-  fetchedAtLabel: string | null;
+  fetchedAt: string | null;
   isCompact: boolean;
   modelsRefreshing: boolean;
   showConnection: boolean;
@@ -433,7 +441,7 @@ interface ProviderSheetFooterInput {
 }
 
 function renderProviderSheetFooter({
-  fetchedAtLabel,
+  fetchedAt,
   isCompact,
   modelsRefreshing,
   showConnection,
@@ -446,16 +454,10 @@ function renderProviderSheetFooter({
   const contentStyle = isCompact ? sheetStyles.compactFooterContent : sheetStyles.footerContent;
   const actionsStyle = isCompact ? sheetStyles.compactFooterActions : sheetStyles.footerActions;
   const buttonStyle = isCompact ? sheetStyles.compactFooterButton : null;
-  const metaStyle = isCompact
-    ? [sheetStyles.footerMeta, sheetStyles.compactFooterMeta]
-    : sheetStyles.footerMeta;
-
   return (
     <View style={contentStyle}>
-      {fetchedAtLabel || !isCompact ? (
-        <Text style={metaStyle} numberOfLines={1}>
-          {fetchedAtLabel ? t("settings.providers.models.updated", { time: fetchedAtLabel }) : ""}
-        </Text>
+      {fetchedAt || !isCompact ? (
+        <ProviderUpdatedLabel fetchedAt={fetchedAt} isCompact={isCompact} />
       ) : null}
       <View style={actionsStyle}>
         {showConnection ? (
@@ -501,6 +503,25 @@ function renderProviderSheetFooter({
         </Button>
       </View>
     </View>
+  );
+}
+
+function ProviderUpdatedLabel({
+  fetchedAt,
+  isCompact,
+}: {
+  fetchedAt: string | null;
+  isCompact: boolean;
+}) {
+  const { t } = useTranslation();
+  const label = useTimeAgo(fetchedAt ? new Date(fetchedAt) : null);
+  const style = isCompact
+    ? [sheetStyles.footerMeta, sheetStyles.compactFooterMeta]
+    : sheetStyles.footerMeta;
+  return (
+    <Text style={style} numberOfLines={1}>
+      {fetchedAt ? t("settings.providers.models.updated", { time: label }) : ""}
+    </Text>
   );
 }
 
@@ -715,10 +736,7 @@ export function ProviderDiagnosticSheet({
   );
   const providerCredentialRef = resolveCredentialRef(mutableProvider?.credentialRef);
   const providerQualificationModel = resolveQualificationModel(providerEntry?.models);
-  const providerErrorMessage =
-    providerEntry?.status === "error"
-      ? (providerEntry.error ?? t("settings.providers.diagnostic.unknownError"))
-      : null;
+  const providerErrorMessage = resolveProviderErrorMessage(providerEntry, t);
   const modelsRefreshing = isRefreshing || providerSnapshotRefreshing;
 
   const stableDiscoveredRef = useRef<ProviderDiscoveredModelsCache | null>(null);
@@ -731,18 +749,6 @@ export function ProviderDiagnosticSheet({
     previousCache: stableDiscoveredRef.current,
   });
   stableDiscoveredRef.current = nextDiscoveredCache;
-
-  const [clockTick, setClockTick] = useState(0);
-  useEffect(() => {
-    if (!visible) return;
-    const id = setInterval(() => setClockTick((tick) => tick + 1), 10_000);
-    return () => clearInterval(id);
-  }, [visible]);
-  const fetchedAtLabel = useMemo(() => {
-    if (!providerEntry?.fetchedAt) return null;
-    void clockTick;
-    return formatTimeAgo(new Date(providerEntry.fetchedAt));
-  }, [providerEntry?.fetchedAt, clockTick]);
 
   useEffect(() => {
     if (!visible) {
@@ -813,7 +819,7 @@ export function ProviderDiagnosticSheet({
         onClose={onClose}
         testID="provider-settings-sheet"
         footer={renderProviderSheetFooter({
-          fetchedAtLabel,
+          fetchedAt: providerEntry?.fetchedAt ?? null,
           isCompact,
           modelsRefreshing,
           showConnection: canConfigureConnection,

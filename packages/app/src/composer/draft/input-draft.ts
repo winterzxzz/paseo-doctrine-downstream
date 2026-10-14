@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UserComposerAttachment } from "@/attachments/types";
 import type { TextReplacement } from "@/composer/types";
 import type { DraftAgentControlsProps } from "@/composer/agent-controls";
-import type { DraftCommandConfig } from "@/hooks/use-agent-commands-query";
+import type { DraftCommandTarget } from "@/hooks/use-agent-commands-query";
 import {
   useAgentFormState,
   type CreateAgentInitialValues,
@@ -17,7 +17,7 @@ import {
   type DraftKeyInput,
 } from "@/composer/draft/input-draft-core";
 import {
-  buildDraftCommandConfig,
+  buildDraftCommandTarget,
   resolveEffectiveComposerModelId,
   resolveEffectiveComposerThinkingOptionId,
   type ProviderSelectionState,
@@ -155,7 +155,7 @@ type DraftComposerState = UseAgentFormStateResult & {
   effectiveThinkingOptionId: string;
   featureValues: Record<string, unknown> | undefined;
   agentControls: DraftAgentControlsProps;
-  commandDraftConfig: DraftCommandConfig | undefined;
+  commandDraft: DraftCommandTarget;
   selectedRole: PaseoRoleId | null;
   setRoleFromUser: (roleId: PaseoRoleId) => void;
   selectedAssignmentEffect: AssignmentEffectClass;
@@ -581,19 +581,16 @@ export function useAgentInputDraft(input: UseAgentInputDraftInput): AgentInputDr
     [applyProfileFeatureValues, formState],
   );
 
-  const commandDraftConfig = useMemo(
+  const commandDraft = useMemo(
     () =>
-      composerOptions
-        ? buildDraftCommandConfig({
-            selection: providerSelection,
-            cwd: workingDir,
-            effectiveModelId,
-            effectiveThinkingOptionId,
-            featureValues: draftFeatureValues,
-          })
-        : undefined,
+      buildDraftCommandTarget({
+        selection: providerSelection,
+        cwd: workingDir,
+        effectiveModelId,
+        effectiveThinkingOptionId,
+        featureValues: draftFeatureValues,
+      }),
     [
-      composerOptions,
       effectiveModelId,
       effectiveThinkingOptionId,
       draftFeatureValues,
@@ -652,14 +649,14 @@ export function useAgentInputDraft(input: UseAgentInputDraftInput): AgentInputDr
         onSetFeature: setAgentControlFeature,
         onApplyAgentProfile: applyDraftAgentProfile,
       }),
-      commandDraftConfig,
+      commandDraft,
       selectedRole: roleSelectionAvailable ? selectedRole : null,
       setRoleFromUser: setRoleAndNormalizeEffect,
       selectedAssignmentEffect,
       selectedBeadsIssueIds: beadsIssueGrant.selectedIssueIds,
     };
   }, [
-    commandDraftConfig,
+    commandDraft,
     composerOptions,
     effectiveModelId,
     effectiveThinkingOptionId,
@@ -696,7 +693,6 @@ export const __private__ = {
   resolveDraftKey,
   resolveEffectiveComposerModelId,
   resolveEffectiveComposerThinkingOptionId,
-  buildDraftCommandConfig,
-  buildDraftComposerCommandConfig: buildDraftCommandConfig,
+  buildDraftCommandTarget,
   buildDraftAgentControls,
 };
