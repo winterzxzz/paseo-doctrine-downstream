@@ -31,12 +31,7 @@ import {
   type PeerSubrole,
 } from "@getpaseo/protocol/messages";
 import type { DaemonConfigStore } from "../../daemon-config-store.js";
-import {
-  orderPeerDelegationProfiles,
-  resolvePeerDelegationProviderPriority,
-  selectPeerDelegationProfileForSubrole,
-  selectPeerDelegationProfiles,
-} from "@getpaseo/protocol/peer-delegation-priority";
+import { selectPeerDelegationProfileForSubrole } from "@getpaseo/protocol/peer-delegation-priority";
 import {
   AgentFeatureSchema,
   AgentPermissionRequestPayloadSchema,
@@ -153,6 +148,8 @@ import {
 } from "@getpaseo/protocol/provider-config";
 import { getUnattendedModeId } from "@getpaseo/protocol/provider-manifest";
 import { toRoleBindingReceipt } from "../role-binding.js";
+import { withRoleDefaultExternalEffectLease } from "../assignment-contract.js";
+import { resolveApprovedPeerRoster } from "../peer-roster.js";
 import { toLaunchContractReceipt } from "../launch-contract.js";
 import {
   PaseoRoleIdSchema,
@@ -2974,7 +2971,7 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
             provider: providerRoute,
             roleId: parsedArgs.role,
             executionProfileId,
-            assignment: parsedArgs.assignment,
+            assignment: withRoleDefaultExternalEffectLease(parsedArgs.role, parsedArgs.assignment),
             title: parsedArgs.title,
             initialPrompt: parsedArgs.initialPrompt,
             config: inheritedConfig,
@@ -4917,7 +4914,7 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
     {
       title: "List agent profiles",
       description:
-        "List Agent Profiles available for repeated launches. A role-bound Lead sees only " +
+        "List Agent Profiles available for repeated launches. A role-bound Lead or Supervisor sees only " +
         "Human-approved Peer profiles plus providerPriority in highest-first order and the optional " +
         "defaultSubrole. Pass an exact profile id as create_agent.launchProfileId when the task needs " +
         "a specific route, or omit it to let the daemon resolve the configured default subrole. " +
@@ -4933,27 +4930,16 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
     },
     async () => {
       const config = daemonConfigStore?.get();
-      const allProfiles = config?.agentProfiles ?? [];
-      const callerAgent = resolveCallerAgent();
-      const profileIds = config?.peerDelegationProfileIds;
-      let profiles = allProfiles;
-      let providerPriority: string[] | undefined;
-      let defaultSubrole: PeerSubrole | null | undefined;
-      if (callerAgent?.roleBinding?.roleId === "lead" && profileIds !== undefined) {
-        defaultSubrole = config?.peerDelegationDefaultSubrole;
-        if (config?.peerDelegation?.enabled) {
-          const selectedProfiles = selectPeerDelegationProfiles(allProfiles, profileIds);
-          providerPriority = resolvePeerDelegationProviderPriority(
-            allProfiles,
-            profileIds,
-            config.peerDelegationProviderPriority,
-          );
-          profiles = orderPeerDelegationProfiles(selectedProfiles, providerPriority);
-        } else {
-          profiles = [];
-          providerPriority = [];
-        }
-      }
+      const listingRoleId = resolveCallerAgent()?.roleBinding?.roleId;
+      // Leads route Peer work and Supervisors audit that routing, so both see exactly the
+      // Human-approved Peer roster rather than every saved profile.
+      const roster =
+        listingRoleId === "lead" || listingRoleId === "supervisor"
+          ? resolveApprovedPeerRoster(config)
+          : null;
+      const profiles = roster ? roster.profiles : (config?.agentProfiles ?? []);
+      const providerPriority = roster?.providerPriority;
+      const defaultSubrole = roster?.defaultSubrole;
       return {
         content: [],
         structuredContent: ensureValidJson({

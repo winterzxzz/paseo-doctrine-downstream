@@ -32,6 +32,7 @@ import {
   PersistedAssignmentContractSchema,
 } from "./assignment-contract.js";
 import type { RoleBindingPolicyContribution } from "../policy/role-binding-policy.js";
+import type { ApprovedPeerRoster } from "./peer-roster.js";
 
 export const WORKSPACE_PROTOCOL_ADMISSION_ERROR = "workspace_protocol_admission_required";
 export const ASSIGNMENT_CONTRACT_EXPIRED_ERROR = "assignment_contract_expired";
@@ -69,6 +70,7 @@ export interface MaterializeRoleBindingInput<TExecutionProfileId extends string 
   assignment?: AssignmentEnvelope;
   assignmentAssigner: AssignmentAssignerReceipt;
   roleProfilePreferences?: RoleProfilePreferences;
+  peerRoster?: ApprovedPeerRoster | null;
   createdAt?: Date;
 }
 
@@ -420,6 +422,7 @@ export async function materializeRoleBindingWithPolicy<TExecutionProfileId exten
     hasProtocolException,
     assignmentContract,
     roleProfile,
+    peerRoster: input.peerRoster ?? null,
   });
 
   return {

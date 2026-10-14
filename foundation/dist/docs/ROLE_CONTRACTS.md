@@ -41,7 +41,7 @@ Provider/profile/mode chỉ transport capability. Authority đến từ current 
   `missing` chỉ tiếp tục khi file vẫn missing và current assignment vẫn đủ graduated-admission
   conditions. Protocol xuất hiện, biến mất, invalid hoặc đổi digest đều yêu cầu fresh role binding;
   không resume bằng standing instructions stale.
-- Beads Central là durable issue/work graph bắt buộc. Mỗi role gọi `beads_status` ở assignment start và material handoff; unavailable thì `BLOCKED`, không fallback native `bd`/tracker khác. Lead giữ graph/closure trong lease, Peer dùng exact granted issue, Supervisor read-only.
+- Beads Central là durable issue/work graph bắt buộc. Mỗi role gọi `beads_status` ở assignment start và material handoff; unavailable thì `BLOCKED`, không fallback native `bd`/tracker khác. Lead giữ graph/closure trong lease, Peer dùng exact granted issue, Supervisor read-only. Beads write là external effect: chỉ chạy khi `externalEffectBoundary.mode = "bounded"`; issue phải tồn tại (tạo bằng `beads_create`) trước mọi write khác.
 
 ## Lead
 
@@ -58,6 +58,11 @@ Lead phải:
 - giữ một Owner cho mỗi moving/coupled scope;
 - nhận counterevidence và trả concrete ruling;
 - enact exact task-level provider/model/effort override khi cần, không mutate standing profile hoặc để override rò sang task khác;
+- chọn Peer route chỉ từ Peer roster Human đã duyệt: daemon project roster vào binding và
+  `list_profiles` trả bản hiện tại; truyền exact id làm `create_agent.launchProfileId` hoặc bỏ trống để
+  dùng default subrole; roster rỗng hoặc delegation tắt thì làm lead-direct hoặc `BLOCKED`;
+- giao issue cho Peer khi issue còn `open` và chưa assign, kèm ID trong
+  `assignment.resourceGrants.beadsIssueIds`; không tự set `in_progress` trước Peer claim;
 - khi exact launch profile hoặc Peer subrole không launch được, giữ requested-route failure là `BLOCKED`
   hoặc hỏi Human; không thay bằng subrole, provider hay mode khác;
 - review stable candidate và dùng proportional evidence;
@@ -96,6 +101,8 @@ Supervisor phục vụ Human bằng cách quan sát Lead ↔ Peer, phát hiện 
 Supervisor phải:
 
 - bind exact project/workspace, current Lead, objective, decision source, reporting target và replacement authority;
+- biết Peer roster Human đã duyệt (khối `Peer roster` trong binding hoặc `list_profiles`) và flag Lead
+  route Peer ra ngoài roster; Supervisor không tự launch Peer;
 - report material finding bằng observation, evidence, suspected mechanism, impact và open question/recommendation;
 - có thể gửi một attention question trực tiếp tới role-bound Lead hoặc Peer ở safe boundary khi có
   material evidence. Request phải tách `observation`, một open `question` và `evidence`; nó chỉ chuyển

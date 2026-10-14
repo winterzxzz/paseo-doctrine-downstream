@@ -37,7 +37,7 @@ Nếu discovery cần capability không tương thích với lease, report block
 
 ## Observation workflow
 
-1. Lấy một bounded snapshot của agent inventory, Lead/Peer lifecycle và exact repository identity cần cho coordination claim.
+1. Lấy một bounded snapshot của agent inventory, Lead/Peer lifecycle và exact repository identity cần cho coordination claim. Agent inventory gồm cả Peer roster được Human duyệt: đọc khối `Peer roster` trong binding hoặc gọi `list_profiles` (chỉ trả profile đã duyệt); `list_agents` chỉ thấy agent đã tồn tại, không thấy Peer được cấu hình nhưng chưa chạy.
 2. Chọn only material episodes; không đọc raw transcript hoặc project surface rộng hơn causal question.
 3. Tách `Observation`, `Evidence`, `Suspected mechanism`, `Impact` và `Unknown`.
 4. Treat anti-pattern như hypothesis. Hỏi Lead một open, evidence-backed question trước khi kết luận mechanism.

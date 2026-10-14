@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "distributionVersion": "0.1.0-dev.25",
+  "distributionVersion": "0.1.0-dev.26",
   "foundationSource": {
-    "commit": "64921e357e2e29590d2d2516a6b29d69543c05c8",
-    "ref": "foundation-v0.1.0-dev.25"
+    "commit": "7110940d2b384bfd98656e1474959433f69c1dd4",
+    "ref": "foundation-v0.1.0-dev.26"
   },
   "files": [
     {
@@ -24,7 +24,7 @@
     {
       "path": "docs/ROLE_CONTRACTS.md",
       "mode": "0644",
-      "sha256": "4d26fb828e69deba1a723cd78cd08196414abf8f0af587a6318412c4c4161852"
+      "sha256": "e8a4d191bb2a132106287fc0dd6787a15c76798a11292435fe3088ada928ef77"
     },
     {
       "path": "docs/ROLE_INSTRUCTION_BINDING.md",
@@ -39,7 +39,7 @@
     {
       "path": "profiles/antigravity/agents/paseo-lead/agent.md",
       "mode": "0644",
-      "sha256": "b48040dd30a81d500a55d6dd549a3f9573ea2940d338feb8d318a848528c253f"
+      "sha256": "224d3205f1e8bb1d27225a537dff899f721732d4bb12ca70c6025102fa2afe53"
     },
     {
       "path": "profiles/antigravity/agents/paseo-peer/agent.md",
@@ -49,22 +49,22 @@
     {
       "path": "profiles/antigravity/agents/paseo-supervisor/agent.md",
       "mode": "0644",
-      "sha256": "d26c22527fde3d749b4d384399b5ee2ae2dee2fa8a0de89fec7fef2a866d56da"
+      "sha256": "c99c377931b880817e53804264f8aa101cfff82238db3ba5e415453d60cb71b1"
     },
     {
       "path": "profiles/claude-plugins/paseo-lead/.claude-plugin/plugin.json",
       "mode": "0644",
-      "sha256": "593e3a05ed7212eac0ee25a8447d4e6f1dd3b43d9d7c35c3e34350ff4e8558f1"
+      "sha256": "3d33cd55233e1bea93ab3f395e312c25c0779a899e5796d5c5d58bb55b9ed349"
     },
     {
       "path": "profiles/claude-plugins/paseo-lead/agents/paseo-lead.md",
       "mode": "0644",
-      "sha256": "cc747f10a58a38455bf8bd3d53131e56abf76de0469c5bf8c8e05266a1e5f5be"
+      "sha256": "66b09ef73eb18682c0c97347a11504bc508c345140ec2b43e0e46ab3437cdb0f"
     },
     {
       "path": "profiles/claude-plugins/paseo-lead/skills/beads-issue-tracker/SKILL.md",
       "mode": "0644",
-      "sha256": "3d2c5b291d34c94f0e8b909693bad2570ae9363959fbf2d7c9e705dbf931d45a"
+      "sha256": "f6af85da2346d3c1b032e199d08a65a29456ed9859e0e4e30645c0fb8a939a42"
     },
     {
       "path": "profiles/claude-plugins/paseo-lead/skills/beads-issue-tracker/agents/openai.yaml",
@@ -89,7 +89,7 @@
     {
       "path": "profiles/claude-plugins/paseo-lead/skills/triple-review/SKILL.md",
       "mode": "0644",
-      "sha256": "c645a2bc73d52524f6c79960dfea13049bd44db510462a3e2024cc374b13e6c0"
+      "sha256": "30e9ab20c39330c0381e89e6f5db9527b0b6372b7d56a3d27541c9dcd33b395b"
     },
     {
       "path": "profiles/claude-plugins/paseo-lead/skills/triple-review/agents/openai.yaml",
@@ -99,7 +99,7 @@
     {
       "path": "profiles/claude-plugins/paseo-peer/.claude-plugin/plugin.json",
       "mode": "0644",
-      "sha256": "69d936fab360faa4d5763222cd98d0f10641dca9f943eb6a9ebf6136129be8bb"
+      "sha256": "8f6dfc83bc7d8d28de8878f9427a2785247c7c0e9825d820ea24031949fd1e26"
     },
     {
       "path": "profiles/claude-plugins/paseo-peer/agents/paseo-peer.md",
@@ -109,7 +109,7 @@
     {
       "path": "profiles/claude-plugins/paseo-peer/skills/beads-issue-tracker/SKILL.md",
       "mode": "0644",
-      "sha256": "3d2c5b291d34c94f0e8b909693bad2570ae9363959fbf2d7c9e705dbf931d45a"
+      "sha256": "f6af85da2346d3c1b032e199d08a65a29456ed9859e0e4e30645c0fb8a939a42"
     },
     {
       "path": "profiles/claude-plugins/paseo-peer/skills/beads-issue-tracker/agents/openai.yaml",
@@ -124,12 +124,12 @@
     {
       "path": "profiles/claude-plugins/paseo-supervisor/.claude-plugin/plugin.json",
       "mode": "0644",
-      "sha256": "3ad01f920dfd78cdf49988398283cd436c4c8a16eac0677a24218c2b5329d015"
+      "sha256": "96379135094f88ff492d2e845ea7f7558c87fbc1725766fb6ffa7dac5d43c013"
     },
     {
       "path": "profiles/claude-plugins/paseo-supervisor/agents/paseo-supervisor.md",
       "mode": "0644",
-      "sha256": "4ae8020af7d822f1526aaeb852a8b8774c39985a465e8e2e3f424f8e95a21cbb"
+      "sha256": "764efa4dec6e7994d73a8effe34cbcb01495a8c34601c4fa9e153ddbf7aa653a"
     },
     {
       "path": "profiles/claude-plugins/paseo-supervisor/skills/architecture-premise-audit/SKILL.md",
@@ -139,7 +139,7 @@
     {
       "path": "profiles/claude-plugins/paseo-supervisor/skills/beads-issue-tracker/SKILL.md",
       "mode": "0644",
-      "sha256": "3d2c5b291d34c94f0e8b909693bad2570ae9363959fbf2d7c9e705dbf931d45a"
+      "sha256": "f6af85da2346d3c1b032e199d08a65a29456ed9859e0e4e30645c0fb8a939a42"
     },
     {
       "path": "profiles/claude-plugins/paseo-supervisor/skills/beads-issue-tracker/agents/openai.yaml",
@@ -149,7 +149,7 @@
     {
       "path": "profiles/claude-plugins/paseo-supervisor/skills/paseo-supervisor/SKILL.md",
       "mode": "0644",
-      "sha256": "8e9a965dd81069f033548d393e107ef0711c70bfc2c6fe8da7cee53db6c01ca2"
+      "sha256": "9e6a6fdd65291a91cc30f9bc8a6cf686dbf01fda3057752bf4f27bcb6c4f12ab"
     },
     {
       "path": "profiles/claude-plugins/paseo-supervisor/skills/paseo-supervisor/agents/openai.yaml",
@@ -169,7 +169,7 @@
     {
       "path": "profiles/claude/paseo-lead.md",
       "mode": "0644",
-      "sha256": "cc747f10a58a38455bf8bd3d53131e56abf76de0469c5bf8c8e05266a1e5f5be"
+      "sha256": "66b09ef73eb18682c0c97347a11504bc508c345140ec2b43e0e46ab3437cdb0f"
     },
     {
       "path": "profiles/claude/paseo-peer.md",
@@ -179,12 +179,12 @@
     {
       "path": "profiles/claude/paseo-supervisor.md",
       "mode": "0644",
-      "sha256": "4ae8020af7d822f1526aaeb852a8b8774c39985a465e8e2e3f424f8e95a21cbb"
+      "sha256": "764efa4dec6e7994d73a8effe34cbcb01495a8c34601c4fa9e153ddbf7aa653a"
     },
     {
       "path": "profiles/codex/lead.config.toml",
       "mode": "0644",
-      "sha256": "03b0fda361417304c28caf0bcd41fa068ae1b2ea5bea45aa6d702a0179d54b73"
+      "sha256": "7158fcd985c8116986bc3d39ddd32e0b6f6a4b6385e130a4671ff9b5ba4df619"
     },
     {
       "path": "profiles/codex/peer.config.toml",
@@ -194,7 +194,7 @@
     {
       "path": "profiles/codex/supervisor.config.toml",
       "mode": "0644",
-      "sha256": "fbfa4f0a02149dc2bffd8a962226cb0e0d61dfded56db8ae72fb8d9b41685cd7"
+      "sha256": "852c7fd1efd291d14bdca0c9c0a863cd2fe9d82722e08afc45e915f72d94d3d0"
     },
     {
       "path": "profiles/cursor/paseo-lead/.cursor-plugin/plugin.json",
@@ -204,12 +204,12 @@
     {
       "path": "profiles/cursor/paseo-lead/rules/paseo-lead.mdc",
       "mode": "0644",
-      "sha256": "2c291b6b2abbafc09de702d47bd547925557d8a042c47d7ca95b1f70414b8a3c"
+      "sha256": "8750ce4af387b8880b9ea086348e048ec5cf2221c36b590d808fdaf59d1b9a04"
     },
     {
       "path": "profiles/cursor/paseo-lead/skills/beads-issue-tracker/SKILL.md",
       "mode": "0644",
-      "sha256": "3d2c5b291d34c94f0e8b909693bad2570ae9363959fbf2d7c9e705dbf931d45a"
+      "sha256": "f6af85da2346d3c1b032e199d08a65a29456ed9859e0e4e30645c0fb8a939a42"
     },
     {
       "path": "profiles/cursor/paseo-lead/skills/beads-issue-tracker/agents/openai.yaml",
@@ -234,7 +234,7 @@
     {
       "path": "profiles/cursor/paseo-lead/skills/triple-review/SKILL.md",
       "mode": "0644",
-      "sha256": "c645a2bc73d52524f6c79960dfea13049bd44db510462a3e2024cc374b13e6c0"
+      "sha256": "30e9ab20c39330c0381e89e6f5db9527b0b6372b7d56a3d27541c9dcd33b395b"
     },
     {
       "path": "profiles/cursor/paseo-lead/skills/triple-review/agents/openai.yaml",
@@ -254,7 +254,7 @@
     {
       "path": "profiles/cursor/paseo-peer/skills/beads-issue-tracker/SKILL.md",
       "mode": "0644",
-      "sha256": "3d2c5b291d34c94f0e8b909693bad2570ae9363959fbf2d7c9e705dbf931d45a"
+      "sha256": "f6af85da2346d3c1b032e199d08a65a29456ed9859e0e4e30645c0fb8a939a42"
     },
     {
       "path": "profiles/cursor/paseo-peer/skills/beads-issue-tracker/agents/openai.yaml",
@@ -274,7 +274,7 @@
     {
       "path": "profiles/cursor/paseo-supervisor/rules/paseo-supervisor.mdc",
       "mode": "0644",
-      "sha256": "f06936fef0ed361dbb76aec242e0bac6eadd747ec53959a93a271168fc1f94c4"
+      "sha256": "a95ecfe6ea7c5fe7b443845ca3d9f2a5081abc2b40d1a61eddf0e85cf8cd47b0"
     },
     {
       "path": "profiles/cursor/paseo-supervisor/skills/architecture-premise-audit/SKILL.md",
@@ -284,7 +284,7 @@
     {
       "path": "profiles/cursor/paseo-supervisor/skills/beads-issue-tracker/SKILL.md",
       "mode": "0644",
-      "sha256": "3d2c5b291d34c94f0e8b909693bad2570ae9363959fbf2d7c9e705dbf931d45a"
+      "sha256": "f6af85da2346d3c1b032e199d08a65a29456ed9859e0e4e30645c0fb8a939a42"
     },
     {
       "path": "profiles/cursor/paseo-supervisor/skills/beads-issue-tracker/agents/openai.yaml",
@@ -294,7 +294,7 @@
     {
       "path": "profiles/cursor/paseo-supervisor/skills/paseo-supervisor/SKILL.md",
       "mode": "0644",
-      "sha256": "8e9a965dd81069f033548d393e107ef0711c70bfc2c6fe8da7cee53db6c01ca2"
+      "sha256": "9e6a6fdd65291a91cc30f9bc8a6cf686dbf01fda3057752bf4f27bcb6c4f12ab"
     },
     {
       "path": "profiles/cursor/paseo-supervisor/skills/paseo-supervisor/agents/openai.yaml",
@@ -319,12 +319,12 @@
     {
       "path": "profiles/native/role-definitions.json",
       "mode": "0644",
-      "sha256": "2e8ad6086a5337769632413d478e3f3c3bdd580e4e9872b57417d77ee5aadba0"
+      "sha256": "7556bedc722716683a5b767bcc904a69244197e9cab778a468f868f1dd7a8b79"
     },
     {
       "path": "profiles/omp/paseo-lead.md",
       "mode": "0644",
-      "sha256": "047a9d058fc030985f57693642cba1384d3a341b1cfa5ba7f82e9fac550d83f3"
+      "sha256": "b276669b72054b75ea972c29c808ae7e48275ea382cab184ce9c012819ece00d"
     },
     {
       "path": "profiles/omp/paseo-peer.md",
@@ -334,7 +334,7 @@
     {
       "path": "profiles/omp/paseo-supervisor.md",
       "mode": "0644",
-      "sha256": "cb6d046cbd542e42cac5e00a44c8bfe2643bc8111ac6bb9965d624e3e1614c52"
+      "sha256": "861bdf7475bde417e63b047296736c8359ed7a63a291bb038fe06c56cd522290"
     },
     {
       "path": "profiles/omp/role.config.yml",
@@ -344,7 +344,7 @@
     {
       "path": "profiles/opencode-role-roots/lead/skills/beads-issue-tracker/SKILL.md",
       "mode": "0644",
-      "sha256": "3d2c5b291d34c94f0e8b909693bad2570ae9363959fbf2d7c9e705dbf931d45a"
+      "sha256": "f6af85da2346d3c1b032e199d08a65a29456ed9859e0e4e30645c0fb8a939a42"
     },
     {
       "path": "profiles/opencode-role-roots/lead/skills/beads-issue-tracker/agents/openai.yaml",
@@ -369,7 +369,7 @@
     {
       "path": "profiles/opencode-role-roots/lead/skills/triple-review/SKILL.md",
       "mode": "0644",
-      "sha256": "c645a2bc73d52524f6c79960dfea13049bd44db510462a3e2024cc374b13e6c0"
+      "sha256": "30e9ab20c39330c0381e89e6f5db9527b0b6372b7d56a3d27541c9dcd33b395b"
     },
     {
       "path": "profiles/opencode-role-roots/lead/skills/triple-review/agents/openai.yaml",
@@ -379,7 +379,7 @@
     {
       "path": "profiles/opencode-role-roots/peer/skills/beads-issue-tracker/SKILL.md",
       "mode": "0644",
-      "sha256": "3d2c5b291d34c94f0e8b909693bad2570ae9363959fbf2d7c9e705dbf931d45a"
+      "sha256": "f6af85da2346d3c1b032e199d08a65a29456ed9859e0e4e30645c0fb8a939a42"
     },
     {
       "path": "profiles/opencode-role-roots/peer/skills/beads-issue-tracker/agents/openai.yaml",
@@ -399,7 +399,7 @@
     {
       "path": "profiles/opencode-role-roots/supervisor/skills/beads-issue-tracker/SKILL.md",
       "mode": "0644",
-      "sha256": "3d2c5b291d34c94f0e8b909693bad2570ae9363959fbf2d7c9e705dbf931d45a"
+      "sha256": "f6af85da2346d3c1b032e199d08a65a29456ed9859e0e4e30645c0fb8a939a42"
     },
     {
       "path": "profiles/opencode-role-roots/supervisor/skills/beads-issue-tracker/agents/openai.yaml",
@@ -409,7 +409,7 @@
     {
       "path": "profiles/opencode-role-roots/supervisor/skills/paseo-supervisor/SKILL.md",
       "mode": "0644",
-      "sha256": "8e9a965dd81069f033548d393e107ef0711c70bfc2c6fe8da7cee53db6c01ca2"
+      "sha256": "9e6a6fdd65291a91cc30f9bc8a6cf686dbf01fda3057752bf4f27bcb6c4f12ab"
     },
     {
       "path": "profiles/opencode-role-roots/supervisor/skills/paseo-supervisor/agents/openai.yaml",
@@ -429,7 +429,7 @@
     {
       "path": "profiles/opencode/lead.config.json",
       "mode": "0644",
-      "sha256": "2cc6da381f7b985cfb8c3a0095ea7db9cde2f25bd2ca32990022ac9f3dfa8e59"
+      "sha256": "dba49808b0ad52bd8eb05611ad94b3a30e34686d5320d747b7b9d523282a6d6c"
     },
     {
       "path": "profiles/opencode/peer.config.json",
@@ -439,7 +439,7 @@
     {
       "path": "profiles/opencode/supervisor.config.json",
       "mode": "0644",
-      "sha256": "b5c539d2f023f1f718e6d8cc1022ca531536436389ed0b4f16eaa2f455f13208"
+      "sha256": "f939b231ec17fe761981d55dbd3050a88d93e7f14caf10fd0d4f0cc0e7f87fcf"
     },
     {
       "path": "references/demonthorn-agent-orchestration-deep-dive.md",
@@ -489,7 +489,7 @@
     {
       "path": "skills/beads-issue-tracker/SKILL.md",
       "mode": "0644",
-      "sha256": "3d2c5b291d34c94f0e8b909693bad2570ae9363959fbf2d7c9e705dbf931d45a"
+      "sha256": "f6af85da2346d3c1b032e199d08a65a29456ed9859e0e4e30645c0fb8a939a42"
     },
     {
       "path": "skills/beads-issue-tracker/agents/openai.yaml",
@@ -504,7 +504,7 @@
     {
       "path": "skills/paseo-supervisor/SKILL.md",
       "mode": "0644",
-      "sha256": "8e9a965dd81069f033548d393e107ef0711c70bfc2c6fe8da7cee53db6c01ca2"
+      "sha256": "9e6a6fdd65291a91cc30f9bc8a6cf686dbf01fda3057752bf4f27bcb6c4f12ab"
     },
     {
       "path": "skills/paseo-supervisor/agents/openai.yaml",
@@ -544,7 +544,7 @@
     {
       "path": "skills/triple-review/SKILL.md",
       "mode": "0644",
-      "sha256": "c645a2bc73d52524f6c79960dfea13049bd44db510462a3e2024cc374b13e6c0"
+      "sha256": "30e9ab20c39330c0381e89e6f5db9527b0b6372b7d56a3d27541c9dcd33b395b"
     },
     {
       "path": "skills/triple-review/agents/openai.yaml",
@@ -564,7 +564,7 @@
     {
       "path": "templates/paseo-provider-overrides.example.json",
       "mode": "0644",
-      "sha256": "e6b91edc3a2b2ee46bf336d886f39f5106378dcb2140ab329d943bb032676825"
+      "sha256": "b1cc43f9a800226b10ef6b094449862e681359a54751eee38091ce4391129899"
     },
     {
       "path": "templates/workspace-protocol-contract.json",

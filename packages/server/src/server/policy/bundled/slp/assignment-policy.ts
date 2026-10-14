@@ -84,25 +84,27 @@ export function preflightSlpAssignmentEnvelope(input: {
   return envelope;
 }
 
-function trackerCheckpointForRole(
-  roleId: PaseoRoleId,
-  effectClass: AssignmentEnvelope["effectClass"],
-): string {
+function trackerCheckpointForRole(roleId: PaseoRoleId, envelope: AssignmentEnvelope): string {
+  const { effectClass } = envelope;
+  // The lease actually granted decides, not the role default: telling a denied
+  // assignment to create issues produces a guaranteed Beads write failure.
   const canMutateTracker =
-    assignmentExternalEffectBoundaryFor(roleId, effectClass).mode === "bounded";
+    roleId !== "supervisor" &&
+    effectClass !== "read-only" &&
+    envelope.externalEffectBoundary.mode === "bounded";
   const receiptRule = `Resolve the exact logical tool from the current provider tool catalog; never guess or hard-code an MCP namespace. Only an authoritative Paseo tool receipt counts as the checkpoint; a missing or failed selector leaves issue state UNKNOWN${canMutateTracker ? " and blocks tracker mutation" : " while source inspection continues inside the no-write lease"}.`;
   if (roleId === "lead") {
     if (!canMutateTracker) {
-      return `Mandatory Beads Central checkpoint: call beads_status at assignment start. ${receiptRule} Inspect the relevant issue when Central is available. If Central is unavailable, continue only the no-write inspection, report issue state UNKNOWN, and do not use native bd or another tracker.`;
+      return `Mandatory Beads Central checkpoint: call beads_status at assignment start. ${receiptRule} Inspect the relevant issue when Central is available; this lease cannot create, claim, update or close issues, so name any needed issue change in your handback instead. If Central is unavailable, continue only the no-write inspection, report issue state UNKNOWN, and do not use native bd or another tracker.`;
     }
-    return `Mandatory Beads Central checkpoint: call beads_status at assignment start. ${receiptRule} Inspect or create the durable issue before material routing/work; update authoritative evidence at handoff; close only after your engineering verdict. If Central is unavailable, report BLOCKED and do not use native bd or another tracker.`;
+    return `Mandatory Beads Central checkpoint: call beads_status at assignment start. ${receiptRule} Inspect or create (beads_create) the durable issue before material routing/work; every other Beads write needs an existing issue id. When a Peer will own an issue, leave it open and unassigned and pass its id in resourceGrants.beadsIssueIds so the Peer can claim it; do not mark it in_progress yourself. Update authoritative evidence at handoff; close only after your engineering verdict. If Central is unavailable, report BLOCKED and do not use native bd or another tracker.`;
   }
   if (roleId === "peer") {
     const issueScope =
       effectClass === "mutating"
         ? "inspect the daemon-verified granted issue"
         : "inspect a relevant issue when one is available; no issue grant is required for read-only source inspection";
-    return `Mandatory Beads Central checkpoint: call beads_status and ${issueScope} at assignment start. ${receiptRule} Claim before owned mutation, update evidence/blockers before handoff, and never close. If Central is unavailable, do not use native bd or another tracker${canMutateTracker ? "; report BLOCKED" : "; continue only the read-only source inspection and report issue state UNKNOWN"}.`;
+    return `Mandatory Beads Central checkpoint: call beads_status and ${issueScope} at assignment start. ${receiptRule} ${canMutateTracker ? "Claim the granted issue (beads_claim) before owned mutation, update evidence/blockers before handoff, and never close; if the claim fails because the issue is not open, report it to your Lead instead of retrying." : "This lease cannot mutate Beads; put issue findings in your handback."} If Central is unavailable, do not use native bd or another tracker${canMutateTracker ? "; report BLOCKED" : "; continue only the read-only source inspection and report issue state UNKNOWN"}.`;
   }
   return `Mandatory Beads Central checkpoint: call beads_status and read the relevant issue graph at supervision start and material handoff when Central is available. ${receiptRule} Remain read-only. If Central is unavailable, continue only the no-write inspection, report issue state UNKNOWN, and do not use native bd or another tracker.`;
 }
@@ -145,7 +147,7 @@ export function buildSlpAssignmentInstruction(
       ? `bounded (${envelope.externalEffectBoundary.scope})`
       : "denied";
   const beadsIssueGrants = envelope.resourceGrants?.beadsIssueIds?.join(", ") || "none";
-  const trackerCheckpoint = trackerCheckpointForRole(receipt.roleId, envelope.effectClass);
+  const trackerCheckpoint = trackerCheckpointForRole(receipt.roleId, envelope);
   const technicalCapabilityBoundary = buildTechnicalCapabilityBoundary(
     contract,
     executionProfileId,

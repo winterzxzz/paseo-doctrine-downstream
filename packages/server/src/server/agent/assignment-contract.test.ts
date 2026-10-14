@@ -4,6 +4,7 @@ import {
   ASSIGNMENT_CONTRACT_INVALID_ERROR,
   ASSIGNMENT_CONTRACT_REQUIRED_ERROR,
   materializeAssignmentContract,
+  withRoleDefaultExternalEffectLease,
 } from "./assignment-contract.js";
 import {
   buildSlpAssignmentInstruction,
@@ -62,8 +63,9 @@ describe("immutable assignment contract", () => {
     });
     expect(contract.receipt.assignmentDigest).toMatch(/^[a-f0-9]{64}$/u);
     expect(buildSlpAssignmentInstruction(contract)).toContain("Mutation boundary: no-write");
+    // Human runtime policy: a Lead always runs bypass and keeps the no-write lease itself.
     expect(buildSlpAssignmentInstruction(contract)).toContain(
-      "Paseo pins this session to a provider-enforced no-write mode",
+      "the no-write mutation boundary above still binds",
     );
     expect(buildSlpAssignmentInstruction(contract)).toContain("Beads issue grants: ps123-abc");
     expect(buildSlpAssignmentInstruction(contract)).toContain(
@@ -96,8 +98,22 @@ describe("immutable assignment contract", () => {
       envelope: envelope({ disposition: "supervision", effectClass: "delegation" }),
     });
 
-    expect(buildSlpAssignmentInstruction(peer)).toContain("Claim before owned mutation");
-    expect(buildSlpAssignmentInstruction(peer)).toContain("never close");
+    const mutatingPeer = materialize({
+      roleId: "peer",
+      envelope: envelope({
+        disposition: "peer-execution",
+        effectClass: "mutating",
+        mutationBoundary: { mode: "bounded-write", scope: "/repo" },
+        externalEffectBoundary: { mode: "bounded", scope: "Beads Central" },
+        resourceGrants: { beadsIssueIds: ["ps123-abc"] },
+      }),
+    });
+
+    expect(buildSlpAssignmentInstruction(peer)).toContain("This lease cannot mutate Beads");
+    expect(buildSlpAssignmentInstruction(mutatingPeer)).toContain(
+      "Claim the granted issue (beads_claim) before owned mutation",
+    );
+    expect(buildSlpAssignmentInstruction(mutatingPeer)).toContain("never close");
     expect(buildSlpAssignmentInstruction(peer)).toContain(
       "never guess or hard-code an MCP namespace",
     );
@@ -134,6 +150,62 @@ describe("immutable assignment contract", () => {
     const mutatingText = buildSlpAssignmentInstruction(mutatingLead);
     expect(mutatingText).toContain("If Central is unavailable, report BLOCKED");
     expect(mutatingText).toContain("close only after your engineering verdict");
+  });
+
+  test("projects the lease actually granted, not the role default, into the tracker checkpoint", () => {
+    const deniedMutatingLead = materialize({
+      envelope: envelope({
+        effectClass: "mutating",
+        mutationBoundary: { mode: "bounded-write", scope: "/repo" },
+        externalEffectBoundary: { mode: "denied" },
+      }),
+    });
+    const boundedMutatingLead = materialize({
+      envelope: envelope({
+        effectClass: "mutating",
+        mutationBoundary: { mode: "bounded-write", scope: "/repo" },
+        externalEffectBoundary: { mode: "bounded", scope: "Beads Central" },
+      }),
+    });
+
+    const deniedText = buildSlpAssignmentInstruction(deniedMutatingLead);
+    expect(deniedText).not.toContain("Inspect or create");
+    expect(deniedText).toContain("this lease cannot create, claim, update or close issues");
+
+    const boundedText = buildSlpAssignmentInstruction(boundedMutatingLead);
+    expect(boundedText).toContain("Inspect or create (beads_create) the durable issue");
+    expect(boundedText).toContain("leave it open and unassigned");
+  });
+
+  test("fills the role-default Beads lease into an agent-authored denied envelope", () => {
+    const mutating = envelope({
+      effectClass: "mutating",
+      mutationBoundary: { mode: "bounded-write", scope: "/repo" },
+    });
+
+    expect(withRoleDefaultExternalEffectLease("lead", mutating).externalEffectBoundary).toEqual({
+      mode: "bounded",
+      scope: "Beads Central issue/work graph for this assignment only; no other external effects",
+    });
+    expect(
+      withRoleDefaultExternalEffectLease("peer", { ...mutating, disposition: "peer-execution" })
+        .externalEffectBoundary.mode,
+    ).toBe("bounded");
+    expect(withRoleDefaultExternalEffectLease("lead", envelope()).externalEffectBoundary).toEqual({
+      mode: "denied",
+    });
+    expect(
+      withRoleDefaultExternalEffectLease("supervisor", {
+        ...envelope(),
+        disposition: "supervision",
+        effectClass: "delegation",
+      }).externalEffectBoundary,
+    ).toEqual({ mode: "denied" });
+    const ownScope = { ...mutating, externalEffectBoundary: { mode: "bounded", scope: "npm" } };
+    expect(
+      withRoleDefaultExternalEffectLease("lead", ownScope as AssignmentEnvelope)
+        .externalEffectBoundary,
+    ).toEqual({ mode: "bounded", scope: "npm" });
   });
 
   test("renders rationale and open assumptions only when the envelope carries them", () => {

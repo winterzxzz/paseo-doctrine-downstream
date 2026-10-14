@@ -88,7 +88,10 @@ WebUI không đưa profile có `peerSubrole` vào Human model picker. Khi draft 
 toàn bộ Agent Profiles surface trong model picker bị tắt và Human chọn provider/model trực tiếp; Human
 vẫn quản lý inventory trong Settings, còn Lead dùng `list_profiles` rồi pin exact `launchProfileId` khi
 gọi `create_agent`. Đây là downstream role boundary có chủ ý, khác reusable-profile UX của upstream.
-`list_profiles` trả exact profiles, priority và default hiện hành. Exact `launchProfileId` luôn thắng. Khi
+`list_profiles` trả exact profiles, priority và default hiện hành cho cả Lead và Supervisor (Supervisor
+dùng để audit routing, không launch Peer). Lúc materialize binding, daemon chụp cùng roster đó vào
+instructions của Lead/Supervisor (khối `Peer roster`), để model biết Peer nào tồn tại mà không phải tự
+nghĩ ra việc gọi tool. Exact `launchProfileId` luôn thắng. Khi
 Lead bỏ field đó, daemon dùng specialization/disposition đã explicit nếu nó map được sang Reviewer hoặc
 Architect; nếu không thì dùng global default. Resolver chỉ chọn profile cùng subrole từ provider sớm nhất,
 materialize exact profile vào create receipt và fail closed khi không có match. Global default `null` giữ

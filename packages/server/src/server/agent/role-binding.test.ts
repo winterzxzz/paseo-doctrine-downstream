@@ -146,6 +146,57 @@ describe("native Foundation role materialization", () => {
     expect(policyOwnerForRoleBinding(legacyBinding)).toEqual({ kind: "legacy-core" });
   });
 
+  test("projects the Human-approved Peer roster into Lead and Supervisor bindings only", async () => {
+    const cwd = await createWorkspace();
+    await writeFile(
+      join(cwd, "WORKSPACE_PROTOCOL.md"),
+      buildWorkspaceProtocolTemplate(cwd),
+      "utf8",
+    );
+    const peerRoster = {
+      enabled: true,
+      providerPriority: ["claude", "factory-droid"],
+      defaultSubrole: "engineer" as const,
+      profiles: [
+        {
+          id: "peer-scout",
+          name: "Peer Scout",
+          provider: "claude",
+          model: "sonnet",
+          peerSubrole: "scout" as const,
+          notes: "Bounded reconnaissance.",
+        },
+        { id: "peer-image", name: "Peer Image", provider: "factory-droid" },
+      ],
+    };
+    const bind = (roleId: "lead" | "peer" | "supervisor", roster = peerRoster) =>
+      materializeRoleBinding({
+        roleId,
+        provider: "claude",
+        cwd,
+        ...assignmentBinding(roleId, cwd),
+        peerRoster: roster,
+      });
+
+    const lead = await bind("lead");
+    expect(lead.instructions).toContain("Peer roster (Human-approved");
+    expect(lead.instructions).toContain(
+      "- `peer-scout` (Peer Scout) · claude/sonnet · subrole scout · Bounded reconnaissance.",
+    );
+    expect(lead.instructions).toContain("- `peer-image` (Peer Image) · factory-droid");
+    expect(lead.instructions).toContain("provider priority claude > factory-droid");
+    expect(lead.instructions).toContain("create_agent.launchProfileId");
+
+    const supervisor = await bind("supervisor");
+    expect(supervisor.instructions).toContain("- `peer-scout` (Peer Scout)");
+    expect(supervisor.instructions).toContain("You never launch Peers");
+
+    expect((await bind("peer")).instructions).not.toContain("Peer roster");
+
+    const disabled = await bind("lead", { ...peerRoster, enabled: false, profiles: [] });
+    expect(disabled.instructions).toContain("Peer delegation is disabled");
+  });
+
   test("keeps Peer protocol readership assignment-only", async () => {
     const cwd = await createWorkspace();
     await writeFile(

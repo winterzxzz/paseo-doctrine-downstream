@@ -268,6 +268,7 @@ import {
 import { DaemonExecutions } from "./hub/daemon-executions.js";
 import { PluginService } from "./plugins/index.js";
 import { ManagedPluginSources } from "./plugins/managed-source.js";
+import { resolveApprovedPeerRoster } from "./agent/peer-roster.js";
 
 const MCP_DEBUG_BATCH_LIMIT = 10;
 const MCP_DEBUG_SECRET = "[redacted]";
@@ -1116,6 +1117,7 @@ export async function createPaseoDaemon(
     resolvePaseoToolPolicy: (provider) =>
       resolvePaseoToolPolicy(provider, daemonConfigStore.get().providers),
     resolveRoleProfilePreferences: (roleId) => daemonConfigStore.get().roleProfiles?.[roleId],
+    resolvePeerRoster: () => resolveApprovedPeerRoster(daemonConfigStore.get()),
     verifyRoleResourceGrants: createMutatingPeerGrantVerifier({
       service: beadsService,
       workspaceRegistry,

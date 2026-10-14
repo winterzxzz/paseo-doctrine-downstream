@@ -32,7 +32,7 @@ describe("bundled policy pack registry", () => {
       kind: "plugin",
       pluginId: "slp",
       policyVersion: "1.2.0",
-      generationDigest: "9206c3cb32cf9978d8f5499fcc0a77af5fcccf019a2ce771d8f3cec40592b590",
+      generationDigest: "188fb91b21c85515acad053b18f4e97bfc7c8ea7027910fcd90caa114e5f17f6",
     });
     expect(first.contribution.eventPolicies).toHaveLength(1);
     expect(first.contribution.eventPolicies[0]?.id).toBe("slp.attention");

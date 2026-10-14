@@ -21,7 +21,7 @@
         "enabled": false,
         "paseoTools": {
           "enabled": true,
-          "allowedTools": ["list_workspaces", "list_workspace_scripts", "get_agent_status", "list_agents", "get_agent_activity", "list_pending_permissions", "list_terminals", "capture_terminal", "list_schedules", "inspect_schedule", "schedule_logs", "list_providers", "list_models", "inspect_provider"]
+          "allowedTools": ["list_workspaces", "list_workspace_scripts", "list_profiles", "get_agent_status", "list_agents", "get_agent_activity", "list_pending_permissions", "list_terminals", "capture_terminal", "list_schedules", "inspect_schedule", "schedule_logs", "list_providers", "list_models", "inspect_provider"]
         },
         "command": ["{{REQUIRED_ABSOLUTE_PATH: CLAUDE_BINARY}}", "--plugin-dir", "{{REQUIRED_ABSOLUTE_PATH: FOUNDATION_CLAUDE_SUPERVISOR_PLUGIN_ROOT}}", "--agent", "paseo-supervisor"]
       },
@@ -53,7 +53,7 @@
         "enabled": false,
         "paseoTools": {
           "enabled": true,
-          "allowedTools": ["list_workspaces", "list_workspace_scripts", "get_agent_status", "list_agents", "get_agent_activity", "list_pending_permissions", "list_terminals", "capture_terminal", "list_schedules", "inspect_schedule", "schedule_logs", "list_providers", "list_models", "inspect_provider"]
+          "allowedTools": ["list_workspaces", "list_workspace_scripts", "list_profiles", "get_agent_status", "list_agents", "get_agent_activity", "list_pending_permissions", "list_terminals", "capture_terminal", "list_schedules", "inspect_schedule", "schedule_logs", "list_providers", "list_models", "inspect_provider"]
         },
         "env": {
           "PASEO_CLIPROXY_BASE_URL": "{{REQUIRED_HTTPS_URL: CLIPROXY_BASE_URL}}",
@@ -109,7 +109,7 @@
         "enabled": false,
         "paseoTools": {
           "enabled": true,
-          "allowedTools": ["list_workspaces", "list_workspace_scripts", "get_agent_status", "list_agents", "get_agent_activity", "list_pending_permissions", "list_terminals", "capture_terminal", "list_schedules", "inspect_schedule", "schedule_logs", "list_providers", "list_models", "inspect_provider"]
+          "allowedTools": ["list_workspaces", "list_workspace_scripts", "list_profiles", "get_agent_status", "list_agents", "get_agent_activity", "list_pending_permissions", "list_terminals", "capture_terminal", "list_schedules", "inspect_schedule", "schedule_logs", "list_providers", "list_models", "inspect_provider"]
         },
         "command": ["{{REQUIRED_ABSOLUTE_PATH: AGY_ACP_BINARY}}", "--agy-binary", "{{REQUIRED_ABSOLUTE_PATH: FOUNDATION_ANTIGRAVITY_ROLE_WRAPPER}}"],
         "env": {
@@ -153,7 +153,7 @@
         "enabled": false,
         "paseoTools": {
           "enabled": true,
-          "allowedTools": ["list_workspaces", "list_workspace_scripts", "get_agent_status", "list_agents", "get_agent_activity", "list_pending_permissions", "list_terminals", "capture_terminal", "list_schedules", "inspect_schedule", "schedule_logs", "list_providers", "list_models", "inspect_provider"]
+          "allowedTools": ["list_workspaces", "list_workspace_scripts", "list_profiles", "get_agent_status", "list_agents", "get_agent_activity", "list_pending_permissions", "list_terminals", "capture_terminal", "list_schedules", "inspect_schedule", "schedule_logs", "list_providers", "list_models", "inspect_provider"]
         },
         "command": ["{{REQUIRED_ABSOLUTE_PATH: FOUNDATION_OMP_ROLE_WRAPPER}}", "supervisor"],
         "env": {
@@ -180,7 +180,7 @@
         "enabled": false,
         "paseoTools": {
           "enabled": true,
-          "allowedTools": ["list_workspaces", "list_workspace_scripts", "get_agent_status", "list_agents", "get_agent_activity", "list_pending_permissions", "list_terminals", "capture_terminal", "list_schedules", "inspect_schedule", "schedule_logs", "list_providers", "list_models", "inspect_provider"]
+          "allowedTools": ["list_workspaces", "list_workspace_scripts", "list_profiles", "get_agent_status", "list_agents", "get_agent_activity", "list_pending_permissions", "list_terminals", "capture_terminal", "list_schedules", "inspect_schedule", "schedule_logs", "list_providers", "list_models", "inspect_provider"]
         },
         "command": ["{{REQUIRED_ABSOLUTE_PATH: CURSOR_AGENT_BINARY}}", "--plugin-dir", "{{REQUIRED_ABSOLUTE_PATH: CURSOR_SUPERVISOR_PLUGIN_ROOT}}", "acp"]
       }

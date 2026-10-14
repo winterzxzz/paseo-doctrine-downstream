@@ -113,6 +113,7 @@ import type {
   AssignmentEnvelope,
 } from "@getpaseo/protocol/assignment-contract";
 import type { RoleProfilePreferences } from "@getpaseo/protocol/role-profile";
+import type { ApprovedPeerRoster } from "./peer-roster.js";
 import type {
   RoleProfileCatalog,
   RoleProfilePreferencesMap,
@@ -458,6 +459,7 @@ export interface AgentManagerOptions {
   paseoToolCatalogFactory?: PaseoToolCatalogFactory;
   resolvePaseoToolPolicy?: (provider: AgentProvider) => ProviderPaseoToolsPolicy | undefined;
   resolveRoleProfilePreferences?: (roleId: PaseoRoleId) => RoleProfilePreferences | undefined;
+  resolvePeerRoster?: () => ApprovedPeerRoster | null;
   verifyRoleResourceGrants?: RoleResourceGrantVerifier;
   bundledPolicyPacks?: BundledPolicyPackRegistry<SlpBundledPolicyContribution>;
   defaultFastMode?: boolean;
@@ -922,6 +924,7 @@ export class AgentManager {
   private readonly resolveRoleProfilePreferences: (
     roleId: PaseoRoleId,
   ) => RoleProfilePreferences | undefined;
+  private readonly resolvePeerRoster?: () => ApprovedPeerRoster | null;
   private readonly verifyRoleResourceGrants?: RoleResourceGrantVerifier;
   private readonly bundledPolicyPacks: BundledPolicyPackRegistry<SlpBundledPolicyContribution>;
   private readonly trustedSembleRuntime: TrustedSembleRuntime | null;
@@ -950,6 +953,7 @@ export class AgentManager {
     this.configurePaseoTools(options);
     this.resolvePaseoToolPolicy = options.resolvePaseoToolPolicy ?? (() => undefined);
     this.resolveRoleProfilePreferences = options.resolveRoleProfilePreferences ?? (() => undefined);
+    this.resolvePeerRoster = options.resolvePeerRoster;
     this.verifyRoleResourceGrants = options.verifyRoleResourceGrants;
     this.bundledPolicyPacks = resolveBundledPolicyPacks(options);
     this.defaultFastMode = options.defaultFastMode === true;
@@ -5900,6 +5904,10 @@ export class AgentManager {
     }
   }
 
+  private currentPeerRoster(): ApprovedPeerRoster | null {
+    return this.resolvePeerRoster?.() ?? null;
+  }
+
   private async prepareSessionConfig(
     config: AgentSessionConfig,
     agentId: string,
@@ -5937,6 +5945,7 @@ export class AgentManager {
             kind: "human-session",
           },
           roleProfilePreferences: this.resolveRoleProfilePreferences(role.roleId),
+          peerRoster: this.currentPeerRoster(),
         },
         slpGeneration.owner,
       );

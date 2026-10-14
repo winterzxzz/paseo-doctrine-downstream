@@ -43,7 +43,7 @@ describe("Foundation role profiles", () => {
     ).not.toContain("list_profiles");
     expect(
       catalog.profiles.find((profile) => profile.roleId === "supervisor")?.toolCeiling,
-    ).not.toContain("list_profiles");
+    ).toContain("list_profiles");
     expect(
       catalog.profiles.find((profile) => profile.roleId === "supervisor")?.toolCeiling,
     ).toContain("read_room");

@@ -7,6 +7,7 @@ import type {
 import type { RoleProfilePreferences } from "@getpaseo/protocol/role-profile";
 
 import type { PersistedAssignmentContract } from "../agent/assignment-contract.js";
+import type { ApprovedPeerRoster } from "../agent/peer-roster.js";
 export interface RolePolicyRoleDefinition {
   id: PaseoRoleId;
   version: string;
@@ -29,6 +30,8 @@ export interface RoleBindingInstructionCompositionInput<
   hasProtocolException: boolean;
   assignmentContract: PersistedAssignmentContract;
   roleProfile: RoleProfileBindingReceipt;
+  /** Human-approved Peer roster snapshot at launch; null when none is configured. */
+  peerRoster: ApprovedPeerRoster | null;
 }
 
 /**

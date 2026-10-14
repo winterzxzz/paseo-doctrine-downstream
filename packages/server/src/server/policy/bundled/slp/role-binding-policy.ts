@@ -16,6 +16,7 @@ import {
 import { getFoundationRoleDefinition } from "./role-definitions.js";
 import { materializeRoleProfileBindingReceipt } from "./role-profiles.js";
 import { loadFoundationSkillPolicy } from "./skill-policy.js";
+import type { ApprovedPeerRoster } from "../../../agent/peer-roster.js";
 import type {
   RoleBindingInstructionCompositionInput,
   RoleBindingPolicyContribution,
@@ -71,12 +72,56 @@ function buildBeadsSkillAdmissionInstruction(
   return "Role skill admission: `beads-issue-tracker` is active from the immutable Foundation bundle. Its assignment-start checkpoint, mutation boundary, and handback rule are projected in the Assignment Contract above; do not search for or load a second copy.";
 }
 
+const PEER_ROSTER_NOTE_LIMIT = 200;
+
+function describeRosterProfile(profile: ApprovedPeerRoster["profiles"][number]): string {
+  const route = profile.model ? `${profile.provider}/${profile.model}` : profile.provider;
+  const parts = [`\`${profile.id}\` (${profile.name})`, route];
+  if (profile.peerSubrole) parts.push(`subrole ${profile.peerSubrole}`);
+  const notes = profile.notes?.trim().replace(/\s+/gu, " ");
+  if (notes) {
+    parts.push(
+      notes.length > PEER_ROSTER_NOTE_LIMIT
+        ? `${notes.slice(0, PEER_ROSTER_NOTE_LIMIT - 1)}…`
+        : notes,
+    );
+  }
+  return `- ${parts.join(" · ")}`;
+}
+
+/**
+ * Leads route Peer work and Supervisors audit that routing; neither can do either job
+ * without knowing which Peers exist, so the Human-approved roster rides in the binding.
+ */
+function buildPeerRosterInstruction(
+  roleId: PaseoRoleId,
+  roster: ApprovedPeerRoster | null,
+): string | null {
+  if (roleId === "peer") return null;
+  const usage =
+    roleId === "lead"
+      ? "Pass an exact id as create_agent.launchProfileId, or omit it to get the default subrole. Do not route Peer work to anything outside this roster."
+      : "You never launch Peers. Use this roster to check that each Lead routes Peer work only through these profiles, and flag any Lead whose Peers fall outside it.";
+  if (!roster) {
+    return `Peer roster: no Human-approved Peer allowlist is configured. Call list_profiles before ${roleId === "lead" ? "creating" : "auditing"} any Peer; if it returns nothing, Peer delegation is unavailable${roleId === "lead" ? ", so do the work lead-direct or report BLOCKED" : ""}.`;
+  }
+  if (!roster.enabled || roster.profiles.length === 0) {
+    return `Peer roster: Peer delegation is disabled or has no approved profiles.${roleId === "lead" ? " Do not create Peers; do the work lead-direct or report BLOCKED." : " Any Lead-created Peer is outside Human policy."}`;
+  }
+  const header = [
+    "Peer roster (Human-approved, snapshot at launch; list_profiles returns the current one):",
+    `default subrole ${roster.defaultSubrole ?? "none"}; provider priority ${roster.providerPriority.join(" > ") || "none"}.`,
+  ].join(" ");
+  return [header, ...roster.profiles.map(describeRosterProfile), usage].join("\n");
+}
+
 function composeInstructions(input: RoleBindingInstructionCompositionInput): string {
   return [
     input.definition.instructions,
     input.executionProfile?.instructions,
     buildProtocolInstruction(input.workspaceProtocol, input.hasProtocolException),
     buildSlpAssignmentInstruction(input.assignmentContract, input.executionProfile?.id),
+    buildPeerRosterInstruction(input.definition.id, input.peerRoster),
     buildBeadsSkillAdmissionInstruction(input.definition.id, input.roleProfile),
   ]
     .filter((part): part is string => Boolean(part))

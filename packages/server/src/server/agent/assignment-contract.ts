@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  assignmentExternalEffectBoundaryFor,
   AssignmentContractReceiptSchema,
   AssignmentEnvelopeSchema,
   PASEO_ASSIGNMENT_CONTRACT_VERSION,
@@ -67,6 +68,23 @@ function canonicalAssignmentBytes(input: {
     envelope: input.envelope,
     createdAt: input.createdAt,
   });
+}
+
+/**
+ * Agent-authored envelopes routinely send `externalEffectBoundary: denied` because the
+ * model reads "external effects" as network access, not Beads. App and CLI launches
+ * fill in the role default; agent-to-agent `create_agent` does the same here so a
+ * mutating Lead or Peer always receives its narrow Beads Central lease. A caller that
+ * already passed a bounded lease keeps its own scope.
+ */
+export function withRoleDefaultExternalEffectLease<T extends AssignmentEnvelope | undefined>(
+  roleId: PaseoRoleId | undefined,
+  envelope: T,
+): T {
+  if (!roleId || !envelope || envelope.externalEffectBoundary.mode !== "denied") return envelope;
+  const roleDefault = assignmentExternalEffectBoundaryFor(roleId, envelope.effectClass);
+  if (roleDefault.mode === "denied") return envelope;
+  return { ...envelope, externalEffectBoundary: roleDefault };
 }
 
 export function materializeAssignmentContract(input: {

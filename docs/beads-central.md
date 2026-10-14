@@ -60,6 +60,12 @@ token vào provider process sẽ phá actor boundary dù Central audit đúng se
   trong cùng project lock. Peer không close.
 - Supervisor chỉ có status/list/ready/get/prime, không có mutation tools.
 
+Mọi Lead/Peer write cần `externalEffectBoundary.mode=bounded`. App và CLI điền role default
+(`assignmentExternalEffectBoundaryFor`); agent-to-agent `create_agent` cũng nâng một envelope `denied`
+lên đúng Beads lease mặc định của role, vì model thường hiểu "external effects" là network chứ không
+phải Beads. Assignment Contract chỉ dặn Lead "create the durable issue" khi lease thật là `bounded`.
+Lead giao issue cho Peer khi issue còn `open`, chưa assign; Peer claim trước rồi mới update.
+
 Mọi mutation cần `idempotencyKey` dài ít nhất 8 ký tự. Retry cùng logical mutation giữ nguyên key;
 payload khác với same key bị reject. Product/Central phải authoritative-readback sau mutation.
 

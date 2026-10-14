@@ -53,11 +53,36 @@ Mọi mutation cần exact assignment lease, bounded external-effect authority v
 `idempotencyKey` dài ít nhất 8 ký tự. Giữ nguyên key khi retry cùng logical mutation chưa chắc outcome;
 đổi key khi input logical đổi. Thực hiện một mutation rồi authoritative readback bằng `beads_get`.
 
+Beads Central là một external effect: write chỉ chạy khi assignment có
+`externalEffectBoundary.mode = "bounded"`. Assignment Contract dòng `External effects:` cho biết lease
+thật; nếu là `denied` thì không gọi bất kỳ Beads write nào, chỉ đọc và nêu issue change cần làm trong
+handback. Khi Lead tạo Lead/Peer qua `create_agent`, daemon tự cấp Beads lease mặc định cho Lead
+không read-only và Peer mutating nếu caller ghi `denied`; caller không cần tự viết scope Beads.
+
+Thứ tự bắt buộc: issue phải tồn tại trước mọi write khác. `beads_create` là write duy nhất không cần
+issue ID; `beads_claim`, `beads_update`, `beads_close`, `beads_add_dependency` và `beads_get` đều cần
+`issueId` của issue đã có. Không đoán ID; lấy từ kết quả `beads_create`, `beads_list` hoặc grant.
+
+Exact input keys (strict schema, key lạ bị từ chối):
+- `beads_create`: `title`, tuỳ chọn `description`, `issueType`, `priority`, `labels`, `acceptance`,
+  `discoveredFrom`; bắt buộc `idempotencyKey`.
+- `beads_claim`: `issueId`, `idempotencyKey`.
+- `beads_update`: `issueId`, ít nhất một trong `title`, `description`, `priority`, `status`,
+  `appendNotes`, `addLabels`, `removeLabels`; bắt buộc `idempotencyKey`. Ghi chú dùng `appendNotes`,
+  không phải `note`/`notes`.
+- `beads_close`: `issueId`, `reason`, `idempotencyKey`.
+- `beads_add_dependency`: `issueId`, `dependsOnId`, tuỳ chọn `dependencyType` (không phải `type`),
+  `idempotencyKey`. Epic chỉ block được epic.
+
 - Lead: dùng `beads_create`, `beads_update`, `beads_add_dependency`; chỉ `beads_close` sau engineering
   verdict trong Human lease. Lead chỉ claim khi exact tiny-task direct path hợp lệ.
+- Lead → Peer handoff: tạo issue, để nguyên `open` và chưa assign, rồi truyền ID trong
+  `assignment.resourceGrants.beadsIssueIds`. Không tự set `in_progress` hay claim issue sẽ giao cho
+  Peer: Peer không claim được issue đã `in_progress` và chỉ mutate được issue self-assigned.
 - Peer Owner: mutating assignment phải pin exact ID trong `assignment.resourceGrants.beadsIssueIds`
-  và daemon phải verify issue tồn tại trong current project trước provider launch. Peer chỉ
-  `beads_claim` granted issue, mutate issue đang self-assigned, và tạo work mới bằng `beads_create` với
+  và daemon phải verify issue tồn tại trong current project trước provider launch. Peer gọi
+  `beads_claim` cho granted issue trước mọi update; claim thất bại vì issue không `open` thì báo Lead,
+  không retry. Peer chỉ `beads_claim` granted issue, mutate issue đang self-assigned, và tạo work mới bằng `beads_create` với
   `discoveredFrom` trỏ tới granted owned source. Peer không close; hand back cho Lead verdict.
 - Peer Reviewer/Scout/Shadow: read-only assignment không bắt buộc issue grant và không bị Central outage
   chặn source inspection; nếu có relevant/granted issue và Central qualified thì đọc, nhưng mutation chỉ
