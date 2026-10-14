@@ -696,6 +696,7 @@ export const ko: TranslationResources = {
         changes: "변경 사항",
         files: "파일",
         pullRequest: "풀 리퀘스트",
+        closedAgents: "닫은 에이전트",
         terminalProfilesMenu: "터미널 프로필",
         editTerminalProfiles: "프로필 편집",
       },
@@ -731,23 +732,15 @@ export const ko: TranslationResources = {
           "{{count}} 탭에 저장되지 않은 변경 사항이 있습니다. 종료하면 해당 초안이 삭제됩니다.",
         closeTerminalTitle: "터미널을 닫을까요?",
         closeTerminalMessage: "이 터미널에서 실행 중인 프로세스가 즉시 중지됩니다.",
-        archiveRunningAgentTitle: "실행 중인 에이전트를 보관할까요?",
-        archiveRunningAgentMessage:
-          "이 에이전트는 아직 실행 중입니다. 보관하면 에이전트가 중지되고 탭이 닫힙니다.",
         closeTabsLeftTitle: "왼쪽 탭을 닫을까요?",
         closeTabsRightTitle: "오른쪽 탭을 닫을까요?",
         closeOtherTabsTitle: "다른 탭을 닫을까요?",
         bulk: {
-          all: "에이전트 {{agents}}개를 보관하고, 터미널 {{terminals}}개를 닫고, 탭 {{tabs}}개를 닫습니다. 닫히는 터미널에서 실행 중인 프로세스는 즉시 중지됩니다.",
-          agentsAndTerminals:
-            "에이전트 {{agents}}개를 보관하고 터미널 {{terminals}}개를 닫습니다. 닫히는 터미널에서 실행 중인 프로세스는 즉시 중지됩니다.",
           terminalsAndTabs:
             "터미널 {{terminals}}개를 닫고 탭 {{tabs}}개를 닫습니다. 닫히는 터미널에서 실행 중인 프로세스는 즉시 중지됩니다.",
-          agentsAndTabs: "에이전트 {{agents}}개를 보관하고 탭 {{tabs}}개를 닫습니다.",
           terminals:
             "터미널 {{terminals}}개를 닫습니다. 닫히는 터미널에서 실행 중인 프로세스는 즉시 중지됩니다.",
           tabs: "탭 {{tabs}}개를 닫습니다.",
-          agents: "에이전트 {{agents}}개를 보관합니다.",
         },
       },
     },

@@ -699,6 +699,7 @@ export const ptBR: TranslationResources = {
         changes: "Alterações",
         files: "Arquivos",
         pullRequest: "Pull request",
+        closedAgents: "Agentes fechados",
         terminalProfilesMenu: "Perfis de terminal",
         editTerminalProfiles: "Editar perfis",
       },
@@ -735,23 +736,15 @@ export const ptBR: TranslationResources = {
         closeTerminalTitle: "Fechar terminal?",
         closeTerminalMessage:
           "Qualquer processo em execução neste terminal será interrompido imediatamente.",
-        archiveRunningAgentTitle: "Arquivar agente em execução?",
-        archiveRunningAgentMessage:
-          "Este agente ainda está em execução. Arquivá-lo interromperá o agente e fechará a aba.",
         closeTabsLeftTitle: "Fechar abas à esquerda?",
         closeTabsRightTitle: "Fechar abas à direita?",
         closeOtherTabsTitle: "Fechar outras abas?",
         bulk: {
-          all: "Isso vai arquivar {{agents}} agente(s), fechar {{terminals}} terminal(ais) e fechar {{tabs}} aba(s). Qualquer processo em execução em um terminal fechado será interrompido imediatamente.",
-          agentsAndTerminals:
-            "Isso vai arquivar {{agents}} agente(s) e fechar {{terminals}} terminal(ais). Qualquer processo em execução em um terminal fechado será interrompido imediatamente.",
           terminalsAndTabs:
             "Isso vai fechar {{terminals}} terminal(ais) e fechar {{tabs}} aba(s). Qualquer processo em execução em um terminal fechado será interrompido imediatamente.",
-          agentsAndTabs: "Isso vai arquivar {{agents}} agente(s) e fechar {{tabs}} aba(s).",
           terminals:
             "Isso vai fechar {{terminals}} terminal(ais). Qualquer processo em execução em um terminal fechado será interrompido imediatamente.",
           tabs: "Isso vai fechar {{tabs}} aba(s).",
-          agents: "Isso vai arquivar {{agents}} agente(s).",
         },
       },
     },

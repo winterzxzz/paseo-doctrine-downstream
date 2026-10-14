@@ -8,7 +8,7 @@ import {
 } from "react";
 import { useRouter, type Href } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { Globe, SquarePen, SquareTerminal } from "lucide-react-native";
+import { Bot, Globe, SquarePen, SquareTerminal } from "lucide-react-native";
 import invariant from "tiny-invariant";
 import { useDaemonConfig } from "@/hooks/use-daemon-config";
 import { resolvePluginIcon } from "@/plugins/icons";
@@ -37,7 +37,14 @@ export type WorkspaceTabLaunchDestination =
   | { kind: "open"; paneId?: string }
   | { kind: "replace"; tabId: string };
 
+export interface ClosedWorkspaceAgent {
+  agentId: string;
+  title: string | null;
+}
+
 export interface NewTabLauncher {
+  /** Root agents still active in this workspace whose tab this client closed. */
+  closedAgents: readonly ClosedWorkspaceAgent[];
   showChanges: boolean;
   showPullRequest: boolean;
   showBrowser: boolean;
@@ -59,7 +66,7 @@ export interface WorkspaceTabLaunchItem {
 }
 
 export interface WorkspaceTabLaunchGroup {
-  id: "tabs" | "plugin-panels" | "terminal-profiles";
+  id: "closed-agents" | "tabs" | "plugin-panels" | "terminal-profiles";
   label: string | null;
   items: readonly WorkspaceTabLaunchItem[];
   accessory?: { id: string; label: string; run: () => void };
@@ -224,8 +231,31 @@ export function useWorkspaceTabLaunchCatalog(input: {
       }
     }
 
+    const closedAgentItems: WorkspaceTabLaunchItem[] = panelSupportsHost("agent", host)
+      ? launcher.closedAgents.map((agent) => ({
+          id: `closed-agent:${agent.agentId}`,
+          label: agent.title ?? t("workspace.tabs.fallback.agent"),
+          Icon: Bot,
+          disabled: false,
+          panelKind: "agent",
+          toggleTarget: null,
+          launch: launchSelection({
+            kind: "target",
+            target: { kind: "agent", agentId: agent.agentId },
+          }),
+        }))
+      : [];
+
     const profiles = resolveTerminalProfiles(config?.terminalProfiles);
-    const groups: WorkspaceTabLaunchGroup[] = [{ id: "tabs", label: null, items: tabItems }];
+    const groups: WorkspaceTabLaunchGroup[] = [];
+    if (closedAgentItems.length > 0) {
+      groups.push({
+        id: "closed-agents",
+        label: t("workspace.tabs.actions.closedAgents"),
+        items: closedAgentItems,
+      });
+    }
+    groups.push({ id: "tabs", label: null, items: tabItems });
     if (pluginItems.length > 0) {
       groups.push({ id: "plugin-panels", label: null, items: pluginItems });
     }

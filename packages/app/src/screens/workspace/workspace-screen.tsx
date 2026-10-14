@@ -107,7 +107,6 @@ import { useWorkspace } from "@/stores/session-store-hooks";
 import { useWorkspaceTerminalSessionRetention } from "@/terminal/hooks/use-workspace-terminal-session-retention";
 import type { CheckoutStatusPayload } from "@/git/use-status-query";
 import { confirmDialog } from "@/utils/confirm-dialog";
-import { useArchiveAgent } from "@/hooks/use-archive-agent";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { removeResidentBrowserWebview } from "@/desktop/browser/resident-webviews";
 import { createWorkspaceBrowser, useBrowserStore } from "@/desktop/browser/store";
@@ -172,6 +171,7 @@ import { DiffDocumentWorkspaceCacheProvider } from "@/git/diff-document/workspac
 import type { NewTabSelection } from "@/workspace-tabs/new-tab";
 import {
   NewTabLauncherProvider,
+  type ClosedWorkspaceAgent,
   type NewTabLauncher,
   type WorkspaceTabLaunchDestination,
 } from "@/workspace-tabs/launcher";
@@ -1368,6 +1368,18 @@ function WorkspaceScreenGateFrame({ children }: { children: ReactNode }) {
   );
 }
 
+function closedWorkspaceAgentsEqual(
+  a: readonly ClosedWorkspaceAgent[],
+  b: readonly ClosedWorkspaceAgent[],
+): boolean {
+  return (
+    a.length === b.length &&
+    a.every(
+      (agent, index) => agent.agentId === b[index]?.agentId && agent.title === b[index]?.title,
+    )
+  );
+}
+
 function WorkspaceContentProviders({
   children,
   workspaceKey,
@@ -1812,7 +1824,6 @@ function WorkspaceScreenContent({
     onTerminalCreateQueued: handleTerminalCreateQueued,
     onTerminalCreateFailed: handleTerminalCreateFailed,
   });
-  const { archiveAgent } = useArchiveAgent();
 
   const { checkoutQuery, isCheckoutStatusLoading } = useWorkspaceCheckoutStatus({
     client,
@@ -2410,28 +2421,14 @@ function WorkspaceScreenContent({
   const bulkCloseConfirmationLabels = useMemo<BulkCloseConfirmationLabels>(
     () => ({
       newTab: t("workspace.tabs.actions.newTab"),
-      all: ({ agents, terminals: terminalCount, tabs: tabCount }) =>
-        t("workspace.tabs.confirmations.bulk.all", {
-          agents,
-          terminals: terminalCount,
-          tabs: tabCount,
-        }),
-      agentsAndTerminals: ({ agents, terminals: terminalCount }) =>
-        t("workspace.tabs.confirmations.bulk.agentsAndTerminals", {
-          agents,
-          terminals: terminalCount,
-        }),
       terminalsAndTabs: ({ terminals: terminalCount, tabs: tabCount }) =>
         t("workspace.tabs.confirmations.bulk.terminalsAndTabs", {
           terminals: terminalCount,
           tabs: tabCount,
         }),
-      agentsAndTabs: ({ agents, tabs: tabCount }) =>
-        t("workspace.tabs.confirmations.bulk.agentsAndTabs", { agents, tabs: tabCount }),
       terminals: ({ terminals: terminalCount }) =>
         t("workspace.tabs.confirmations.bulk.terminals", { terminals: terminalCount }),
       tabs: ({ tabs: tabCount }) => t("workspace.tabs.confirmations.bulk.tabs", { tabs: tabCount }),
-      agents: ({ agents }) => t("workspace.tabs.confirmations.bulk.agents", { agents }),
     }),
     [t],
   );
@@ -2638,23 +2635,9 @@ function WorkspaceScreenContent({
 
         const agent =
           useSessionStore.getState().sessions[normalizedServerId]?.agents?.get(agentId) ?? null;
-        let closePolicy = resolveCloseAgentTabPolicy(agent);
-        const isRunning = agent?.status === "running";
+        const closePolicy = resolveCloseAgentTabPolicy(agent);
 
-        if (isRunning && closePolicy.kind === "archive-on-close") {
-          const confirmed = await confirmDialog({
-            title: t("workspace.tabs.confirmations.archiveRunningAgentTitle"),
-            message: t("workspace.tabs.confirmations.archiveRunningAgentMessage"),
-            confirmLabel: t("workspace.tabs.confirmations.archive"),
-            cancelLabel: t("workspace.tabs.confirmations.cancel"),
-            destructive: true,
-          });
-          if (!confirmed) {
-            return;
-          }
-        }
-
-        if (closePolicy.kind === "layout-only") {
+        if (closePolicy.kind === "release-open-tab-label") {
           const sessionClient = useSessionStore.getState().sessions[normalizedServerId]?.client;
           if (!sessionClient) {
             toast.error(t("common.errors.daemonClientUnavailable"));
@@ -2665,9 +2648,6 @@ function WorkspaceScreenContent({
             await sessionClient.updateAgent(agentId, {
               labels: { [getOpenAgentTabLabel(clientId)]: "false" },
             });
-            const latestAgent =
-              useSessionStore.getState().sessions[normalizedServerId]?.agents?.get(agentId) ?? null;
-            closePolicy = resolveCloseAgentTabPolicy(latestAgent);
           } catch (error) {
             console.error("[WorkspaceScreen] Failed to close subagent tab", { error, agentId });
             toast.error(t("workspace.tabs.toasts.failedToCloseAgent"));
@@ -2682,24 +2662,9 @@ function WorkspaceScreenContent({
             target: { kind: "agent", agentId },
           });
         }
-
-        if (closePolicy.kind === "layout-only") {
-          return;
-        }
-
-        // Errors (e.g. timeout) are handled by the mutation's onSettled callback
-        void archiveAgent({ serverId: normalizedServerId, agentId }).catch(() => {});
       });
     },
-    [
-      archiveAgent,
-      closeTab,
-      closeWorkspaceTabWithCleanup,
-      normalizedServerId,
-      persistenceKey,
-      t,
-      toast,
-    ],
+    [closeTab, closeWorkspaceTabWithCleanup, normalizedServerId, persistenceKey, t, toast],
   );
 
   const handleClosePassiveTab = useCallback(
@@ -2931,10 +2896,7 @@ function WorkspaceScreenContent({
         return true;
       }
 
-      const groups = classifyBulkClosableTabs(tabsToClose, (agentId) => {
-        const agent = useSessionStore.getState().sessions[normalizedServerId]?.agents?.get(agentId);
-        return resolveCloseAgentTabPolicy(agent).kind === "layout-only" ? "layout-only" : "archive";
-      });
+      const groups = classifyBulkClosableTabs(tabsToClose);
       const modifiedCount = tabsToClose.filter(
         (tab) =>
           getPanelInstanceAttributes({
@@ -2962,7 +2924,12 @@ function WorkspaceScreenContent({
         client,
         groups,
         closeTab,
-        closeLayoutOnlyAgent: async (agentId) => {
+        releaseAgentTab: async (agentId) => {
+          const agent =
+            useSessionStore.getState().sessions[normalizedServerId]?.agents?.get(agentId) ?? null;
+          if (resolveCloseAgentTabPolicy(agent).kind !== "release-open-tab-label") {
+            return;
+          }
           if (!client) {
             throw new Error(t("common.errors.daemonClientUnavailable"));
           }
@@ -2970,11 +2937,6 @@ function WorkspaceScreenContent({
           await client.updateAgent(agentId, {
             labels: { [getOpenAgentTabLabel(clientId)]: "false" },
           });
-          const latestAgent =
-            useSessionStore.getState().sessions[normalizedServerId]?.agents?.get(agentId) ?? null;
-          if (resolveCloseAgentTabPolicy(latestAgent).kind === "archive-on-close") {
-            await archiveAgent({ serverId: normalizedServerId, agentId });
-          }
         },
         closeWorkspaceTabWithCleanup: (cleanupInput) => {
           if (!persistenceKey) {
@@ -2993,7 +2955,6 @@ function WorkspaceScreenContent({
       return true;
     },
     [
-      archiveAgent,
       bulkCloseConfirmationLabels,
       client,
       closeTab,
@@ -3952,8 +3913,25 @@ function WorkspaceScreenContent({
     [createTerminalMutation.isPending, pendingTerminalCreateInput],
   );
   const showCreateBrowserTab = getIsElectron();
+  const closedAgentIds = useMemo(
+    () =>
+      [...workspaceAgentVisibility.autoOpenAgentIds]
+        .filter((agentId) => _hiddenAgentIds.has(agentId))
+        .sort(),
+    [_hiddenAgentIds, workspaceAgentVisibility.autoOpenAgentIds],
+  );
+  const closedAgents = useStoreWithEqualityFn(
+    useSessionStore,
+    (state) =>
+      closedAgentIds.map((agentId) => ({
+        agentId,
+        title: state.sessions[normalizedServerId]?.agents?.get(agentId)?.title ?? null,
+      })),
+    closedWorkspaceAgentsEqual,
+  );
   const newTabLauncher = useMemo<NewTabLauncher>(
     () => ({
+      closedAgents,
       showChanges: isGitCheckout,
       showPullRequest: hasPullRequest,
       showBrowser: showCreateBrowserTab,
@@ -3961,6 +3939,7 @@ function WorkspaceScreenContent({
       launch: launchWorkspaceTab,
     }),
     [
+      closedAgents,
       createTerminalDisabled,
       hasPullRequest,
       isGitCheckout,

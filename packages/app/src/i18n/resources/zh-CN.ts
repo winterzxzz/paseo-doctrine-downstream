@@ -694,6 +694,7 @@ export const zhCN: TranslationResources = {
         changes: "更改",
         files: "文件",
         pullRequest: "拉取请求",
+        closedAgents: "已关闭的智能体",
         terminalProfilesMenu: "Terminal profiles",
         editTerminalProfiles: "Edit profiles",
       },
@@ -728,22 +729,15 @@ export const zhCN: TranslationResources = {
         archive: "归档",
         closeTerminalTitle: "关闭 Terminal？",
         closeTerminalMessage: "此 Terminal 中任何正在运行的进程都会立即停止。",
-        archiveRunningAgentTitle: "归档正在运行的 Agent？",
-        archiveRunningAgentMessage: "此 Agent 仍在运行。归档会停止该 Agent 并关闭标签。",
         closeTabsLeftTitle: "关闭左侧标签？",
         closeTabsRightTitle: "关闭右侧标签？",
         closeOtherTabsTitle: "关闭其他标签？",
         bulk: {
-          all: "这会归档 {{agents}} 个 Agent，关闭 {{terminals}} 个 Terminal，并关闭 {{tabs}} 个标签。已关闭 Terminal 中任何正在运行的进程都会立即停止。",
-          agentsAndTerminals:
-            "这会归档 {{agents}} 个 Agent，并关闭 {{terminals}} 个 Terminal。已关闭 Terminal 中任何正在运行的进程都会立即停止。",
           terminalsAndTabs:
             "这会关闭 {{terminals}} 个 Terminal，并关闭 {{tabs}} 个标签。已关闭 Terminal 中任何正在运行的进程都会立即停止。",
-          agentsAndTabs: "这会归档 {{agents}} 个 Agent，并关闭 {{tabs}} 个标签。",
           terminals:
             "这会关闭 {{terminals}} 个 Terminal。已关闭 Terminal 中任何正在运行的进程都会立即停止。",
           tabs: "这会关闭 {{tabs}} 个标签。",
-          agents: "这会归档 {{agents}} 个 Agent。",
         },
       },
     },

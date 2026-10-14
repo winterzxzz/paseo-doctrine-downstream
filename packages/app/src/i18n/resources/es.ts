@@ -701,6 +701,7 @@ export const es: TranslationResources = {
         changes: "Cambios",
         files: "Archivos",
         pullRequest: "Solicitud de extracción",
+        closedAgents: "Agentes cerrados",
         terminalProfilesMenu: "Terminal profiles",
         editTerminalProfiles: "Edit profiles",
       },
@@ -738,23 +739,15 @@ export const es: TranslationResources = {
         closeTerminalTitle: "¿Cerrar terminal?",
         closeTerminalMessage:
           "Cualquier proceso en ejecución en esta terminal se detendrá inmediatamente.",
-        archiveRunningAgentTitle: "¿Agente de ejecución de archivos?",
-        archiveRunningAgentMessage:
-          "Este agente todavía está ejecutándose. Archivarlo detendrá al agente y cerrará la pestaña.",
         closeTabsLeftTitle: "¿Cerrar pestañas a la izquierda?",
         closeTabsRightTitle: "¿Cerrar pestañas a la derecha?",
         closeOtherTabsTitle: "¿Cerrar otras pestañas?",
         bulk: {
-          all: "Esto archivará los agentes{{agents}}, cerrará los terminales{{terminals}}y cerrará las pestañas{{tabs}}. Cualquier proceso en ejecución en una terminal cerrada se detendrá inmediatamente.",
-          agentsAndTerminals:
-            "Esto archivará los agentes{{agents}}y cerrará los terminales{{terminals}}. Cualquier proceso en ejecución en una terminal cerrada se detendrá inmediatamente.",
           terminalsAndTabs:
             "Esto cerrará los terminales{{terminals}}y cerrará las pestañas{{tabs}}. Cualquier proceso en ejecución en una terminal cerrada se detendrá inmediatamente.",
-          agentsAndTabs: "Esto archivará los agentes{{agents}}y cerrará las pestañas{{tabs}}.",
           terminals:
             "Esto cerrará los terminales{{terminals}}. Cualquier proceso en ejecución en una terminal cerrada se detendrá inmediatamente.",
           tabs: "Esto cerrará las pestañas{{tabs}}.",
-          agents: "Esto archivará los agentes{{agents}}.",
         },
       },
     },

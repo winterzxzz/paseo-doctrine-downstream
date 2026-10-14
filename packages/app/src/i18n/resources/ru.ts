@@ -701,6 +701,7 @@ export const ru: TranslationResources = {
         changes: "Изменения",
         files: "Файлы",
         pullRequest: "PR",
+        closedAgents: "Закрытые агенты",
         terminalProfilesMenu: "Профили терминала",
         editTerminalProfiles: "Изменить профили",
       },
@@ -738,23 +739,15 @@ export const ru: TranslationResources = {
         closeTerminalTitle: "Закрыть терминал?",
         closeTerminalMessage:
           "Любой запущенный процесс в этом терминале будет немедленно остановлен.",
-        archiveRunningAgentTitle: "Архивировать работающего агента?",
-        archiveRunningAgentMessage:
-          "Этот агент всё ещё работает. При архивировании агент будет остановлен, а вкладка закрыта.",
         closeTabsLeftTitle: "Закрыть вкладки слева?",
         closeTabsRightTitle: "Закрыть вкладки справа?",
         closeOtherTabsTitle: "Закрыть другие вкладки?",
         bulk: {
-          all: "Будут архивированы агенты ({{agents}}), закрыты терминалы ({{terminals}}) и вкладки ({{tabs}}). Все запущенные процессы в закрытых терминалах будут немедленно остановлены.",
-          agentsAndTerminals:
-            "Будут архивированы агенты ({{agents}}) и закрыты терминалы ({{terminals}}). Все запущенные процессы в закрытых терминалах будут немедленно остановлены.",
           terminalsAndTabs:
             "Будут закрыты терминалы ({{terminals}}) и вкладки ({{tabs}}). Все запущенные процессы в закрытых терминалах будут немедленно остановлены.",
-          agentsAndTabs: "Будут архивированы агенты ({{agents}}) и закрыты вкладки ({{tabs}}).",
           terminals:
             "Будут закрыты терминалы ({{terminals}}). Все запущенные процессы в них будут немедленно остановлены.",
           tabs: "Будут закрыты вкладки ({{tabs}}).",
-          agents: "Будут архивированы агенты ({{agents}}).",
         },
       },
     },

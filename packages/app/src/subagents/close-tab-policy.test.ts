@@ -2,20 +2,18 @@ import { describe, expect, it } from "vitest";
 import { resolveCloseAgentTabPolicy } from "./close-tab-policy";
 
 describe("resolveCloseAgentTabPolicy", () => {
-  it("archives root agents when their tab closes", () => {
-    expect(resolveCloseAgentTabPolicy({ parentAgentId: null })).toEqual({
-      kind: "archive-on-close",
-    });
+  it("keeps root agent tab close layout-only", () => {
+    expect(resolveCloseAgentTabPolicy({ parentAgentId: null })).toEqual({ kind: "layout-only" });
   });
 
-  it("keeps subagent tab close layout-only", () => {
+  it("releases the open-tab label when a subagent tab closes", () => {
     expect(resolveCloseAgentTabPolicy({ parentAgentId: "parent-agent" })).toEqual({
-      kind: "layout-only",
+      kind: "release-open-tab-label",
     });
   });
 
-  it("preserves the existing archive fallback when the agent is missing", () => {
-    expect(resolveCloseAgentTabPolicy(null)).toEqual({ kind: "archive-on-close" });
-    expect(resolveCloseAgentTabPolicy(undefined)).toEqual({ kind: "archive-on-close" });
+  it("stays layout-only when the agent is missing", () => {
+    expect(resolveCloseAgentTabPolicy(null)).toEqual({ kind: "layout-only" });
+    expect(resolveCloseAgentTabPolicy(undefined)).toEqual({ kind: "layout-only" });
   });
 });

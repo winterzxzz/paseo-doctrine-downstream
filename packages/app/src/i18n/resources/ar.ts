@@ -694,6 +694,7 @@ export const ar: TranslationResources = {
         changes: "التغييرات",
         files: "الملفات",
         pullRequest: "طلب السحب",
+        closedAgents: "الوكلاء المغلقون",
         terminalProfilesMenu: "Terminal profiles",
         editTerminalProfiles: "Edit profiles",
       },
@@ -730,24 +731,15 @@ export const ar: TranslationResources = {
         archive: "أرشيف",
         closeTerminalTitle: "إغلاق المحطة؟",
         closeTerminalMessage: "سيتم إيقاف أي عملية جارية في هذه المحطة على الفور.",
-        archiveRunningAgentTitle: "وكيل تشغيل الأرشيف؟",
-        archiveRunningAgentMessage:
-          "هذا الوكيل لا يزال قيد التشغيل. ستؤدي أرشفته إلى إيقاف الوكيل وإغلاق علامة التبويب.",
         closeTabsLeftTitle: "هل تريد إغلاق علامات التبويب على اليسار؟",
         closeTabsRightTitle: "هل تريد إغلاق علامات التبويب على اليمين؟",
         closeOtherTabsTitle: "هل تريد إغلاق علامات التبويب الأخرى؟",
         bulk: {
-          all: "سيؤدي هذا إلى أرشفة وكيل (وكلاء){{agents}}، وإغلاق محطة (محطات){{terminals}}، وإغلاق علامة (علامات) تبويب{{tabs}}. سيتم إيقاف أي عملية جارية في محطة مغلقة على الفور.",
-          agentsAndTerminals:
-            "سيؤدي هذا إلى أرشفة وكيل (وكلاء){{agents}}وإغلاق محطة (محطات){{terminals}}. سيتم إيقاف أي عملية جارية في محطة مغلقة على الفور.",
           terminalsAndTabs:
             "سيؤدي هذا إلى إغلاق محطة (محطات){{terminals}}وإغلاق علامة تبويب (علامات تبويب){{tabs}}. سيتم إيقاف أي عملية جارية في محطة مغلقة على الفور.",
-          agentsAndTabs:
-            "سيؤدي هذا إلى أرشفة وكيل (وكلاء){{agents}}وإغلاق علامة (علامات) تبويب{{tabs}}.",
           terminals:
             "سيؤدي هذا إلى إغلاق محطة (محطات){{terminals}}. سيتم إيقاف أي عملية جارية في محطة مغلقة على الفور.",
           tabs: "سيؤدي هذا إلى إغلاق علامة التبويب (علامات التبويب){{tabs}}.",
-          agents: "سيؤدي هذا إلى أرشفة وكيل (وكلاء){{agents}}.",
         },
       },
     },

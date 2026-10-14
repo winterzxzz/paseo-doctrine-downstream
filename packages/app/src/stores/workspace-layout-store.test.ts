@@ -550,6 +550,7 @@ describe("workspace-layout-store version 2 migration", () => {
       expect(Object.keys(persisted.state).sort()).toEqual([
         "explorerPaneIdByWorkspace",
         "explorerSidebarWidthByWorkspace",
+        "hiddenAgentIdsByWorkspace",
         "layoutByWorkspace",
         "pinnedAgentIdsByWorkspace",
         "pullRequestTabAutoOpenedByWorkspace",
@@ -560,6 +561,22 @@ describe("workspace-layout-store version 2 migration", () => {
         [workspaceKey]: "explorer",
       });
     });
+  });
+
+  it("keeps a closed agent tab hidden across reload", async () => {
+    const store = createWorkspaceLayoutStore(createDeterministicWorkspaceLayoutIds());
+    store.getState().hideAgent(workspaceKey, "agent-1");
+    await vi.waitFor(async () => {
+      const persisted = JSON.parse((await AsyncStorage.getItem("workspace-layout-state")) ?? "{}");
+      expect(persisted.state?.hiddenAgentIdsByWorkspace).toEqual({ [workspaceKey]: ["agent-1"] });
+    });
+
+    const restored = createWorkspaceLayoutStore(createDeterministicWorkspaceLayoutIds());
+    await restored.persist.rehydrate();
+
+    expect(restored.getState().hiddenAgentIdsByWorkspace[workspaceKey]).toEqual(
+      new Set(["agent-1"]),
+    );
   });
 
   it("does not replace Explorer again when the migrated version 2 layout reloads", async () => {
@@ -3143,6 +3160,7 @@ describe("workspace-layout-store actions", () => {
     expect(persisted).toEqual({
       layoutByWorkspace: { [workspaceKey]: layout },
       pinnedAgentIdsByWorkspace: {},
+      hiddenAgentIdsByWorkspace: {},
       splitSizesByWorkspace: currentState.splitSizesByWorkspace,
       explorerSidebarWidthByWorkspace: currentState.explorerSidebarWidthByWorkspace,
       explorerPaneIdByWorkspace: {},
@@ -3344,7 +3362,7 @@ describe("workspace-layout-store actions", () => {
     });
   });
 
-  it("keeps hidden agent intents in memory per workspace without persisting them", () => {
+  it("keeps hidden agent intents per workspace and persists them", () => {
     const workspaceKey = createWorkspaceKey();
     const otherWorkspaceKey = buildWorkspaceTabPersistenceKey({
       serverId: SERVER_ID,
@@ -3378,6 +3396,7 @@ describe("workspace-layout-store actions", () => {
       pullRequestTabAutoOpenedByWorkspace: {},
       layoutByWorkspace: {},
       pinnedAgentIdsByWorkspace: {},
+      hiddenAgentIdsByWorkspace: { [otherWorkspaceKey as string]: ["agent-2"] },
       splitSizesByWorkspace: {},
       explorerSidebarWidthByWorkspace: {},
       explorerPaneIdByWorkspace: {},

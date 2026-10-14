@@ -1726,6 +1726,12 @@ export function createWorkspaceLayoutStore(
                 Array.from(agentIds),
               ]),
             ),
+            hiddenAgentIdsByWorkspace: Object.fromEntries(
+              Object.entries(state.hiddenAgentIdsByWorkspace).map(([key, agentIds]) => [
+                key,
+                Array.from(agentIds),
+              ]),
+            ),
             splitSizesByWorkspace: state.splitSizesByWorkspace,
             explorerSidebarWidthByWorkspace: state.explorerSidebarWidthByWorkspace,
             explorerPaneIdByWorkspace: state.explorerSidebarPaneIdByWorkspace,
@@ -1769,6 +1775,12 @@ export function createWorkspaceLayoutStore(
             layoutByWorkspace,
             pinnedAgentIdsByWorkspace: Object.fromEntries(
               Object.entries(result.data.pinnedAgentIdsByWorkspace ?? {}).map(([key, agentIds]) => [
+                key,
+                new Set(agentIds),
+              ]),
+            ),
+            hiddenAgentIdsByWorkspace: Object.fromEntries(
+              Object.entries(result.data.hiddenAgentIdsByWorkspace ?? {}).map(([key, agentIds]) => [
                 key,
                 new Set(agentIds),
               ]),

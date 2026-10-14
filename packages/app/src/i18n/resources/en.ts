@@ -691,6 +691,7 @@ export const en = {
         changes: "Changes",
         files: "Files",
         pullRequest: "Pull request",
+        closedAgents: "Closed agents",
         terminalProfilesMenu: "Terminal profiles",
         editTerminalProfiles: "Edit profiles",
       },
@@ -726,23 +727,15 @@ export const en = {
         bulkUnsaved: "{{count}} tab(s) have unsaved changes. Closing will discard those drafts.",
         closeTerminalTitle: "Close terminal?",
         closeTerminalMessage: "Any running process in this terminal will be stopped immediately.",
-        archiveRunningAgentTitle: "Archive running agent?",
-        archiveRunningAgentMessage:
-          "This agent is still running. Archiving it will stop the agent and close the tab.",
         closeTabsLeftTitle: "Close tabs to the left?",
         closeTabsRightTitle: "Close tabs to the right?",
         closeOtherTabsTitle: "Close other tabs?",
         bulk: {
-          all: "This will archive {{agents}} agent(s), close {{terminals}} terminal(s), and close {{tabs}} tab(s). Any running process in a closed terminal will be stopped immediately.",
-          agentsAndTerminals:
-            "This will archive {{agents}} agent(s) and close {{terminals}} terminal(s). Any running process in a closed terminal will be stopped immediately.",
           terminalsAndTabs:
             "This will close {{terminals}} terminal(s) and close {{tabs}} tab(s). Any running process in a closed terminal will be stopped immediately.",
-          agentsAndTabs: "This will archive {{agents}} agent(s) and close {{tabs}} tab(s).",
           terminals:
             "This will close {{terminals}} terminal(s). Any running process in a closed terminal will be stopped immediately.",
           tabs: "This will close {{tabs}} tab(s).",
-          agents: "This will archive {{agents}} agent(s).",
         },
       },
     },

@@ -701,6 +701,7 @@ export const ja: TranslationResources = {
         changes: "変更",
         files: "ファイル",
         pullRequest: "プルリクエスト",
+        closedAgents: "閉じたエージェント",
         terminalProfilesMenu: "ターミナルプロファイル",
         editTerminalProfiles: "プロファイルを編集",
       },
@@ -735,23 +736,15 @@ export const ja: TranslationResources = {
         archive: "アーカイブ",
         closeTerminalTitle: "ターミナルを閉じますか？",
         closeTerminalMessage: "このターミナルで実行中のプロセスはすぐに停止されます。",
-        archiveRunningAgentTitle: "実行中のエージェントをアーカイブしますか？",
-        archiveRunningAgentMessage:
-          "このエージェントはまだ実行中です。アーカイブするとエージェントが停止してタブが閉じられます。",
         closeTabsLeftTitle: "左のタブを閉じますか？",
         closeTabsRightTitle: "右のタブを閉じますか？",
         closeOtherTabsTitle: "他のタブを閉じますか？",
         bulk: {
-          all: "{{agents}}件のエージェントをアーカイブし、{{terminals}}件のターミナルを閉じ、{{tabs}}件のタブを閉じます。閉じたターミナルで実行中のプロセスはすぐに停止されます。",
-          agentsAndTerminals:
-            "{{agents}}件のエージェントをアーカイブし、{{terminals}}件のターミナルを閉じます。閉じたターミナルで実行中のプロセスはすぐに停止されます。",
           terminalsAndTabs:
             "{{terminals}}件のターミナルを閉じ、{{tabs}}件のタブを閉じます。閉じたターミナルで実行中のプロセスはすぐに停止されます。",
-          agentsAndTabs: "{{agents}}件のエージェントをアーカイブし、{{tabs}}件のタブを閉じます。",
           terminals:
             "{{terminals}}件のターミナルを閉じます。閉じたターミナルで実行中のプロセスはすぐに停止されます。",
           tabs: "{{tabs}}件のタブを閉じます。",
-          agents: "{{agents}}件のエージェントをアーカイブします。",
         },
       },
     },

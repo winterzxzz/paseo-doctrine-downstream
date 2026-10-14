@@ -701,6 +701,7 @@ export const fr: TranslationResources = {
         changes: "Modifications",
         files: "Fichiers",
         pullRequest: "Demande de fusion",
+        closedAgents: "Agents fermés",
         terminalProfilesMenu: "Terminal profiles",
         editTerminalProfiles: "Edit profiles",
       },
@@ -738,23 +739,15 @@ export const fr: TranslationResources = {
         closeTerminalTitle: "Fermer le terminal?",
         closeTerminalMessage:
           "Tout processus en cours d’exécution dans ce terminal sera immédiatement arrêté.",
-        archiveRunningAgentTitle: "Archiver l'agent en cours d'exécution?",
-        archiveRunningAgentMessage:
-          "Cet agent est toujours en cours d'exécution. L'archiver arrêtera l'agent et fermera l'onglet.",
         closeTabsLeftTitle: "Fermer les onglets à gauche?",
         closeTabsRightTitle: "Fermer les onglets à droite?",
         closeOtherTabsTitle: "Fermer les autres onglets?",
         bulk: {
-          all: "Cela archivera les agents{{agents}}, fermera les terminaux{{terminals}}et fermera les onglets{{tabs}}. Tout processus en cours d’exécution dans un terminal fermé sera immédiatement arrêté.",
-          agentsAndTerminals:
-            "Cela archivera les agents{{agents}}et fermera les terminaux{{terminals}}. Tout processus en cours d’exécution dans un terminal fermé sera immédiatement arrêté.",
           terminalsAndTabs:
             "Cela fermera le(s) terminal(s){{terminals}}et fermera le(s) onglet(s){{tabs}}. Tout processus en cours d’exécution dans un terminal fermé sera immédiatement arrêté.",
-          agentsAndTabs: "Cela archivera les agents{{agents}}et fermera les onglets{{tabs}}.",
           terminals:
             "Cela fermera le(s) terminal(s){{terminals}}. Tout processus en cours d’exécution dans un terminal fermé sera immédiatement arrêté.",
           tabs: "Cela fermera les onglets{{tabs}}.",
-          agents: "Cela archivera les agents{{agents}}.",
         },
       },
     },
