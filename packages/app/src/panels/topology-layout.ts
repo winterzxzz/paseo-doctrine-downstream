@@ -293,3 +293,55 @@ export function layoutProjectTopologyPacked(
   }
   return boxes;
 }
+
+/** Canvas pan (screen pixels) and zoom, as React Flow reports it. */
+export interface TopologyViewport {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+export interface TopologySize {
+  width: number;
+  height: number;
+}
+
+/** Pointer jitter during a card click pans a few pixels; it is not a deliberate move. */
+const DELIBERATE_PAN_PX = 4;
+const DELIBERATE_ZOOM_DELTA = 0.001;
+
+export function isDeliberateViewportChange(from: TopologyViewport, to: TopologyViewport): boolean {
+  return (
+    Math.abs(to.zoom - from.zoom) > DELIBERATE_ZOOM_DELTA ||
+    Math.hypot(to.x - from.x, to.y - from.y) > DELIBERATE_PAN_PX
+  );
+}
+
+/** Keep the canvas point that sat at the old container's center at the new center. */
+export function recenterTopologyViewport(
+  viewport: TopologyViewport,
+  from: TopologySize,
+  to: TopologySize,
+): TopologyViewport {
+  return {
+    x: viewport.x + (to.width - from.width) / 2,
+    y: viewport.y + (to.height - from.height) / 2,
+    zoom: viewport.zoom,
+  };
+}
+
+/** Whether any card overlaps the visible container area under `viewport`. */
+export function topologyViewportShowsAnyBox(
+  boxes: Iterable<TopologyBox>,
+  viewport: TopologyViewport,
+  size: TopologySize,
+): boolean {
+  for (const box of boxes) {
+    const left = box.x * viewport.zoom + viewport.x;
+    const top = box.y * viewport.zoom + viewport.y;
+    const right = left + box.width * viewport.zoom;
+    const bottom = top + box.height * viewport.zoom;
+    if (right > 0 && bottom > 0 && left < size.width && top < size.height) return true;
+  }
+  return false;
+}

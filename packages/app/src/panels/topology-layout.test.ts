@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { TopologyNode } from "@/panels/topology-model";
 import {
+  isDeliberateViewportChange,
   layoutProjectTopologyPacked,
   layoutProjectTopologyXFirst,
+  recenterTopologyViewport,
+  topologyViewportShowsAnyBox,
   type TopologyBox,
 } from "@/panels/topology-layout";
 
@@ -220,5 +223,36 @@ describe("layoutProjectTopologyPacked", () => {
     expect(boxes.get("lead-1")).toMatchObject({ x: 0, y: 0 });
     expect(boxes.get("lead-2")?.y).toBe(0);
     expectNoOverlap(boxes);
+  });
+});
+
+describe("topology viewport helpers", () => {
+  it("ignores click jitter but counts a real pan or zoom", () => {
+    const start = { x: 100, y: 50, zoom: 1 };
+    expect(isDeliberateViewportChange(start, { x: 102, y: 51, zoom: 1 })).toBe(false);
+    expect(isDeliberateViewportChange(start, { x: 140, y: 50, zoom: 1 })).toBe(true);
+    expect(isDeliberateViewportChange(start, { x: 100, y: 50, zoom: 0.9 })).toBe(true);
+  });
+
+  it("keeps the old center point centered when the pane narrows", () => {
+    const before = { x: 400, y: 100, zoom: 1 };
+    const from = { width: 1600, height: 900 };
+    const to = { width: 800, height: 900 };
+    const after = recenterTopologyViewport(before, from, to);
+    // Canvas point at the old center maps to the new center.
+    const canvasX = (from.width / 2 - before.x) / before.zoom;
+    expect(canvasX * after.zoom + after.x).toBe(to.width / 2);
+    expect(after).toEqual({ x: 0, y: 100, zoom: 1 });
+  });
+
+  it("detects a viewport that shows only the space between cards", () => {
+    const boxes = [
+      { x: 0, y: 0, width: 280, height: 200 },
+      { x: 1200, y: 0, width: 280, height: 200 },
+    ];
+    const size = { width: 600, height: 400 };
+    expect(topologyViewportShowsAnyBox(boxes, { x: -400, y: 0, zoom: 1 }, size)).toBe(false);
+    expect(topologyViewportShowsAnyBox(boxes, { x: 0, y: 0, zoom: 1 }, size)).toBe(true);
+    expect(topologyViewportShowsAnyBox(boxes, { x: -1000, y: 0, zoom: 1 }, size)).toBe(true);
   });
 });

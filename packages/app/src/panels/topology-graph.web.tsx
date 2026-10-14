@@ -12,6 +12,9 @@ import {
   getBezierPath,
   useNodesInitialized,
   useReactFlow,
+  useStore,
+  type ReactFlowState,
+  type Viewport,
   type Edge,
   type EdgeProps,
   type Node,
@@ -48,8 +51,12 @@ import {
 import {
   TOPOLOGY_CARD_METRICS,
   TOPOLOGY_NODE_WIDTH,
+  isDeliberateViewportChange,
   layoutProjectTopologyPacked,
   layoutProjectTopologyXFirst,
+  recenterTopologyViewport,
+  topologyViewportShowsAnyBox,
+  type TopologySize,
 } from "@/panels/topology-layout";
 import type { Theme } from "@/styles/theme";
 
@@ -370,10 +377,15 @@ function layoutTopology(
     : layoutProjectTopologyXFirst(nodes, edges);
 }
 
+const selectPaneSize = (state: ReactFlowState) => `${state.width}x${state.height}`;
+
 /**
  * The panel is often mounted while its tab is hidden or still resizing, which
- * leaves the first fit at a tiny zoom. Re-fit when nodes are measured and when
- * the pane resizes, until the user pans or zooms on their own.
+ * leaves the first fit at a tiny zoom, and opening an agent beside the graph
+ * narrows the pane under a viewport computed for the old width. React it to
+ * the pane size React Flow itself measured (so the fit never reads stale
+ * dimensions): re-fit until the user pans or zooms on their own, otherwise keep
+ * the same canvas point centered — and re-fit anyway if no card stays visible.
  */
 function AutoFit({
   nodeCount,
@@ -382,24 +394,42 @@ function AutoFit({
   nodeCount: number;
   userMovedRef: { current: boolean };
 }) {
-  const { fitView } = useReactFlow();
+  const { fitView, getNodes, getViewport, setViewport } = useReactFlow<FlowNode, FlowEdge>();
   const initialized = useNodesInitialized();
-  const containerRef = useRef<HTMLDivElement>(null);
+  const paneSize = useStore(selectPaneSize);
+  const lastSizeRef = useRef<TopologySize | null>(null);
   useEffect(() => {
     if (!initialized) return;
     userMovedRef.current = false;
     void fitView(FIT_VIEW_OPTIONS);
   }, [fitView, initialized, nodeCount, userMovedRef]);
   useEffect(() => {
-    const element = containerRef.current?.closest(".tp-root");
-    if (!element) return;
-    const observer = new ResizeObserver(() => {
-      if (!userMovedRef.current) void fitView(FIT_VIEW_OPTIONS);
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [fitView, userMovedRef]);
-  return <div ref={containerRef} hidden />;
+    const [width, height] = paneSize.split("x").map(Number);
+    if (!width || !height) return;
+    const size = { width, height };
+    const previous = lastSizeRef.current;
+    lastSizeRef.current = size;
+    if (!initialized || !previous) return;
+    if (previous.width === width && previous.height === height) return;
+    if (!userMovedRef.current) {
+      void fitView(FIT_VIEW_OPTIONS);
+      return;
+    }
+    const next = recenterTopologyViewport(getViewport(), previous, size);
+    const boxes = getNodes().map((node) => ({
+      x: node.position.x,
+      y: node.position.y,
+      width: node.width ?? 0,
+      height: node.height ?? 0,
+    }));
+    if (topologyViewportShowsAnyBox(boxes, next, size)) {
+      void setViewport(next);
+    } else {
+      userMovedRef.current = false;
+      void fitView(FIT_VIEW_OPTIONS);
+    }
+  }, [fitView, getNodes, getViewport, initialized, paneSize, setViewport, userMovedRef]);
+  return null;
 }
 
 function toFlowNodes(
@@ -592,10 +622,20 @@ function TopologyCanvas({
     (_event: React.MouseEvent, node: FlowNode) => onOpenAgent(node.id),
     [onOpenAgent],
   );
-  // onMove only fires for a real viewport change, so clicking a node (which
-  // starts and ends a zero-distance pan) does not count as the user moving.
-  const handleMove = useCallback((event: MouseEvent | TouchEvent | null) => {
-    if (event) userMovedRef.current = true;
+  // Non-draggable cards start a pan on mousedown, so clicking one emits move
+  // events for pointer jitter. Only a deliberate pan or zoom stops auto-fit;
+  // programmatic moves (fitView, resize recentering) carry no event.
+  const moveStartRef = useRef<Viewport | null>(null);
+  const handleMoveStart = useCallback(
+    (event: MouseEvent | TouchEvent | null, viewport: Viewport) => {
+      moveStartRef.current = event ? viewport : null;
+    },
+    [],
+  );
+  const handleMove = useCallback((event: MouseEvent | TouchEvent | null, viewport: Viewport) => {
+    const start = moveStartRef.current;
+    if (!event) return;
+    if (!start || isDeliberateViewportChange(start, viewport)) userMovedRef.current = true;
   }, []);
   return (
     <div className="tp-root" style={themeVars} data-testid={testID}>
@@ -607,6 +647,7 @@ function TopologyCanvas({
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
         onNodeClick={handleNodeClick}
+        onMoveStart={handleMoveStart}
         onMove={handleMove}
         colorMode={colorScheme}
         fitView
