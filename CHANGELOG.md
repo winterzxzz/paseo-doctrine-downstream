@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.11.2-paseo.77 - 2026-10-14
+
+### Fixed
+
+- Topology: mở Lead/Peer của Supervisor (nằm ở workspace khác) từ topology giờ giữ được tab bên
+  phải thay vì bị đóng ngay. Topology tự vừa khung khi khung đổi kích thước.
+- Human archive Lead/Peer (kể cả Peer bị archive theo Lead) ghi biên nhận nhả quyền ghi
+  (`writeLeaseRelease`), nên Lead mới tiếp quản được. Xem hoạt động của agent đã archive không còn
+  đánh thức nó. Agent đã nhả quyền không chạy lại được; muốn làm tiếp thì tạo Lead mới.
+
+### Changed
+
+- Topology: thẻ chi tiết hơn (role, trạng thái, model, số Peer, issue Beads), không còn đè nhau khi
+  có nhiều Peer.
+- Icon project mặc định là các hình tinh nghịch theo màu project.
+
 ## 0.11.2-paseo.76 - 2026-10-14
 
 Bản này tích hợp upstream Paseo `v0.11.2` (qua `v0.11.0`, `v0.11.1`) vào downstream line và chuyển
