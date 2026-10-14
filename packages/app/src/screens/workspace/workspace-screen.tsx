@@ -1738,7 +1738,16 @@ function WorkspaceScreenContent({
       target: WorkspaceTabTarget,
       parentTabId: string,
       placement?: WorkspaceTabPlacement,
-    ) => openTab({ workspaceKey, target, intent: "reveal", parentTabId, placement }),
+    ) =>
+      openTab({
+        workspaceKey,
+        target,
+        intent: "reveal",
+        parentTabId,
+        placement,
+        // Keep an explicitly opened agent from another workspace (topology) open.
+        pin: target.kind === "agent",
+      }),
     [openTab],
   );
   // File targets stay identity-stable so the same path reuses its tab. Keep navigation

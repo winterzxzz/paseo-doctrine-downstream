@@ -184,5 +184,9 @@ export function openWorkspaceTargetBeside(input: OpenWorkspaceTargetInput): stri
     intent: "reveal",
     placement: paneId ? { mode: "pane", paneId } : undefined,
     parentTabId: input.parentTabId ?? undefined,
+    // An explicit open owns an agent tab. Without the pin, tab reconciliation
+    // closes an agent that lives in another workspace (a Supervisor's Lead or
+    // Peer) as soon as it opens, because it is not in this workspace's agents.
+    pin: input.target.kind === "agent",
   });
 }
