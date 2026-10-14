@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.11.2-paseo.76 - 2026-10-14
+
+Bản này tích hợp upstream Paseo `v0.11.2` (qua `v0.11.0`, `v0.11.1`) vào downstream line và chuyển
+base version lên `0.11.2`, nên builtin plugin và plugin khai báo `requirements.paseo` theo 0.11 load
+được.
+
+### Changed
+
+- Merge upstream `v0.11.2` (247 commit từ `v0.10.0`); chi tiết upstream nằm ở các mục `Upstream 0.11.x`
+  bên dưới.
+- Usage chuyển sang builtin usage-source plugin của upstream. Usage Factory Droid giờ là plugin
+  `factory-droid-usage-source`, đọc `FACTORY_API_KEY` như trước.
+- Provider option dùng `options` trong `config.json`; `params` cũ vẫn được đọc.
+
+### Not shipped
+
+- Provider Antigravity (`agy`) và Muse Code của upstream nằm trong source nhưng không thuộc builtin
+  plugin; Antigravity của downstream vẫn là `gemini-antigravity`.
+
 ## 0.10.3-paseo.65 - 2026-10-06
 
 ### Fixed
