@@ -23,6 +23,7 @@ import {
   Compass,
   Cpu,
   Crown,
+  GitFork,
   Network,
   ShieldCheck,
   TriangleAlert,
@@ -44,11 +45,18 @@ import {
   type TopologyNode,
   type TopologyRole,
 } from "@/panels/topology-model";
-import { layoutProjectTopologyPacked, layoutProjectTopologyXFirst } from "@/panels/topology-layout";
+import {
+  TOPOLOGY_CARD_METRICS,
+  TOPOLOGY_NODE_WIDTH,
+  layoutProjectTopologyPacked,
+  layoutProjectTopologyXFirst,
+} from "@/panels/topology-layout";
 import type { Theme } from "@/styles/theme";
 
 interface FlowNodeData extends Record<string, unknown> {
   topologyNode: TopologyNode;
+  /** "Supervises 2 Leads · 1 running", or null for an agent with no children. */
+  childSummary: string | null;
   issues: {
     id: string;
     title: string;
@@ -61,6 +69,8 @@ interface FlowEdgeData extends Record<string, unknown> {
   kind: TopologyEdge["kind"];
   active: boolean;
   inferred: boolean;
+  /** One label per parent: repeating "delegates" on every Peer edge is noise. */
+  showLabel: boolean;
 }
 type FlowEdge = Edge<FlowEdgeData, "relationship">;
 
@@ -122,7 +132,7 @@ const TOPOLOGY_CSS = `
 
 .tp-node {
   --tp-role: var(--tp-role-unbound);
-  position: relative; width: 264px; box-sizing: border-box; padding: 12px 14px 12px 16px;
+  position: relative; width: 100%; height: 100%; box-sizing: border-box; padding: 12px 14px 12px 16px;
   display: flex; flex-direction: column; gap: 8px;
   border: 1px solid var(--tp-border); border-radius: 14px; overflow: hidden;
   background:
@@ -144,10 +154,12 @@ const TOPOLOGY_CSS = `
 .tp-node[data-status="running"], .tp-node[data-status="initializing"] { animation: tp-enter .35s cubic-bezier(.2,.8,.2,1) both, tp-glow 2.4s ease-in-out .35s infinite; }
 .tp-node[data-status="closed"] { opacity: .6; }
 
-.tp-head { display: flex; align-items: center; gap: 8px; }
+.tp-head { display: flex; align-items: center; gap: 8px; height: 24px; flex: none; }
+.tp-short-id { color: var(--tp-fg-faint); font-size: 10.5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .tp-role-icon { color: var(--tp-role); display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 8px; background: color-mix(in srgb, var(--tp-role) 18%, transparent); }
-.tp-role-label { flex: 1; color: var(--tp-role); font-size: 10.5px; font-weight: 600; letter-spacing: .09em; }
-.tp-status { display: flex; align-items: center; gap: 6px; padding: 2px 8px 2px 7px; border-radius: 999px; font-size: 11px; color: var(--tp-fg-muted); background: color-mix(in srgb, var(--tp-status) 14%, transparent); }
+.tp-role-label { color: var(--tp-role); font-size: 10.5px; font-weight: 700; letter-spacing: .09em; }
+.tp-head-spacer { flex: 1; }
+.tp-status { display: flex; align-items: center; gap: 6px; padding: 2px 9px 2px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--tp-status); border: 1px solid color-mix(in srgb, var(--tp-status) 40%, transparent); background: color-mix(in srgb, var(--tp-status) 14%, transparent); }
 .tp-dot { position: relative; width: 7px; height: 7px; border-radius: 50%; background: var(--tp-status); flex: none; }
 [data-status="running"] > .tp-dot::after, [data-status="initializing"] > .tp-dot::after {
   content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 1.5px solid var(--tp-status); animation: tp-ping 1.6s ease-out infinite;
@@ -158,17 +170,21 @@ const TOPOLOGY_CSS = `
 [data-status="error"] { --tp-status: var(--tp-st-danger); }
 [data-status="closed"] { --tp-status: var(--tp-fg-faint); }
 
-.tp-title { color: var(--tp-fg); font-size: 13.5px; font-weight: 550; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.tp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.tp-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 2px 7px; border-radius: 6px; border: 1px solid var(--tp-border); background: var(--tp-chip); color: var(--tp-fg-muted); font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.tp-title { flex: none; height: 38px; color: var(--tp-fg); font-size: 13.5px; font-weight: 550; line-height: 19px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tp-chips { display: flex; flex-wrap: nowrap; gap: 6px; height: 22px; flex: none; overflow: hidden; }
+.tp-chip { display: inline-flex; align-items: center; gap: 5px; min-width: 0; flex: 0 1 auto; box-sizing: border-box; height: 22px; padding: 2px 7px; border-radius: 6px; border: 1px solid var(--tp-border); background: var(--tp-chip); color: var(--tp-fg-muted); font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .tp-chip > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tp-meta { color: var(--tp-fg-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tp-attention { display: inline-flex; align-items: center; gap: 5px; color: var(--tp-st-warning); font-size: 11px; font-weight: 500; }
-.tp-issues { display: flex; flex-direction: column; gap: 4px; padding-top: 8px; border-top: 1px dashed var(--tp-border); }
-.tp-issues-label { color: var(--tp-fg-faint); font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
-.tp-issue { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+.tp-meta { flex: none; height: 16px; line-height: 16px; color: var(--tp-fg-muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-children { flex: none; display: flex; align-items: center; gap: 6px; height: 16px; line-height: 16px; color: var(--tp-fg-muted); font-size: 11px; white-space: nowrap; overflow: hidden; }
+.tp-attention { flex: none; display: flex; align-items: center; gap: 5px; height: 16px; color: var(--tp-st-warning); font-size: 11px; font-weight: 600; }
+.tp-issues { flex: none; display: flex; flex-direction: column; gap: 4px; padding-top: 8px; border-top: 1px dashed var(--tp-border); }
+.tp-issues-label { height: 14px; line-height: 14px; color: var(--tp-fg-faint); font-size: 10px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.tp-issue { display: flex; align-items: center; gap: 8px; height: 16px; font-size: 11px; }
+.tp-issue-id { flex: none; color: var(--tp-fg-faint); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px; }
 .tp-issue-title { flex: 1; min-width: 0; color: var(--tp-fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tp-issue-status { color: var(--tp-fg-muted); text-transform: capitalize; white-space: nowrap; }
+.tp-issue-status[data-issue-status="blocked"] { color: var(--tp-st-danger); font-weight: 600; }
+.tp-issue-status[data-issue-status="in_progress"] { color: var(--tp-st-running); }
 
 .tp-edge { stroke: var(--tp-edge); stroke-width: 1.5; opacity: .55; fill: none; }
 .tp-edge[data-active="true"] { opacity: .95; stroke-width: 2; stroke-dasharray: 6 6; animation: tp-flow 1s linear infinite; }
@@ -228,6 +244,8 @@ function AgentTopologyNode({ data, selected }: NodeProps<FlowNode>) {
           <RoleIcon color="currentColor" size={14} />
         </span>
         <span className="tp-role-label">{node.role.toUpperCase()}</span>
+        <span className="tp-short-id">{node.shortId}</span>
+        <span className="tp-head-spacer" />
         <span className="tp-status" data-status={node.status}>
           <span className="tp-dot" />
           {TOPOLOGY_STATUS_LABELS[node.status]}
@@ -258,19 +276,28 @@ function AgentTopologyNode({ data, selected }: NodeProps<FlowNode>) {
           Needs attention
         </div>
       ) : null}
+      {data.childSummary ? (
+        <div className="tp-children">
+          <GitFork color="currentColor" size={11} />
+          <span>{data.childSummary}</span>
+        </div>
+      ) : null}
       {data.issues.length > 0 ? (
         <div className="tp-issues">
-          <span className="tp-issues-label">Assigned issues</span>
-          {data.issues.slice(0, 2).map((issue) => (
+          <span className="tp-issues-label">Beads issues · {data.issues.length}</span>
+          {data.issues.slice(0, TOPOLOGY_CARD_METRICS.maxIssues).map((issue) => (
             <div key={issue.id} className="tp-issue">
-              <span className="tp-issue-title">{issue.title}</span>
-              <span className="tp-issue-status">
+              <span className="tp-issue-id">{issue.id}</span>
+              <span className="tp-issue-title">{issue.title === issue.id ? "" : issue.title}</span>
+              <span className="tp-issue-status" data-issue-status={issue.status ?? "unknown"}>
                 {issue.status?.replace("_", " ") ?? "unknown"}
               </span>
             </div>
           ))}
-          {data.issues.length > 2 ? (
-            <span className="tp-meta">+{data.issues.length - 2} more</span>
+          {data.issues.length > TOPOLOGY_CARD_METRICS.maxIssues ? (
+            <span className="tp-meta">
+              +{data.issues.length - TOPOLOGY_CARD_METRICS.maxIssues} more
+            </span>
           ) : null}
         </div>
       ) : null}
@@ -317,21 +344,20 @@ function RelationshipEdge({
           </circle>
         ) : null}
       </g>
-      <EdgeLabelRenderer>
-        <div className="tp-edge-label nodrag nopan" data-kind={kind} style={labelStyle}>
-          {kind === "delegation" ? "delegates" : "supervises"}
-        </div>
-      </EdgeLabelRenderer>
+      {data?.showLabel ? (
+        <EdgeLabelRenderer>
+          <div className="tp-edge-label nodrag nopan" data-kind={kind} style={labelStyle}>
+            {kind === "delegation" ? "delegates" : "supervises"}
+          </div>
+        </EdgeLabelRenderer>
+      ) : null}
     </>
   );
 }
 
 const NODE_TYPES = { agent: AgentTopologyNode };
 const EDGE_TYPES = { relationship: RelationshipEdge };
-const FIT_VIEW_OPTIONS = { padding: 0.12, minZoom: 0.4, maxZoom: 1.15 };
-const NODE_WIDTH = 264;
-// Tall enough for a card with its assigned-issue block.
-const NODE_HEIGHT_ESTIMATE = 200;
+const FIT_VIEW_OPTIONS = { padding: 0.12, minZoom: 0.2, maxZoom: 1.15 };
 const PACKED_COLUMNS = 4;
 
 function layoutTopology(
@@ -382,28 +408,67 @@ function toFlowNodes(
   issueById: ReadonlyMap<string, BeadsIssue>,
   packed: boolean,
 ): FlowNode[] {
-  const positions = layoutTopology(nodes, edges, packed);
-  return nodes.map((node) => ({
-    id: node.id,
-    type: "agent",
-    position: positions.get(node.id) ?? { x: 0, y: 0 },
-    data: {
-      topologyNode: node,
-      issues: node.issueIds.map((issueId) => {
-        const issue = issueById.get(issueId);
-        return {
-          id: issueId,
-          title: issue?.title ?? issueId,
-          status: issue?.status ?? null,
-        };
-      }),
-    },
-    draggable: false,
-    connectable: false,
-    deletable: false,
-    selectable: true,
-    ariaLabel: `Open ${node.title}, ${node.role}, ${node.status}, ${node.issueIds.length} assigned issues`,
-  }));
+  const boxes = layoutTopology(nodes, edges, packed);
+  const childSummaries = summarizeChildren(nodes, edges);
+  return nodes.map((node) => {
+    const box = boxes.get(node.id);
+    const height = box?.height ?? 0;
+    return {
+      id: node.id,
+      type: "agent",
+      position: { x: box?.x ?? 0, y: box?.y ?? 0 },
+      width: TOPOLOGY_NODE_WIDTH,
+      height,
+      style: { width: TOPOLOGY_NODE_WIDTH, height },
+      data: {
+        topologyNode: node,
+        childSummary: childSummaries.get(node.id) ?? null,
+        issues: node.issueIds.map((issueId) => {
+          const issue = issueById.get(issueId);
+          return {
+            id: issueId,
+            title: issue?.title ?? issueId,
+            status: issue?.status ?? null,
+          };
+        }),
+      },
+      draggable: false,
+      connectable: false,
+      deletable: false,
+      selectable: true,
+      ariaLabel: `Open ${node.title}, ${node.role}, ${node.status}, ${node.issueIds.length} assigned issues`,
+    };
+  });
+}
+
+function summarizeChildren(
+  nodes: readonly TopologyNode[],
+  edges: readonly TopologyEdge[],
+): Map<string, string> {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const childrenByParent = new Map<string, TopologyNode[]>();
+  for (const edge of edges) {
+    const child = nodeById.get(edge.target);
+    if (!child || !nodeById.has(edge.source)) continue;
+    childrenByParent.set(edge.source, [...(childrenByParent.get(edge.source) ?? []), child]);
+  }
+  const summaries = new Map<string, string>();
+  for (const [parentId, children] of childrenByParent) {
+    const parent = nodeById.get(parentId);
+    const verb = parent?.role === "supervisor" ? "Supervises" : "Delegates to";
+    const roleCounts = TOPOLOGY_ROLE_ORDER.flatMap((role) => {
+      const count = children.filter((child) => child.role === role).length;
+      if (count === 0) return [];
+      const meta = TOPOLOGY_ROLE_META[role];
+      return [`${count} ${count === 1 ? meta.label : meta.plural}`];
+    });
+    const running = children.filter((child) => isActiveStatus(child.status)).length;
+    summaries.set(
+      parentId,
+      `${verb} ${roleCounts.join(", ")}${running > 0 ? ` · ${running} running` : ""}`,
+    );
+  }
+  return summaries;
 }
 
 function isActiveStatus(status: TopologyNode["status"] | undefined): boolean {
@@ -546,7 +611,7 @@ function TopologyCanvas({
         colorMode={colorScheme}
         fitView
         fitViewOptions={FIT_VIEW_OPTIONS}
-        minZoom={0.25}
+        minZoom={0.15}
         maxZoom={1.5}
         nodesDraggable={false}
         nodesConnectable={false}
@@ -620,13 +685,13 @@ export function estimateTopologyGraphSize(
   nodes: readonly TopologyNode[],
   edges: readonly TopologyEdge[],
 ): { width: number; height: number } {
-  let maxX = 0;
-  let maxY = 0;
-  for (const position of layoutTopology(nodes, edges, true).values()) {
-    maxX = Math.max(maxX, position.x);
-    maxY = Math.max(maxY, position.y);
+  let width = 0;
+  let height = 0;
+  for (const box of layoutTopology(nodes, edges, true).values()) {
+    width = Math.max(width, box.x + box.width);
+    height = Math.max(height, box.y + box.height);
   }
-  return { width: maxX + NODE_WIDTH, height: maxY + NODE_HEIGHT_ESTIMATE };
+  return { width, height };
 }
 
 export interface TopologyGraphProps {
@@ -655,18 +720,24 @@ export function TopologyGraph({
 }: TopologyGraphProps) {
   const flowEdges = useMemo<FlowEdge[]>(() => {
     const statusById = new Map(nodes.map((node) => [node.id, node.status]));
-    return edges.map((edge) => ({
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      type: "relationship",
-      data: {
-        kind: edge.kind,
-        active: isActiveStatus(statusById.get(edge.target)),
-        inferred: edge.provenance === "inferred",
-      },
-      selectable: false,
-    }));
+    const labelledParents = new Set<string>();
+    return edges.map((edge) => {
+      const showLabel = !labelledParents.has(edge.source);
+      labelledParents.add(edge.source);
+      return {
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        type: "relationship",
+        data: {
+          kind: edge.kind,
+          active: isActiveStatus(statusById.get(edge.target)),
+          inferred: edge.provenance === "inferred",
+          showLabel,
+        },
+        selectable: false,
+      };
+    });
   }, [edges, nodes]);
   const flowNodes = useMemo(
     () => toFlowNodes(nodes, edges, issueById, embedded),

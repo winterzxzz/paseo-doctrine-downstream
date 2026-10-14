@@ -5,28 +5,128 @@ interface TopologyLayoutEdge {
   target: string;
 }
 
-export interface TopologyPosition {
+/** Top-left corner and size of one agent card, in canvas pixels at zoom 1. */
+export interface TopologyBox {
   x: number;
   y: number;
+  width: number;
+  height: number;
 }
 
-const HORIZONTAL_GAP = 360;
-const VERTICAL_LANE_GAP = 235;
-const DISCONNECTED_TREE_GAP_LANES = 1;
+export const TOPOLOGY_NODE_WIDTH = 280;
+/** Horizontal space between relationship depths (Supervisor → Lead → Peer). */
+export const TOPOLOGY_DEPTH_GAP = 104;
+/** Horizontal space between columns of a Peer grid or the unrelated-agent grid. */
+export const TOPOLOGY_GRID_COLUMN_GAP = 24;
+/** Vertical space between sibling cards or sibling subtrees. */
+export const TOPOLOGY_ROW_GAP = 24;
+/** Vertical space between disconnected relationship trees. */
+export const TOPOLOGY_TREE_GAP = 56;
+/** More leaf children than this wrap into a grid instead of one tall column. */
+const LEAF_GRID_THRESHOLD = 4;
+const LEAF_GRID_ROWS = 4;
+const LEAF_GRID_MAX_COLUMNS = 3;
+const DEPTH_STRIDE = TOPOLOGY_NODE_WIDTH + TOPOLOGY_DEPTH_GAP;
+const GRID_STRIDE = TOPOLOGY_NODE_WIDTH + TOPOLOGY_GRID_COLUMN_GAP;
 
 /**
- * Lay each exact relationship tree out from left to right. X represents
- * relationship depth, while sibling branches receive separate Y lanes. A
- * parent is centered over its visible children so an edge can never imply that
- * one sibling spawned the next. Disconnected trees get a blank lane between
- * them.
+ * Fixed row heights of the agent card. The card renders at exactly the height
+ * this module computes (overflow clipped), and every row has a fixed height in
+ * CSS, so the layout never relies on DOM measurement and cards cannot overlap.
+ */
+export const TOPOLOGY_CARD_METRICS = {
+  padding: 12,
+  rowGap: 8,
+  head: 24,
+  title: 38,
+  chips: 22,
+  line: 16,
+  issuesHeader: 9 + 14,
+  issueRow: 16,
+  issueGap: 4,
+  maxIssues: 2,
+} as const;
+
+export interface TopologyCardContent {
+  hasProfile: boolean;
+  hasAssignment: boolean;
+  requiresAttention: boolean;
+  childCount: number;
+  issueCount: number;
+}
+
+export function topologyCardContentOf(node: TopologyNode, childCount: number): TopologyCardContent {
+  return {
+    hasProfile: node.launchProfile !== null,
+    hasAssignment: Boolean(node.launchProfile?.peerSubrole || node.assignmentDisposition),
+    requiresAttention: node.requiresAttention,
+    childCount,
+    issueCount: node.issueIds.length,
+  };
+}
+
+export function estimateTopologyNodeHeight(content: TopologyCardContent): number {
+  const m = TOPOLOGY_CARD_METRICS;
+  const rows: number[] = [m.head, m.title, m.chips];
+  if (content.hasProfile) rows.push(m.line);
+  if (content.hasAssignment) rows.push(m.line);
+  if (content.requiresAttention) rows.push(m.line);
+  if (content.childCount > 0) rows.push(m.line);
+  if (content.issueCount > 0) {
+    const shown = Math.min(content.issueCount, m.maxIssues);
+    const items = shown + (content.issueCount > m.maxIssues ? 1 : 0);
+    rows.push(m.issuesHeader + items * (m.issueRow + m.issueGap));
+  }
+  const body = rows.reduce((sum, row) => sum + row, 0) + m.rowGap * (rows.length - 1);
+  // Card border (1px top and bottom) plus slack.
+  return m.padding * 2 + body + 4;
+}
+
+function childCountsOf(
+  nodes: readonly TopologyNode[],
+  edges: readonly TopologyLayoutEdge[],
+): Map<string, number> {
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const counts = new Map<string, number>();
+  for (const edge of edges) {
+    if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) continue;
+    counts.set(edge.source, (counts.get(edge.source) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function heightsOf(
+  nodes: readonly TopologyNode[],
+  edges: readonly TopologyLayoutEdge[],
+): Map<string, number> {
+  const childCounts = childCountsOf(nodes, edges);
+  return new Map(
+    nodes.map((node) => [
+      node.id,
+      estimateTopologyNodeHeight(topologyCardContentOf(node, childCounts.get(node.id) ?? 0)),
+    ]),
+  );
+}
+
+interface LeafGrid {
+  columns: number;
+  rowHeights: number[];
+}
+
+/**
+ * Lay each relationship tree out from left to right: X is relationship depth,
+ * and every subtree owns a vertical band that no other subtree enters. A parent
+ * is centered on its children's band. Many leaf children (a Lead's Peers) wrap
+ * into a grid of up to three columns so the tree stays readable. Bands are
+ * computed from the fixed card heights, so cards never overlap.
  */
 export function layoutProjectTopologyXFirst(
   nodes: readonly TopologyNode[],
   edges: readonly TopologyLayoutEdge[],
-): Map<string, TopologyPosition> {
+): Map<string, TopologyBox> {
   const nodeIds = new Set(nodes.map((node) => node.id));
   const nodeOrder = new Map(nodes.map((node, index) => [node.id, index]));
+  const heights = heightsOf(nodes, edges);
   const childrenByParent = new Map<string, string[]>();
   const childIds = new Set<string>();
 
@@ -41,50 +141,111 @@ export function layoutProjectTopologyXFirst(
     children.sort((left, right) => (nodeOrder.get(left) ?? 0) - (nodeOrder.get(right) ?? 0));
   }
 
-  const positions = new Map<string, TopologyPosition>();
-  const placed = new Set<string>();
-  let nextLeafLane = 0;
+  // Claim each node for exactly one tree parent (first visit wins), so a cycle
+  // or a node with two parents is still placed exactly once.
+  const treeChildren = new Map<string, string[]>();
+  const claimed = new Set<string>();
+  const claim = (nodeId: string) => {
+    claimed.add(nodeId);
+    const owned: string[] = [];
+    for (const childId of childrenByParent.get(nodeId) ?? []) {
+      if (claimed.has(childId)) continue;
+      claimed.add(childId);
+      owned.push(childId);
+    }
+    treeChildren.set(nodeId, owned);
+    for (const childId of owned) claim(childId);
+  };
+  const roots: string[] = [];
+  for (const node of nodes) {
+    if (childIds.has(node.id) || claimed.has(node.id)) continue;
+    roots.push(node.id);
+    claim(node.id);
+  }
+  // Cycles are invalid topology, but keep every node visible while the
+  // warning/receipt layer reports the malformed relationship.
+  for (const node of nodes) {
+    if (claimed.has(node.id)) continue;
+    roots.push(node.id);
+    claim(node.id);
+  }
 
-  const placeTree = (rootId: string) => {
-    const visit = (
-      nodeId: string,
-      depth: number,
-    ): { firstLane: number; lastLane: number } | null => {
-      if (placed.has(nodeId)) return null;
-      placed.add(nodeId);
-      const childRanges = (childrenByParent.get(nodeId) ?? []).flatMap((childId) => {
-        const range = visit(childId, depth + 1);
-        return range ? [range] : [];
-      });
-      if (childRanges.length === 0) {
-        const lane = nextLeafLane;
-        nextLeafLane += 1;
-        positions.set(nodeId, { x: depth * HORIZONTAL_GAP, y: lane * VERTICAL_LANE_GAP });
-        return { firstLane: lane, lastLane: lane };
-      }
-      const firstLane = childRanges[0].firstLane;
-      const lastLane = childRanges.at(-1)?.lastLane ?? firstLane;
-      positions.set(nodeId, {
-        x: depth * HORIZONTAL_GAP,
-        y: ((firstLane + lastLane) / 2) * VERTICAL_LANE_GAP,
-      });
-      return { firstLane, lastLane };
-    };
-    const range = visit(rootId, 0);
-    if (range) nextLeafLane += DISCONNECTED_TREE_GAP_LANES;
+  const heightOf = (nodeId: string) => heights.get(nodeId) ?? 0;
+  const leafGridOf = (nodeId: string): LeafGrid | null => {
+    const children = treeChildren.get(nodeId) ?? [];
+    if (children.length <= LEAF_GRID_THRESHOLD) return null;
+    if (children.some((childId) => (treeChildren.get(childId) ?? []).length > 0)) return null;
+    const columns = Math.min(LEAF_GRID_MAX_COLUMNS, Math.ceil(children.length / LEAF_GRID_ROWS));
+    const rowHeights: number[] = [];
+    children.forEach((childId, index) => {
+      const row = Math.floor(index / columns);
+      rowHeights[row] = Math.max(rowHeights[row] ?? 0, heightOf(childId));
+    });
+    return { columns, rowHeights };
   };
 
-  for (const node of nodes) {
-    if (!childIds.has(node.id)) placeTree(node.id);
+  const bandCache = new Map<string, number>();
+  const childrenBand = (nodeId: string): number => {
+    const children = treeChildren.get(nodeId) ?? [];
+    if (children.length === 0) return 0;
+    const grid = leafGridOf(nodeId);
+    const bands = grid ? grid.rowHeights : children.map(bandOf);
+    return bands.reduce((sum, band) => sum + band, 0) + TOPOLOGY_ROW_GAP * (bands.length - 1);
+  };
+  const bandOf = (nodeId: string): number => {
+    const cached = bandCache.get(nodeId);
+    if (cached !== undefined) return cached;
+    const band = Math.max(heightOf(nodeId), childrenBand(nodeId));
+    bandCache.set(nodeId, band);
+    return band;
+  };
+
+  const boxes = new Map<string, TopologyBox>();
+  const place = (nodeId: string, depth: number, top: number) => {
+    const band = bandOf(nodeId);
+    const x = depth * DEPTH_STRIDE;
+    boxes.set(nodeId, {
+      x,
+      y: top + (band - heightOf(nodeId)) / 2,
+      width: TOPOLOGY_NODE_WIDTH,
+      height: heightOf(nodeId),
+    });
+    const children = treeChildren.get(nodeId) ?? [];
+    if (children.length === 0) return;
+    const childTop = top + (band - childrenBand(nodeId)) / 2;
+    const grid = leafGridOf(nodeId);
+    if (grid) {
+      let rowTop = childTop;
+      grid.rowHeights.forEach((rowHeight, row) => {
+        for (let column = 0; column < grid.columns; column += 1) {
+          const childId = children[row * grid.columns + column];
+          if (!childId) break;
+          boxes.set(childId, {
+            x: x + DEPTH_STRIDE + column * GRID_STRIDE,
+            y: rowTop,
+            width: TOPOLOGY_NODE_WIDTH,
+            height: heightOf(childId),
+          });
+        }
+        rowTop += rowHeight + TOPOLOGY_ROW_GAP;
+      });
+      return;
+    }
+    let cursor = childTop;
+    for (const childId of children) {
+      place(childId, depth + 1, cursor);
+      cursor += bandOf(childId) + TOPOLOGY_ROW_GAP;
+    }
+  };
+
+  let top = 0;
+  for (const rootId of roots) {
+    place(rootId, 0, top);
+    const hasRelationships = (treeChildren.get(rootId) ?? []).length > 0;
+    top += bandOf(rootId) + (hasRelationships ? TOPOLOGY_TREE_GAP : TOPOLOGY_ROW_GAP);
   }
-  // Cycles are invalid topology, but keep every node visible in a deterministic
-  // lane while the warning/receipt layer reports the malformed relationship.
-  for (const node of nodes) placeTree(node.id);
-
-  return positions;
+  return boxes;
 }
-
-const PACKED_COLUMN_GAP = 296;
 
 /**
  * Layout for a page that stacks many graphs: relationship trees keep the
@@ -95,7 +256,7 @@ export function layoutProjectTopologyPacked(
   nodes: readonly TopologyNode[],
   edges: readonly TopologyLayoutEdge[],
   columns: number,
-): Map<string, TopologyPosition> {
+): Map<string, TopologyBox> {
   const nodeIds = new Set(nodes.map((node) => node.id));
   const related = new Set<string>();
   for (const edge of edges) {
@@ -103,23 +264,32 @@ export function layoutProjectTopologyPacked(
     related.add(edge.source);
     related.add(edge.target);
   }
-  const positions = layoutProjectTopologyXFirst(
+  const boxes = layoutProjectTopologyXFirst(
     nodes.filter((node) => related.has(node.id)),
     edges,
   );
   let gridTop = 0;
-  for (const position of positions.values()) {
-    gridTop = Math.max(gridTop, position.y + VERTICAL_LANE_GAP);
+  for (const box of boxes.values()) {
+    gridTop = Math.max(gridTop, box.y + box.height + TOPOLOGY_TREE_GAP);
   }
+  const unrelated = nodes.filter((node) => !related.has(node.id));
+  const heights = heightsOf(unrelated, []);
   const safeColumns = Math.max(1, Math.floor(columns));
-  let index = 0;
-  for (const node of nodes) {
-    if (related.has(node.id)) continue;
-    positions.set(node.id, {
-      x: (index % safeColumns) * PACKED_COLUMN_GAP,
-      y: gridTop + Math.floor(index / safeColumns) * VERTICAL_LANE_GAP,
+  let rowTop = gridTop;
+  for (let start = 0; start < unrelated.length; start += safeColumns) {
+    const row = unrelated.slice(start, start + safeColumns);
+    let rowHeight = 0;
+    row.forEach((node, column) => {
+      const height = heights.get(node.id) ?? 0;
+      rowHeight = Math.max(rowHeight, height);
+      boxes.set(node.id, {
+        x: column * GRID_STRIDE,
+        y: rowTop,
+        width: TOPOLOGY_NODE_WIDTH,
+        height,
+      });
     });
-    index += 1;
+    rowTop += rowHeight + TOPOLOGY_ROW_GAP;
   }
-  return positions;
+  return boxes;
 }
