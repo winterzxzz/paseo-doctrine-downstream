@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.2-paseo.79 - 2026-10-15
+
+### Added
+
+- Settings → host → Agents có thẻ **Lead model**: chọn model cho Lead do Supervisor hoặc agent
+  khác tạo. Route đầu là mặc định, các route sau là fallback có tên; danh sách rỗng thì Lead kế thừa
+  route của caller. Trước đây chỉ sửa được `daemon.leadRoutes` trong `config.json`.
+- Factory Droid host được Lead (trước chỉ Supervisor/Peer), nên chọn được model Droid làm Lead model.
+
 ## 0.11.2-paseo.77 - 2026-10-14
 
 ### Fixed
