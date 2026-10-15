@@ -4,8 +4,8 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
 export const metadata: Metadata = {
-  title: "Paseo Docs — Tổng quan dự án",
-  description: "Bản đồ thành phần, use case và các workflow chính của Paseo, vẽ thành sơ đồ.",
+  title: "SLP Docs — Supervisor · Lead · Peer",
+  description: "Cơ chế SLP bằng sơ đồ: vai trò, quyền, assignment, handback, Council, thay Lead và các anti-pattern.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

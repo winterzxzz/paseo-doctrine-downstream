@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Markdown } from "@/components/markdown";
 import { Toc } from "@/components/toc";
 import { Words } from "@/components/words";
-import { PAGES, getPageMarkdown, getToc } from "@/lib/overview";
+import { PAGES, getPageMarkdown, getToc } from "@/lib/guide";
 
 export const dynamicParams = false;
 
@@ -17,7 +17,7 @@ type Params = Promise<{ slug: string }>;
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { slug } = await params;
   const page = PAGES.find((p) => p.slug === slug);
-  return { title: page ? `${page.label} — Paseo Docs` : "Paseo Docs" };
+  return { title: page ? `${page.label} — SLP Docs` : "SLP Docs" };
 }
 
 export default async function DocPage({ params }: { params: Params }) {

@@ -1,4 +1,4 @@
-import type { TocEntry } from "@/lib/overview";
+import type { TocEntry } from "@/lib/guide";
 
 export function Toc({ entries }: { entries: TocEntry[] }) {
   return (

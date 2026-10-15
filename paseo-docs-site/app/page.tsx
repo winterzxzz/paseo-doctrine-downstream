@@ -1,37 +1,37 @@
 import Link from "next/link";
 import { Markdown } from "@/components/markdown";
 import { Words } from "@/components/words";
-import { getOverview, getSection } from "@/lib/overview";
+import { getOverview, getSection } from "@/lib/guide";
 
 const CARDS = [
   {
     href: "/workflow/",
     title: "Workflow",
-    caption: "Bảy luồng chính, từ daemon khởi động tới điều phối Lead và Peer.",
-    glow: "#2BBEFD",
-    pills: ["Client", "Daemon", "AgentManager", "Provider", "Timeline"],
+    caption: "Một assignment đi từ Human qua Lead, Peer, Reviewer tới verdict.",
+    glow: "#e0a458",
+    pills: ["Human", "Lead", "Peer", "Reviewer", "Verdict"],
     big: true,
   },
   {
-    href: "/thanh-phan/",
-    title: "Thành phần",
-    caption: "Mỗi package, mỗi thư mục, mỗi vai trò làm việc gì.",
-    glow: "#0A8CFA",
-    pills: ["server", "app", "cli", "relay", "protocol"],
+    href: "/vai-tro/",
+    title: "Vai trò",
+    caption: "Ai giữ quyền gì, và không được làm gì.",
+    glow: "#c06c9a",
+    pills: ["Supervisor", "Lead", "Peer"],
   },
   {
-    href: "/use-case/",
-    title: "Use case",
-    caption: "Human, Lead, Peer, Supervisor và Hub dùng Paseo cho việc gì.",
-    glow: "#7c5cff",
-    pills: ["Human", "Lead", "Peer", "Supervisor"],
+    href: "/co-che/",
+    title: "Cơ chế",
+    caption: "Lease, handback, một writer, evidence, Council.",
+    glow: "#7fa8bd",
+    pills: ["Assignment", "Handback", "Beads", "Council"],
   },
 ] as const;
 
 const STATS = [
-  ["6", "provider được hỗ trợ trong bản downstream"],
-  ["4", "bề mặt client: desktop, điện thoại, web, CLI"],
-  ["0", "telemetry của Paseo; relay mã hóa đầu cuối"],
+  ["1", "write Owner cho mỗi scope đang thay đổi"],
+  ["4", "verdict của Lead: ACCEPT, REOPEN, REJECT, UNKNOWN"],
+  ["0", "lần tự làm rồi tự duyệt một thay đổi lớn"],
 ] as const;
 
 export default function Home() {
@@ -44,14 +44,14 @@ export default function Home() {
           <div className="mx-auto max-w-4xl text-center">
             <span className="fade-up inline-flex h-[38px] items-center gap-[7px] rounded-full bg-black pr-4 pl-[11px] shadow-[0_12px_30px_rgba(0,0,0,0.22)]">
               <span className="h-2 w-2 rounded-full bg-accent" />
-              <span className="font-hand relative top-[0.08em] text-[26px] leading-none text-white">Paseo Docs</span>
+              <span className="font-hand relative top-[0.08em] text-[26px] leading-none text-white">SLP Docs</span>
             </span>
             <h1 className="font-display mx-auto mt-4 max-w-3xl text-balance text-[44px] leading-[1.06] md:text-[72px]">
-              <Words text="Coding agent của bạn, trong túi bạn" />
+              <Words text="Nhiều agent, một chuỗi quyền rõ ràng" />
             </h1>
             <p className="fade-up mx-auto mt-6 max-w-2xl text-lg leading-[1.45] text-muted [animation-delay:400ms] md:text-[20px]">
-              Chạy, theo dõi và điều khiển Claude Code, Codex, Cursor và các agent khác ngay trên máy bạn, từ desktop,
-              điện thoại, trình duyệt hay dòng lệnh. Code ở lại trên máy bạn.
+              SLP chia việc điều phối coding agent cho ba vai: Supervisor quan sát quy trình, Lead giữ quyết định
+              của project, Peer làm một việc có biên giới. Human giữ quyền cuối cùng.
             </p>
             <div className="fade-up mt-16 flex flex-col items-center gap-4 [animation-delay:550ms]">
               <div className="relative flex flex-wrap justify-center gap-3">
@@ -63,18 +63,18 @@ export default function Home() {
                   Xem workflow
                 </Link>
                 <Link
-                  href="/thanh-phan/"
+                  href="/vai-tro/"
                   className="inline-flex items-center rounded-full bg-surface px-6 py-3 text-[15px] font-medium text-fg transition-colors hover:bg-surface-2"
                 >
-                  Các thành phần
+                  Các vai trò
                 </Link>
               </div>
               <span className="flex flex-wrap items-center justify-center gap-x-[11px] text-[13px] font-medium text-subtle">
-                <span>Local-first</span>
-                <i aria-hidden="true">·</i>
-                <span>Relay mã hóa E2E</span>
-                <i aria-hidden="true">·</i>
                 <span>Supervisor · Lead · Peer</span>
+                <i aria-hidden="true">·</i>
+                <span>Một writer mỗi scope</span>
+                <i aria-hidden="true">·</i>
+                <span>Evidence thay cho trạng thái</span>
               </span>
             </div>
           </div>
@@ -107,16 +107,18 @@ export default function Home() {
       </section>
 
       <section className="border-y border-line bg-bg-raised py-24">
-        <div className="mx-auto grid max-w-[1080px] gap-10 px-6 md:grid-cols-[1fr_1.4fr]">
-          <div>
-            <p className="text-[17px] font-semibold tracking-[-0.01em] text-accent">Bắt đầu</p>
-            <h2 className="font-display mt-4 text-balance text-4xl md:text-[48px] md:leading-[1.15]">Paseo là gì</h2>
-            <div className="mt-6 text-muted">
+        <div className="mx-auto max-w-[1080px] px-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            <div>
+              <p className="text-[17px] font-semibold tracking-[-0.01em] text-accent">Bắt đầu</p>
+              <h2 className="font-display mt-4 text-balance text-4xl md:text-[52px] md:leading-[1.15]">SLP là gì</h2>
+            </div>
+            <div className="self-end text-lg leading-relaxed text-muted">
               <Markdown source={intro} />
             </div>
           </div>
-          <div className="self-end">
-            <Markdown source={getSection("Paseo là gì")} />
+          <div className="mx-auto mt-12 max-w-3xl">
+            <Markdown source={getSection("SLP là gì")} />
           </div>
         </div>
       </section>

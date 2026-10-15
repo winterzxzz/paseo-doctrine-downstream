@@ -1,14 +1,14 @@
 import Link from "next/link";
-import { PAGES, REPO_URL } from "@/lib/overview";
+import { PAGES, REPO_URL } from "@/lib/guide";
 import { Logo } from "./logo";
 
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 bg-bg/75 backdrop-blur-xl backdrop-saturate-[180%]">
       <div className="mx-auto flex h-14 max-w-[1080px] items-center justify-between px-5">
-        <Link className="flex items-center gap-[9px]" href="/" aria-label="Paseo Docs — trang chủ">
+        <Link className="flex items-center gap-[9px]" href="/" aria-label="SLP Docs — trang chủ">
           <Logo />
-          <span className="text-[17px] font-medium tracking-[-0.025em]">Paseo Docs</span>
+          <span className="text-[17px] font-medium tracking-[-0.025em]">SLP Docs</span>
         </Link>
         <nav className="hidden items-center gap-1 md:flex">
           {PAGES.map((page) => (

@@ -2,7 +2,7 @@ import type { ReactElement, ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
-import { resolveDocHref } from "@/lib/overview";
+import { resolveDocHref } from "@/lib/guide";
 import { Mermaid } from "./mermaid";
 
 interface CodeProps {

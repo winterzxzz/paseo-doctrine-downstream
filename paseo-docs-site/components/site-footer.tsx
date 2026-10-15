@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { PAGES, REPO_URL } from "@/lib/overview";
+import { PAGES, REPO_URL } from "@/lib/guide";
 import { Logo } from "./logo";
 
 const DOC_LINKS = [
-  ["Kiến trúc", "architecture.md"],
-  ["Vòng đời agent", "agent-lifecycle.md"],
-  ["Foundation doctrine", "foundation-doctrine.md"],
-  ["Hướng dẫn SLP", "slp-usage.md"],
-  ["Beads Central", "beads-central.md"],
+  ["Role Contracts", "foundation/dist/docs/ROLE_CONTRACTS.md"],
+  ["Demonthorn Deep Dive", "foundation/dist/references/demonthorn-agent-orchestration-deep-dive.md"],
+  ["Assignment và Handback", "foundation/dist/docs/ASSIGNMENT_AND_HANDBACK.md"],
+  ["SLP usage", "docs/slp-usage.md"],
+  ["Coordination và handoff", "docs/slp-coordination-handoff.md"],
 ] as const;
 
 export function SiteFooter() {
@@ -17,10 +17,10 @@ export function SiteFooter() {
         <div>
           <div className="flex items-center gap-2.5">
             <Logo className="h-6 w-6" />
-            <span className="font-display text-xl text-fg">Paseo Docs</span>
+            <span className="font-display text-xl text-fg">SLP Docs</span>
           </div>
           <p className="mt-4 max-w-xs text-sm leading-relaxed text-subtle">
-            Nội dung lấy từ <code className="text-fg">docs/overview.md</code>. Sửa file đó, build lại, site cập nhật theo.
+            Nội dung lấy từ <code className="text-fg">docs/slp-guide.md</code>. Sửa file đó, build lại, site cập nhật theo.
           </p>
         </div>
         <div>
@@ -45,7 +45,7 @@ export function SiteFooter() {
           <ul className="mt-4 space-y-3 text-sm">
             {DOC_LINKS.map(([label, file]) => (
               <li key={file}>
-                <a className="hover:text-fg" href={`${REPO_URL}/blob/main/docs/${file}`} target="_blank" rel="noopener noreferrer">
+                <a className="hover:text-fg" href={`${REPO_URL}/blob/main/${file}`} target="_blank" rel="noopener noreferrer">
                   {label}
                 </a>
               </li>
@@ -54,7 +54,7 @@ export function SiteFooter() {
         </div>
       </div>
       <div className="mx-auto flex max-w-[1080px] flex-wrap justify-between gap-4 border-t border-line px-6 py-6 text-xs text-subtle">
-        <span>Paseo downstream · AGPL-3.0</span>
+        <span>Supervisor · Lead · Peer</span>
         <a className="hover:text-fg" href={REPO_URL} target="_blank" rel="noopener noreferrer">
           winterzxzz/paseo-doctrine-downstream
         </a>

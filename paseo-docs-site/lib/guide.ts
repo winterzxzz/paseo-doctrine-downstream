@@ -3,10 +3,10 @@ import { join } from "node:path";
 import GithubSlugger from "github-slugger";
 
 /**
- * docs/overview.md is the single source of the content. The site only adds layout, so a fact
+ * docs/slp-guide.md is the single source of the content. The site only adds layout, so a fact
  * edited in the markdown shows up here on the next build and never drifts into a second copy.
  */
-const OVERVIEW_PATH = join(process.cwd(), "..", "docs", "overview.md");
+const GUIDE_PATH = join(process.cwd(), "..", "docs", "slp-guide.md");
 
 export const REPO_URL = "https://github.com/winterzxzz/paseo-doctrine-downstream";
 const DOCS_BLOB_BASE = `${REPO_URL}/blob/main/docs/`;
@@ -15,7 +15,7 @@ export interface Page {
   slug: string;
   /** Short label for the nav. */
   label: string;
-  /** Exact `## ` headings from overview.md, in order, that this page renders. */
+  /** Exact `## ` headings from slp-guide.md, in order, that this page renders. */
   headings: string[];
   eyebrow: string;
   title: string;
@@ -24,28 +24,36 @@ export interface Page {
 
 export const PAGES: Page[] = [
   {
-    slug: "thanh-phan",
-    label: "Thành phần",
-    headings: ["Bản đồ thành phần", "Tác dụng của từng thành phần"],
-    eyebrow: "Thành phần",
-    title: "Mỗi phần làm một việc",
-    lede: "Daemon ở giữa, client ở ngoài, provider chạy như process con. Xem ai làm gì và đọc tiếp ở đâu.",
+    slug: "vai-tro",
+    label: "Vai trò",
+    headings: ["Vai trò"],
+    eyebrow: "Vai trò",
+    title: "Bốn vai, bốn loại quyền",
+    lede: "Human giữ mục tiêu, Lead giữ project, Peer giữ một việc, Supervisor giữ chất lượng quy trình. Xem ai được làm gì và không được làm gì.",
   },
   {
-    slug: "use-case",
-    label: "Use case",
-    headings: ["Use case"],
-    eyebrow: "Use case",
-    title: "Ai dùng Paseo cho việc gì",
-    lede: "Human, Lead, Peer, Supervisor và các tích hợp bên ngoài, mỗi bên một nhóm việc.",
+    slug: "co-che",
+    label: "Cơ chế",
+    headings: ["Cơ chế"],
+    eyebrow: "Cơ chế",
+    title: "Luật nào giữ cho nhiều agent làm đúng",
+    lede: "Ba lớp instruction, assignment và handback, một writer mỗi scope, evidence thay cho trạng thái, issue graph, Room, tín hiệu, thay Lead và Council.",
   },
   {
     slug: "workflow",
     label: "Workflow",
-    headings: ["Workflow chính"],
+    headings: ["Workflow"],
     eyebrow: "Workflow",
-    title: "Bảy luồng bạn cần nắm",
-    lede: "Từ lúc daemon khởi động, chạy một agent, kết nối điện thoại, tới điều phối nhiều agent và vòng phát triển trong repo.",
+    title: "Việc chạy qua những bước nào",
+    lede: "Từ một assignment, chọn topology, lát cắt kiến trúc, Council, tới lúc Supervisor phát hiện vấn đề và khi phải thay Lead.",
+  },
+  {
+    slug: "use-case",
+    label: "Use case",
+    headings: ["Use case", "Anti-pattern"],
+    eyebrow: "Use case",
+    title: "Tình huống thật và bẫy thường gặp",
+    lede: "Mỗi tình huống dùng topology nào, điểm mấu chốt là gì, và những anti-pattern cần chặn sớm.",
   },
 ];
 
@@ -55,10 +63,10 @@ interface Section {
 }
 
 function readSections(): { title: string; intro: string; sections: Section[] } {
-  const source = readFileSync(OVERVIEW_PATH, "utf8");
+  const source = readFileSync(GUIDE_PATH, "utf8");
   const lines = source.split("\n");
   const titleLine = lines.findIndex((line) => line.startsWith("# "));
-  if (titleLine < 0) throw new Error(`${OVERVIEW_PATH} has no "# " title`);
+  if (titleLine < 0) throw new Error(`${GUIDE_PATH} has no "# " title`);
 
   const sections: Section[] = [];
   const introLines: string[] = [];
@@ -83,7 +91,7 @@ export function getOverview() {
 
 export function getSection(heading: string): string {
   const section = readSections().sections.find((s) => s.heading === heading);
-  if (!section) throw new Error(`docs/overview.md has no "## ${heading}" section`);
+  if (!section) throw new Error(`docs/slp-guide.md has no "## ${heading}" section`);
   return section.body.trim();
 }
 
@@ -114,7 +122,7 @@ export function getToc(markdown: string): TocEntry[] {
   return entries;
 }
 
-/** overview.md links are relative to docs/; on the site they point at the files on GitHub. */
+/** slp-guide.md links are relative to docs/; on the site they point at the files on GitHub. */
 export function resolveDocHref(href: string): string {
   if (/^[a-z]+:/i.test(href) || href.startsWith("#")) return href;
   return new URL(href, DOCS_BLOB_BASE).toString();
