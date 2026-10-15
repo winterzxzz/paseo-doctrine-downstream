@@ -1,0 +1,201 @@
+@import "tailwindcss";
+
+/* Tokens follow winterzxzz.tech: warm off-white surfaces, near-black ink, one blue accent. */
+@theme {
+  --font-sans: "SN Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-hand: "Patrick Hand", cursive;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  --color-bg: #ffffff;
+  --color-bg-raised: #fbfaf7;
+  --color-bg-sunken: #f5f5f7;
+  --color-fg: #111211;
+  --color-fg-soft: #2a2b2a;
+  --color-muted: #6e6e73;
+  --color-subtle: #86868b;
+  --color-surface: #f4f4f2;
+  --color-surface-2: #ebebe8;
+  --color-line: #e8e8e7;
+  --color-accent: #1f6fe5;
+  --color-accent-soft: #eaf1fd;
+  --color-navy: #0e1b3a;
+  --color-ink: #151615;
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  color: var(--color-fg);
+  background: #4a80e838;
+}
+
+.font-display {
+  letter-spacing: -0.035em;
+  font-weight: 600;
+}
+
+.hand-note {
+  font-family: var(--font-hand);
+  color: var(--color-accent);
+  line-height: 1;
+  transform: rotate(-4deg);
+}
+
+@keyframes word-rise {
+  0% {
+    opacity: 0;
+    filter: blur(4px);
+    transform: translateY(0.35em);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+.word {
+  display: inline-block;
+  opacity: 0;
+  animation: 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards word-rise;
+  animation-delay: calc(var(--i) * var(--stagger, 50ms));
+}
+
+@keyframes fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.fade-up {
+  animation: 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both fade-up;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .word,
+  .fade-up {
+    opacity: 1;
+    animation: none;
+  }
+}
+
+/* Rendered overview.md */
+.prose-docs {
+  font-size: 16.5px;
+  color: var(--color-fg);
+}
+.prose-docs > * + * {
+  margin-top: 1.1em;
+}
+.prose-docs h2 {
+  scroll-margin-top: 5rem;
+  margin-top: 3.5rem;
+  font-size: 2rem;
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+  font-weight: 600;
+  text-wrap: balance;
+}
+.prose-docs h2:first-child {
+  margin-top: 0;
+}
+.prose-docs h3 {
+  scroll-margin-top: 5rem;
+  margin-top: 3rem;
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+}
+.prose-docs p,
+.prose-docs li {
+  color: #3a3b3a;
+}
+.prose-docs ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+.prose-docs a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-decoration-color: #1f6fe540;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.15s;
+}
+.prose-docs a:hover {
+  text-decoration-color: var(--color-accent);
+}
+.prose-docs strong {
+  color: var(--color-fg);
+  font-weight: 600;
+}
+.prose-docs :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: 0.375rem;
+  padding: 0.08em 0.38em;
+  color: var(--color-fg);
+}
+.prose-docs pre {
+  overflow-x: auto;
+  border-radius: 1rem;
+  background: var(--color-ink);
+  color: #f4f4f2;
+  padding: 1.1rem 1.25rem;
+  font-size: 0.85rem;
+}
+.prose-docs .table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-line);
+  border-radius: 1.5rem;
+  background: var(--color-bg);
+}
+.prose-docs table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.prose-docs thead th {
+  background: var(--color-bg-raised);
+  color: var(--color-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-align: left;
+  letter-spacing: 0.01em;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--color-line);
+  white-space: nowrap;
+}
+.prose-docs tbody td {
+  padding: 0.85rem 1rem;
+  vertical-align: top;
+  border-bottom: 1px solid var(--color-line);
+  color: #3a3b3a;
+}
+.prose-docs tbody tr:last-child td {
+  border-bottom: 0;
+}
+.prose-docs tbody td:first-child {
+  color: var(--color-fg);
+  font-weight: 500;
+}
+.prose-docs tbody tr:hover td {
+  background: #fbfaf7;
+}

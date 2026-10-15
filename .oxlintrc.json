@@ -3,7 +3,7 @@
   "options": {
     "typeAware": false
   },
-  "ignorePatterns": [".dev/**", "slp-blueprint-site/**"],
+  "ignorePatterns": [".dev/**", "slp-blueprint-site/**", "paseo-docs-site/**"],
   "plugins": ["react", "react-perf", "unicorn", "typescript", "oxc", "import", "promise"],
   "categories": {
     "correctness": "error",

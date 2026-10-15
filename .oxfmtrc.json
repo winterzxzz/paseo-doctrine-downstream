@@ -18,6 +18,7 @@
     "components/beads-central-src/**",
     "foundation/dist/**",
     "skills/council/**",
-    "slp-blueprint-site/**"
+    "slp-blueprint-site/**",
+    "paseo-docs-site/**"
   ]
 }
