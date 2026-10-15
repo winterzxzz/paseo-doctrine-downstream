@@ -38,6 +38,7 @@ interface SupportedMutableConfigPatch {
   peerDelegationProfileIds?: MutableDaemonConfig["peerDelegationProfileIds"];
   peerDelegationProviderPriority?: MutableDaemonConfig["peerDelegationProviderPriority"];
   peerDelegationDefaultSubrole?: MutableDaemonConfig["peerDelegationDefaultSubrole"];
+  leadRoutes?: MutableDaemonConfig["leadRoutes"];
   terminalProfiles?: MutableDaemonConfig["terminalProfiles"];
   agentProfiles?: MutableDaemonConfig["agentProfiles"];
   skills?: MutableDaemonConfig["skills"];
@@ -255,6 +256,7 @@ const PERSISTED_TO_MUTABLE_PATH = new Map<string, string>([
   ["daemon.peerDelegationProfileIds", "peerDelegationProfileIds"],
   ["daemon.peerDelegationProviderPriority", "peerDelegationProviderPriority"],
   ["daemon.peerDelegationDefaultSubrole", "peerDelegationDefaultSubrole"],
+  ["daemon.leadRoutes", "leadRoutes"],
   ["daemon.terminalProfiles", "terminalProfiles"],
   ["daemon.agentProfiles", "agentProfiles"],
   ["app.baseUrl", "app.baseUrl"],
@@ -311,6 +313,7 @@ function pickFoundationPatchFields(
   | "peerDelegationProfileIds"
   | "peerDelegationProviderPriority"
   | "peerDelegationDefaultSubrole"
+  | "leadRoutes"
 > {
   return {
     ...(patch.beadsCentral !== undefined ? { beadsCentral: patch.beadsCentral } : {}),
@@ -328,6 +331,7 @@ function pickFoundationPatchFields(
     ...(patch.peerDelegationDefaultSubrole !== undefined
       ? { peerDelegationDefaultSubrole: patch.peerDelegationDefaultSubrole }
       : {}),
+    ...(patch.leadRoutes !== undefined ? { leadRoutes: patch.leadRoutes } : {}),
   };
 }
 
@@ -487,10 +491,8 @@ export class DaemonConfigStore {
     return this.current;
   }
 
-  // Lead routes stay out of the wire config: they are read from the last applied config file so
-  // `paseo daemon reload` takes effect without a protocol field.
   public getLeadRoutes(): readonly string[] | undefined {
-    return this.lastKnownPersisted.daemon?.leadRoutes;
+    return this.current.leadRoutes;
   }
 
   public patch(partial: MutableDaemonConfigPatch): MutableDaemonConfig {
@@ -534,6 +536,7 @@ export class DaemonConfigStore {
       merged.skills = { selection: parsedPatch.skills.selection };
     }
     if (parsedPatch.plugins !== undefined) merged.plugins = parsedPatch.plugins;
+    applyLeadRoutesPatch(merged, parsedPatch.leadRoutes);
     const parsedNext = MutableDaemonConfigSchema.parse(
       omitMetadataGenerationProvidersFromConfig(
         omitProvidersFromConfig(merged, removedProviders),
@@ -607,9 +610,6 @@ export class DaemonConfigStore {
         )
       );
     });
-    if (!isEqualValue(this.lastKnownPersisted.daemon?.leadRoutes, persisted.daemon?.leadRoutes)) {
-      appliedPaths.push("daemon.leadRoutes");
-    }
     const restartRequiredPaths = compactOwnedPaths(
       diffPaths(this.startupPersisted, persisted).filter((path) => {
         if (path === "$schema" || path === "version") return false;
@@ -813,6 +813,16 @@ function mergeMutableAgentPatch(
   return Object.keys(next).length > 0 ? (next as PersistedConfig["agents"]) : undefined;
 }
 
+// An empty Lead route list clears the Human pin instead of persisting an invalid empty list.
+function applyLeadRoutesPatch(
+  target: { leadRoutes?: string[] },
+  leadRoutes: readonly string[] | undefined,
+): void {
+  if (leadRoutes === undefined) return;
+  if (leadRoutes.length > 0) target.leadRoutes = [...leadRoutes];
+  else delete target.leadRoutes;
+}
+
 function mergeMutableDaemonPatch(
   persistedDaemon: PersistedConfig["daemon"],
   patch: Omit<SupportedMutableConfigPatch, "removeProviders">,
@@ -851,6 +861,7 @@ function mergeMutableDaemonPatch(
   if (patch.peerDelegationDefaultSubrole !== undefined) {
     next.peerDelegationDefaultSubrole = patch.peerDelegationDefaultSubrole;
   }
+  applyLeadRoutesPatch(next, patch.leadRoutes);
   if (patch.terminalProfiles !== undefined) next.terminalProfiles = patch.terminalProfiles;
   if (patch.agentProfiles !== undefined) next.agentProfiles = patch.agentProfiles;
   return Object.keys(next).length > 0 ? next : undefined;

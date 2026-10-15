@@ -255,6 +255,15 @@ export const PeerDelegationModelRouteSchema = z
 
 export type PeerDelegationModelRoute = z.infer<typeof PeerDelegationModelRouteSchema>;
 
+/** A Human-pinned Lead route, written as `provider/model`. */
+export const LeadRouteSchema = z
+  .string()
+  .trim()
+  .regex(
+    /^[^/\s]+\/\S+$/u,
+    "lead route must be provider/model, for example claude/claude-fable-5-1",
+  );
+
 const MutablePeerDelegationConfigSchema = z
   .object({
     enabled: z.boolean(),
@@ -328,6 +337,9 @@ export const MutableDaemonConfigSchema = z
     // COMPAT(peerDelegationDefaultSubrole): added in v0.4.0-paseo.27,
     // remove the gate after 2027-08-20. Null preserves exact-profile routing.
     peerDelegationDefaultSubrole: PeerSubroleSchema.nullable().optional(),
+    // COMPAT(leadRoutes): added in v0.11.2-paseo.79, remove the gate after 2027-10-15.
+    // Ordered Human Lead routes; the first is the default for agent-created Leads.
+    leadRoutes: z.array(LeadRouteSchema).optional(),
     metadataGeneration: MutableMetadataGenerationConfigSchema.default({
       providers: [],
     }),
@@ -359,6 +371,8 @@ export const MutableDaemonConfigPatchSchema = z
     peerDelegationProfileIds: z.array(z.string().trim().min(1)).optional(),
     peerDelegationProviderPriority: z.array(z.string().trim().min(1)).optional(),
     peerDelegationDefaultSubrole: PeerSubroleSchema.nullable().optional(),
+    // An empty list clears the Human Lead routes.
+    leadRoutes: z.array(LeadRouteSchema).optional(),
     metadataGeneration: MutableMetadataGenerationConfigSchema.partial().optional(),
     autoArchiveAfterMerge: z.boolean().optional(),
     defaultFastMode: z.boolean().optional(),
@@ -4113,6 +4127,8 @@ export const ServerInfoStatusPayloadSchema = z
         // COMPAT(peerDelegationDefaultSubrole): added in v0.4.0-paseo.27,
         // remove gate after 2027-08-20.
         peerDelegationDefaultSubrole: z.boolean().optional(),
+        // COMPAT(leadRoutes): added in v0.11.2-paseo.79, remove gate after 2027-10-15.
+        leadRoutes: z.boolean().optional(),
         // COMPAT(agentConfigApply): added in v0.3.2, remove gate after 2027-02-11.
         agentConfigApply: z.boolean().optional(),
       })

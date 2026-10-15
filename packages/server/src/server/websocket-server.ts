@@ -2035,6 +2035,8 @@ export class VoiceAssistantWebSocketServer {
         // COMPAT(peerDelegationDefaultSubrole): added in v0.4.0-paseo.27,
         // remove gate after 2027-08-20.
         peerDelegationDefaultSubrole: true,
+        // COMPAT(leadRoutes): added in v0.11.2-paseo.79, remove gate after 2027-10-15.
+        leadRoutes: true,
         // COMPAT(agentConfigApply): added in v0.3.2, remove gate after 2027-02-11.
         agentConfigApply: true,
       },

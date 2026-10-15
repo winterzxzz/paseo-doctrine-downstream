@@ -189,9 +189,9 @@ function resolveAntigravityNativeRoleBindingSupport(
   };
 }
 
-// Lead stays on providers with qualified orchestration canaries; Droid hosts governance
-// (Supervisor) and bounded Peer work such as GenerateImage.
-const DROID_ROLE_IDS = ["supervisor", "peer"] as const;
+// Droid hosts governance (Supervisor), Human-pinned Leads, and bounded Peer work such as
+// GenerateImage.
+const DROID_ROLE_IDS = ["supervisor", "lead", "peer"] as const;
 
 function resolveDroidACPRoleBindingSupport(
   command: readonly string[] | undefined,
@@ -205,7 +205,7 @@ function resolveDroidACPRoleBindingSupport(
     injectionMethod: "droid-home-capsule",
     roleIds: [...DROID_ROLE_IDS],
     notice:
-      "Factory Droid runs each role agent from a private Droid home capsule (AGENTS.md + mcp.json) and has a Supervisor/Peer eligibility ceiling.",
+      "Factory Droid runs each role agent from a private Droid home capsule (AGENTS.md + mcp.json) and can host Supervisor, Lead, and Peer.",
   };
 }
 

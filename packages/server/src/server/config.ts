@@ -551,6 +551,7 @@ function resolvePeerDelegationSettings(persisted: ReturnType<typeof loadPersiste
     peerDelegationProfileIds: persisted.daemon?.peerDelegationProfileIds,
     peerDelegationProviderPriority: persisted.daemon?.peerDelegationProviderPriority,
     peerDelegationDefaultSubrole: persisted.daemon?.peerDelegationDefaultSubrole,
+    leadRoutes: persisted.daemon?.leadRoutes,
   };
 }
 
@@ -612,6 +613,7 @@ export function resolveConfigFromPersisted(
     peerDelegationProfileIds,
     peerDelegationProviderPriority,
     peerDelegationDefaultSubrole,
+    leadRoutes,
     terminalProfiles,
     agentProfiles,
     hostnames,
@@ -664,6 +666,7 @@ export function resolveConfigFromPersisted(
     peerDelegationProfileIds,
     peerDelegationProviderPriority,
     peerDelegationDefaultSubrole,
+    leadRoutes,
     terminalProfiles,
     agentProfiles,
     skillSelection: persisted.agents?.skills?.selection,

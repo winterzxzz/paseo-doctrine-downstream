@@ -29,6 +29,7 @@ function reloadableConfig(
     appendSystemPrompt: daemon.appendSystemPrompt ?? "",
     terminalProfiles: daemon.terminalProfiles,
     agentProfiles: daemon.agentProfiles,
+    leadRoutes: daemon.leadRoutes,
     cors: { allowedOrigins: [] },
     trustedProxies: ["loopback"],
     git: {
@@ -316,6 +317,34 @@ describe("DaemonConfigStore", () => {
 
     expect(store.get().peerDelegationDefaultSubrole).toBeNull();
     expect(loadPersistedConfig(paseoHome).daemon?.peerDelegationDefaultSubrole).toBeNull();
+  });
+
+  test("persists Human Lead routes from a patch and clears them with an empty list", () => {
+    const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-lead-routes-"));
+    tempDirs.push(paseoHome);
+    const store = new DaemonConfigStore(paseoHome, {
+      mcp: { injectIntoAgents: false },
+      browserTools: { enabled: false },
+      providers: {},
+      metadataGeneration: { providers: [] },
+      autoArchiveAfterMerge: false,
+      enableTerminalAgentHooks: false,
+      appendSystemPrompt: "",
+    });
+    const leadRoutes = ["claude/claude-fable-5-1", "codex/gpt-6"];
+
+    store.patch({ leadRoutes });
+
+    expect(store.get().leadRoutes).toEqual(leadRoutes);
+    expect(store.getLeadRoutes()).toEqual(leadRoutes);
+    expect(loadPersistedConfig(paseoHome).daemon?.leadRoutes).toEqual(leadRoutes);
+
+    store.patch({ leadRoutes: [] });
+
+    expect(store.get().leadRoutes).toBeUndefined();
+    expect(store.getLeadRoutes()).toBeUndefined();
+    expect(loadPersistedConfig(paseoHome).daemon?.leadRoutes).toBeUndefined();
+    expect(() => store.patch({ leadRoutes: ["not-a-route"] })).toThrow();
   });
 
   test("materializes only a credential file path in provider runtime env", () => {
