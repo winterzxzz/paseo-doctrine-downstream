@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.2-paseo.82 - 2026-10-17
+
+### Fixed
+
+- Supervisor được báo khi Lead xong thật. Trước đây noti "finished" chỉ bắn một lần ở lần idle
+  đầu tiên, thường là lúc Lead đang chờ Peer, nên lúc Lead hoàn tất thì Supervisor không biết.
+  Giờ Lead (và Peer dưới Lead) báo mọi lần hoàn tất, và bỏ qua lần idle khi còn Peer đang chạy.
+
 ## 0.11.2-paseo.81 - 2026-10-17
 
 ### Fixed
