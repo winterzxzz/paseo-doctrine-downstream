@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.11.2-paseo.80 - 2026-10-16
+
+### Added
+
+- Settings → host → Agents có thẻ **Role defaults**: chọn role mặc định cho draft mới, model và
+  effort mặc định cho Supervisor và Lead (model Lead là route đầu của Lead model). Draft áp default
+  khi chọn role; Supervisor/Lead do agent tạo cũng nhận effort mặc định nếu model hỗ trợ.
+
+### Changed
+
+- Trang Project topology (All projects) mở đầu bằng danh sách trạng thái: mỗi dự án một dòng
+  (Needs you / Working / To review / Idle / Inactive), agent đang làm gì, số đang chạy và thời
+  điểm hoạt động gần nhất; graph chỉ mở khi bấm vào dòng, dự án đã đóng gom vào nhóm Inactive.
+- Project topology gọn hơn: card cùng kích thước, tên model dễ đọc, không còn chip quyền bị cắt,
+  "Needs attention" thành icon, edge mảnh không nhãn, bảng tóm tắt nhỏ lại.
+- Khối Peer roster trong binding Lead/Supervisor có luật capability routing: việc cần capability của
+  profile (ví dụ sinh ảnh) phải giao cho đúng profile; dùng roster profile không phải external effect
+  nên Supervisor không được cấm trong assignment của Lead.
+
 ## 0.11.2-paseo.79 - 2026-10-15
 
 ### Added
