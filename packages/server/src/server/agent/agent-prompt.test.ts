@@ -53,6 +53,8 @@ interface FinishNotificationScenarioOptions {
   requireParentOwnership?: boolean;
   parentPromptError?: Error;
   logger?: Logger;
+  /** Makes the child a role-bound Lead whose parent label names the caller. */
+  childIsLead?: boolean;
 }
 
 interface FinishNotificationScenario {
@@ -62,6 +64,7 @@ interface FinishNotificationScenario {
   resolveChildPermissionFromState(requestId?: string): void;
   resolveChildPermissionWhileIdle(requestId?: string): void;
   finishChild(): void;
+  setGrandchildLifecycle(lifecycle: ManagedAgent["lifecycle"] | null): void;
   finishChildAndReadParentPrompt(): Promise<string>;
   closeChildAndReadParentPrompt(): Promise<string>;
   parentPrompts(): string[];
@@ -83,6 +86,11 @@ function createFinishNotificationScenario(
   Reflect.set(childAgent, "lifecycle", "idle");
   Reflect.set(childAgent, "config", { title: "Child Agent" });
   Reflect.set(childAgent, "pendingPermissions", new Map());
+  if (options?.childIsLead) {
+    Reflect.set(childAgent, "roleBinding", { roleId: "lead" });
+    Reflect.set(childAgent, "labels", { "paseo.parent-agent-id": "caller-agent" });
+  }
+  let grandchild: ManagedAgent | null = null;
 
   const callerAgent: ManagedAgent = Object.create(null);
   Reflect.set(callerAgent, "id", "caller-agent");
@@ -105,6 +113,9 @@ function createFinishNotificationScenario(
       subscriber = null;
     };
   });
+  Reflect.set(agentManager, "listAgents", () =>
+    [childAgent, callerAgent, grandchild].filter((agent): agent is ManagedAgent => agent !== null),
+  );
   Reflect.set(agentManager, "getLastAssistantMessage", async () => {
     return options?.childLastAssistantMessage ?? null;
   });
@@ -211,6 +222,17 @@ function createFinishNotificationScenario(
           resolution: { behavior: "allow" },
         },
       });
+    },
+    setGrandchildLifecycle(lifecycle) {
+      if (lifecycle === null) {
+        grandchild = null;
+        return;
+      }
+      grandchild = Object.create(null) as ManagedAgent;
+      Reflect.set(grandchild, "id", "peer-agent");
+      Reflect.set(grandchild, "lifecycle", lifecycle);
+      Reflect.set(grandchild, "labels", { "paseo.parent-agent-id": "child-agent" });
+      Reflect.set(grandchild, "pendingPermissions", new Map());
     },
     finishChild() {
       childAgent.lifecycle = "running";
@@ -532,6 +554,42 @@ test("finish notifications survive repeated permission cycles", async () => {
   expect(
     scenario.parentPrompts().map((prompt) => prompt.match(/(needs permission|finished)\./)?.[1]),
   ).toEqual(["needs permission", "needs permission", "finished"]);
+});
+
+test("a Lead keeps notifying its Supervisor on every completion", async () => {
+  const scenario = createFinishNotificationScenario({ childIsLead: true });
+
+  scenario.startWatchingChild();
+  await scenario.finishChildAndReadParentPrompt();
+  await scenario.finishChildAndReadParentPrompt();
+
+  expect(scenario.parentPrompts()).toHaveLength(2);
+});
+
+test("a Lead idling while its Peer still works does not report finished", async () => {
+  const scenario = createFinishNotificationScenario({ childIsLead: true });
+
+  scenario.startWatchingChild();
+  scenario.setGrandchildLifecycle("running");
+  scenario.finishChild();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(scenario.wasParentPrompted()).toBe(false);
+
+  scenario.setGrandchildLifecycle("idle");
+  const parentPrompt = await scenario.finishChildAndReadParentPrompt();
+  expect(parentPrompt).toContain("Agent child-agent (Child Agent) finished.");
+  expect(scenario.parentPrompts()).toHaveLength(1);
+});
+
+test("a plain child still notifies its caller only once", async () => {
+  const scenario = createFinishNotificationScenario();
+
+  scenario.startWatchingChild();
+  await scenario.finishChildAndReadParentPrompt();
+  scenario.finishChild();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(scenario.parentPrompts()).toHaveLength(1);
 });
 
 test("detaching a child ends its parent-owned finish notification", async () => {

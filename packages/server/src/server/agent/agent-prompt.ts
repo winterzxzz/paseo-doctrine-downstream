@@ -451,6 +451,30 @@ interface NotifySafelyOptions {
 // next finish reaches the caller once.
 const armedFinishNotifications = new WeakMap<AgentManager, Map<string, () => void>>();
 
+// Downstream: a Lead under a Supervisor (or a Peer under a Lead) goes idle many times in one
+// assignment, for example while it waits for its own Peers. A one-shot "finished" fired on the
+// first of those idles and left the parent deaf to the real completion, so role children keep
+// notifying for as long as they live, and an idle that still has working children is skipped.
+function isRoleChildOfCaller(child: ManagedAgent | null, callerAgentId: string): boolean {
+  const roleId = child?.roleBinding?.roleId;
+  return (
+    (roleId === "lead" || roleId === "peer") &&
+    getParentAgentIdFromLabels(child?.labels) === callerAgentId
+  );
+}
+
+function hasWorkingChildren(agentManager: AgentManager, agentId: string): boolean {
+  return agentManager
+    .listAgents()
+    .some(
+      (agent) =>
+        getParentAgentIdFromLabels(agent.labels) === agentId &&
+        (agent.lifecycle === "running" ||
+          agent.lifecycle === "initializing" ||
+          agent.pendingPermissions.size > 0),
+    );
+}
+
 export function setupFinishNotification(params: SetupFinishNotificationParams): void {
   const {
     agentManager,
@@ -462,6 +486,7 @@ export function setupFinishNotification(params: SetupFinishNotificationParams): 
   } = params;
   let hasSeenRunning = false;
   let stopped = false;
+  const persistent = isRoleChildOfCaller(agentManager.getAgent(childAgentId), callerAgentId);
   const notifiedPermissionRequestIds = new Set<string>();
   let unsubscribe: (() => void) | null = null;
   let notificationQueue = Promise.resolve();
@@ -487,6 +512,7 @@ export function setupFinishNotification(params: SetupFinishNotificationParams): 
   ): Promise<void> {
     const callerRecord = await agentStorage.get(callerAgentId);
     if (callerRecord?.archivedAt) {
+      stop();
       return;
     }
 
@@ -551,7 +577,13 @@ export function setupFinishNotification(params: SetupFinishNotificationParams): 
           return;
         }
         if (event.agent.lifecycle === "idle" && hasSeenRunning) {
-          notifySafely("finished");
+          if (!persistent) {
+            notifySafely("finished");
+            return;
+          }
+          hasSeenRunning = false;
+          if (hasWorkingChildren(agentManager, childAgentId)) return;
+          notifySafely("finished", { terminal: false });
           return;
         }
         if (event.agent.lifecycle === "closed") {
