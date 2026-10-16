@@ -68,6 +68,7 @@ import { BrowserToolsOptInCard } from "./browser-tools-card";
 import { RoleProfilesCard } from "./role-profiles-card";
 import { PeerDelegationProfilesCard } from "./peer-delegation-models-card";
 import { LeadRoutesCard } from "./lead-routes-card";
+import { RoleDefaultsCard } from "./role-defaults-card";
 import { restartDaemonFromSettings, updateDaemonFromSettings } from "./daemon-lifecycle";
 
 const ThemedRestart = withUnistyles(RotateCw);
@@ -295,6 +296,7 @@ export function HostAgentsPage({ serverId }: { serverId: string }) {
       {isConnected ? (
         <SettingsSection title={t("settings.hostSections.agents")}>
           <RoleProfilesCard serverId={serverId} />
+          <RoleDefaultsCard serverId={serverId} />
           <LeadRoutesCard serverId={serverId} />
           <PeerDelegationProfilesCard serverId={serverId} />
           <InjectPaseoToolsCard serverId={serverId} />

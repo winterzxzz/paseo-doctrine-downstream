@@ -6,6 +6,8 @@ import {
   layoutProjectTopologyXFirst,
   recenterTopologyViewport,
   topologyViewportShowsAnyBox,
+  TOPOLOGY_ROW_GAP,
+  TOPOLOGY_SUBTREE_GAP,
   type TopologyBox,
 } from "@/panels/topology-layout";
 
@@ -29,6 +31,8 @@ function node(id: string, overrides: Partial<TopologyNode> = {}): TopologyNode {
     launchProfile: null,
     workspaceId: "workspace-1",
     requiresAttention: false,
+    attentionReason: null,
+    lastActivityAt: null,
     issueIds: [],
     ...overrides,
   };
@@ -164,7 +168,7 @@ describe("layoutProjectTopologyXFirst", () => {
     expectNoOverlap(boxes);
   });
 
-  it("gives taller cards to agents with more content", () => {
+  it("gives every card the same height so columns align", () => {
     const boxes = layoutProjectTopologyXFirst(
       [
         node("lead-plain"),
@@ -173,9 +177,46 @@ describe("layoutProjectTopologyXFirst", () => {
       [],
     );
 
-    expect(boxes.get("lead-busy")?.height ?? 0).toBeGreaterThan(
-      boxes.get("lead-plain")?.height ?? 0,
+    expect(boxes.get("lead-busy")?.height).toBe(boxes.get("lead-plain")?.height);
+    expectNoOverlap(boxes);
+  });
+
+  it("keeps a Lead without Peers compact beside Leads that have Peers", () => {
+    const boxes = layoutProjectTopologyXFirst(
+      [
+        node("supervisor"),
+        node("lead-a"),
+        node("peer-a1"),
+        node("peer-a2"),
+        node("lead-b"),
+        node("lead-c"),
+        node("peer-c1"),
+      ],
+      [
+        { source: "supervisor", target: "lead-a" },
+        { source: "supervisor", target: "lead-b" },
+        { source: "supervisor", target: "lead-c" },
+        { source: "lead-a", target: "peer-a1" },
+        { source: "lead-a", target: "peer-a2" },
+        { source: "lead-c", target: "peer-c1" },
+      ],
     );
+    const get = (id: string): TopologyBox => {
+      const box = boxes.get(id);
+      if (!box) throw new Error(`missing ${id}`);
+      return box;
+    };
+
+    // The childless Lead only takes its own card height plus the group gaps.
+    const gapAbove = get("lead-b").y - (get("peer-a2").y + get("peer-a2").height);
+    const gapBelow = get("lead-c").y - (get("lead-b").y + get("lead-b").height);
+    expect(gapAbove).toBe(TOPOLOGY_SUBTREE_GAP);
+    expect(gapBelow).toBe(TOPOLOGY_SUBTREE_GAP);
+    expect(center(get("lead-a"))).toBeCloseTo(
+      (center(get("peer-a1")) + center(get("peer-a2"))) / 2,
+    );
+    expect(center(get("lead-c"))).toBeCloseTo(center(get("peer-c1")));
+    expect(get("peer-a2").y - (get("peer-a1").y + get("peer-a1").height)).toBe(TOPOLOGY_ROW_GAP);
     expectNoOverlap(boxes);
   });
 

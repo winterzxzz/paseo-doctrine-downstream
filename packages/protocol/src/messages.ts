@@ -264,6 +264,28 @@ export const LeadRouteSchema = z
     "lead route must be provider/model, for example claude/claude-fable-5-1",
   );
 
+/** Human launch defaults for one coordination role. Unknown thinking ids are skipped per model. */
+export const RoleLaunchDefaultsSchema = z
+  .object({
+    /** Default `provider/model`. Lead uses `leadRoutes` instead. */
+    route: LeadRouteSchema.optional(),
+    thinkingOptionId: z.string().min(1).optional(),
+  })
+  .passthrough();
+
+export type RoleLaunchDefaults = z.infer<typeof RoleLaunchDefaultsSchema>;
+
+/** Human defaults for new role agents: the role preselected in a new draft, and Supervisor/Lead launch settings. */
+export const RoleDefaultsSchema = z
+  .object({
+    defaultRole: PaseoRoleIdSchema.nullable().optional(),
+    supervisor: RoleLaunchDefaultsSchema.optional(),
+    lead: RoleLaunchDefaultsSchema.optional(),
+  })
+  .passthrough();
+
+export type RoleDefaults = z.infer<typeof RoleDefaultsSchema>;
+
 const MutablePeerDelegationConfigSchema = z
   .object({
     enabled: z.boolean(),
@@ -340,6 +362,8 @@ export const MutableDaemonConfigSchema = z
     // COMPAT(leadRoutes): added in v0.11.2-paseo.79, remove the gate after 2027-10-15.
     // Ordered Human Lead routes; the first is the default for agent-created Leads.
     leadRoutes: z.array(LeadRouteSchema).optional(),
+    // COMPAT(roleDefaults): added in v0.11.2-paseo.80, remove the gate after 2027-10-16.
+    roleDefaults: RoleDefaultsSchema.optional(),
     metadataGeneration: MutableMetadataGenerationConfigSchema.default({
       providers: [],
     }),
@@ -373,6 +397,8 @@ export const MutableDaemonConfigPatchSchema = z
     peerDelegationDefaultSubrole: PeerSubroleSchema.nullable().optional(),
     // An empty list clears the Human Lead routes.
     leadRoutes: z.array(LeadRouteSchema).optional(),
+    // Replaces the whole object; an empty object clears the Human role defaults.
+    roleDefaults: RoleDefaultsSchema.optional(),
     metadataGeneration: MutableMetadataGenerationConfigSchema.partial().optional(),
     autoArchiveAfterMerge: z.boolean().optional(),
     defaultFastMode: z.boolean().optional(),
@@ -4129,6 +4155,8 @@ export const ServerInfoStatusPayloadSchema = z
         peerDelegationDefaultSubrole: z.boolean().optional(),
         // COMPAT(leadRoutes): added in v0.11.2-paseo.79, remove gate after 2027-10-15.
         leadRoutes: z.boolean().optional(),
+        // COMPAT(roleDefaults): added in v0.11.2-paseo.80, remove gate after 2027-10-16.
+        roleDefaults: z.boolean().optional(),
         // COMPAT(agentConfigApply): added in v0.3.2, remove gate after 2027-02-11.
         agentConfigApply: z.boolean().optional(),
       })

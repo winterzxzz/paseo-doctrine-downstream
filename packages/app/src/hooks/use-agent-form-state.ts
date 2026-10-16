@@ -80,6 +80,12 @@ export interface UseAgentFormStateResult {
     requiredModeId: string,
   ) => void;
   applyProfileFromUser: (profile: MaterializedAgentProfile) => void;
+  /** Applies Human role defaults (route + effort) without touching saved composer preferences. */
+  applyRoleDefaultsFromUser: (input: {
+    provider: AgentProvider;
+    modelId: string;
+    thinkingOptionId?: string;
+  }) => void;
   clearProviderSelectionFromUser: () => void;
   workingDirIsEmpty: boolean;
   persistFormPreferences: () => Promise<void>;
@@ -385,6 +391,30 @@ export function useAgentFormState(options: UseAgentFormStateOptions): UseAgentFo
     ],
   );
 
+  const applyRoleDefaultsFromUser = useCallback(
+    (input: { provider: AgentProvider; modelId: string; thinkingOptionId?: string }) => {
+      if (!selectableProviderDefinitionMap.has(input.provider)) return;
+      const providerModels = allProviderModels.get(input.provider) ?? null;
+      const model = providerModels?.find((candidate) => candidate.id === input.modelId);
+      const thinkingOptionId =
+        input.thinkingOptionId &&
+        model?.thinkingOptions?.some((option) => option.id === input.thinkingOptionId)
+          ? input.thinkingOptionId
+          : "";
+      dispatch({
+        type: "APPLY_PROFILE_FROM_USER",
+        provider: input.provider,
+        modelId: input.modelId,
+        modeId: "",
+        thinkingOptionId,
+        providerDef: selectableProviderDefinitionMap.get(input.provider),
+        providerModels,
+        providerPrefs: preferenceOverlayRef.current.current().providerPreferences?.[input.provider],
+      });
+    },
+    [allProviderModels, selectableProviderDefinitionMap],
+  );
+
   const setModeFromUser = useCallback(
     (modeId: string) => {
       dispatch({ type: "SET_MODE_FROM_USER", modeId });
@@ -520,6 +550,7 @@ export function useAgentFormState(options: UseAgentFormStateOptions): UseAgentFo
       setProviderAndModelFromUser,
       setProviderAndModelForRole,
       applyProfileFromUser,
+      applyRoleDefaultsFromUser,
       clearProviderSelectionFromUser,
       workingDirIsEmpty,
       persistFormPreferences,
@@ -552,6 +583,7 @@ export function useAgentFormState(options: UseAgentFormStateOptions): UseAgentFo
       setProviderAndModelFromUser,
       setProviderAndModelForRole,
       applyProfileFromUser,
+      applyRoleDefaultsFromUser,
       clearProviderSelectionFromUser,
       workingDirIsEmpty,
       persistFormPreferences,

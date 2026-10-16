@@ -203,7 +203,7 @@ export interface PaseoToolHostDependencies {
   sendAgentMessageAtSafeBoundary?: (agentId: string, text: string) => Promise<void>;
   providerSnapshotManager: ProviderSnapshotManager;
   daemonConfigStore?: Pick<DaemonConfigStore, "get"> &
-    Partial<Pick<DaemonConfigStore, "getLeadRoutes">>;
+    Partial<Pick<DaemonConfigStore, "getLeadRoutes" | "getRoleDefaults">>;
   github?: ForgeService;
   workspaceGitService?: Pick<
     WorkspaceGitService,
@@ -1680,6 +1680,41 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
     return fallbackRoute ? { providerRoute, fallbackRoute } : { providerRoute };
   };
 
+  // Human role defaults: an agent-created Supervisor without a provider takes the default route.
+  const resolveRoleDefaultRoute = (
+    requestedRole: PaseoRoleId | undefined,
+    requestedProvider: string | undefined,
+  ): string | undefined => {
+    if (requestedProvider?.trim() || requestedRole !== "supervisor" || !resolveCallerAgent()) {
+      return requestedProvider;
+    }
+    return daemonConfigStore?.getRoleDefaults?.()?.supervisor?.route ?? requestedProvider;
+  };
+
+  // Human role defaults: Supervisor/Lead effort applies when the caller sets none and the
+  // resolved model offers that option, so a fallback route on another provider never breaks.
+  const resolveRoleDefaultThinking = async (input: {
+    requestedRole: PaseoRoleId | undefined;
+    provider: AgentProvider;
+    providerRoute: string;
+    thinkingOptionId: string | undefined;
+  }): Promise<string | undefined> => {
+    if (input.thinkingOptionId) return input.thinkingOptionId;
+    if (input.requestedRole !== "supervisor" && input.requestedRole !== "lead") return undefined;
+    const defaultThinking =
+      daemonConfigStore?.getRoleDefaults?.()?.[input.requestedRole]?.thinkingOptionId;
+    if (!defaultThinking) return undefined;
+    const { model } = resolveRequiredProviderModel(input.providerRoute);
+    const models = await providerSnapshotManager.listModels({
+      provider: input.provider,
+      wait: true,
+    });
+    const definition = models.find((candidate) => candidate.id === model);
+    return definition?.thinkingOptions?.some((option) => option.id === defaultThinking)
+      ? defaultThinking
+      : undefined;
+  };
+
   // An omitted provider inherits the caller's route; a role-limited caller route (for example a
   // Supervisor-only Droid) cannot host another role, so name the fix instead of failing at bind.
   const assertInheritedProviderHostsRole = async (
@@ -2942,7 +2977,10 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
           unattended,
           leadFallbackRoute: resolvedLeadFallbackRoute,
         } = await resolveCreateAgentProviderRoute({
-          requestedProvider: launchSettings.requestedProvider,
+          requestedProvider: resolveRoleDefaultRoute(
+            parsedArgs.role,
+            launchSettings.requestedProvider,
+          ),
           requestedRole: parsedArgs.role,
           requestedMode: launchSettings.requestedMode,
           requestedCwd: resolvedArgs.cwd,
@@ -2950,6 +2988,12 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
           assignmentNoWrite: requiresGuardedLaunchMode(parsedArgs, executionProfileId),
         });
         leadFallbackRoute = resolvedLeadFallbackRoute;
+        const thinkingOptionId = await resolveRoleDefaultThinking({
+          requestedRole: parsedArgs.role,
+          provider: selectedProvider,
+          providerRoute,
+          thinkingOptionId: launchSettings.thinkingOptionId,
+        });
         const inheritedConfig = resolveInheritedProviderConfig(selectedProvider);
         workspaceRollbackTransferred = true;
         const {
@@ -2989,7 +3033,7 @@ export function createPaseoToolCatalog(options: PaseoToolHostDependencies): Pase
             workspaceId: resolvedArgs.workspaceId,
             createdDirectoryWorkspaceId: resolvedArgs.createdDirectoryWorkspaceId,
             launchProfile: launchProfileReceipt.launchProfile,
-            thinking: launchSettings.thinkingOptionId,
+            thinking: thinkingOptionId,
             features: launchSettings.featureValues,
             labels: parsedArgs.labels,
             mode: enforcedMode ?? launchSettings.requestedMode,

@@ -62,7 +62,11 @@ import { areEquivalentPaths } from "../../utils/path.js";
 import type { TerminalManager } from "../../terminal/terminal-manager.js";
 import { PARENT_AGENT_ID_LABEL } from "@getpaseo/protocol/agent-labels";
 import type { PaseoRoleId } from "@getpaseo/protocol/role-binding";
-import { MutableDaemonConfigSchema, type AgentProfile } from "@getpaseo/protocol/messages";
+import {
+  MutableDaemonConfigSchema,
+  type AgentProfile,
+  type MutableDaemonConfig,
+} from "@getpaseo/protocol/messages";
 import type { DaemonConfigStore } from "../daemon-config-store.js";
 import type { BrowserToolsBroker, BrowserToolsExecuteInput } from "../browser-tools/broker.js";
 import type { BrowserToolsResponsePayload } from "../browser-tools/errors.js";
@@ -2306,7 +2310,13 @@ describe("create_agent MCP tool", () => {
 
     async function createDroidSupervisorServer(
       options: {
-        models?: Array<{ provider: string; id: string; label: string }>;
+        models?: Array<{
+          provider: string;
+          id: string;
+          label: string;
+          thinkingOptions?: Array<{ id: string; label: string }>;
+        }>;
+        roleDefaults?: MutableDaemonConfig["roleDefaults"];
       } = {},
     ) {
       const deps = createTestDeps();
@@ -2345,7 +2355,11 @@ describe("create_agent MCP tool", () => {
         agentManager: deps.agentManager,
         agentStorage: deps.agentStorage,
         providerSnapshotManager: providerSnapshot.manager,
-        daemonConfigStore: { get: () => ({}) as never, getLeadRoutes: () => LEAD_ROUTES },
+        daemonConfigStore: {
+          get: () => ({}) as never,
+          getLeadRoutes: () => LEAD_ROUTES,
+          getRoleDefaults: () => options.roleDefaults,
+        },
         callerAgentId: caller.id,
         logger,
       });
@@ -2363,6 +2377,44 @@ describe("create_agent MCP tool", () => {
 
       expect(spies.agentManager.createAgent).toHaveBeenCalledWith(
         expect.objectContaining({ provider: "claude", model: "claude-fable-5-1" }),
+        undefined,
+        expect.objectContaining({ roleId: "lead" }),
+      );
+    });
+
+    it("applies the Human Lead effort only when the resolved model offers it", async () => {
+      const thinkingOptions = [
+        { id: "medium", label: "Medium" },
+        { id: "max", label: "Max" },
+      ];
+      const supported = await createDroidSupervisorServer({
+        models: [
+          { provider: "claude", id: "claude-fable-5-1", label: "Fable 5.1", thinkingOptions },
+        ],
+        roleDefaults: { lead: { thinkingOptionId: "max" } },
+      });
+      await supported.tool.handler({
+        title: "Project Lead",
+        role: "lead",
+        initialPrompt: "Own the bounded project",
+      });
+      expect(supported.spies.agentManager.createAgent).toHaveBeenCalledWith(
+        expect.objectContaining({ model: "claude-fable-5-1", thinkingOptionId: "max" }),
+        undefined,
+        expect.objectContaining({ roleId: "lead" }),
+      );
+
+      const unsupported = await createDroidSupervisorServer({
+        models: [{ provider: "claude", id: "claude-fable-5-1", label: "Fable 5.1" }],
+        roleDefaults: { lead: { thinkingOptionId: "max" } },
+      });
+      await unsupported.tool.handler({
+        title: "Project Lead",
+        role: "lead",
+        initialPrompt: "Own the bounded project",
+      });
+      expect(unsupported.spies.agentManager.createAgent).toHaveBeenCalledWith(
+        expect.not.objectContaining({ thinkingOptionId: "max" }),
         undefined,
         expect.objectContaining({ roleId: "lead" }),
       );

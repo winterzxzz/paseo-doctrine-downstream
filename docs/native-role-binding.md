@@ -91,7 +91,12 @@ gọi `create_agent`. Đây là downstream role boundary có chủ ý, khác reu
 `list_profiles` trả exact profiles, priority và default hiện hành cho cả Lead và Supervisor (Supervisor
 dùng để audit routing, không launch Peer). Lúc materialize binding, daemon chụp cùng roster đó vào
 instructions của Lead/Supervisor (khối `Peer roster`), để model biết Peer nào tồn tại mà không phải tự
-nghĩ ra việc gọi tool. Exact `launchProfileId` luôn thắng. Khi
+nghĩ ra việc gọi tool. Profile không có `peerSubrole` hiện là `specialist` (chỉ launch bằng exact
+`launchProfileId`). Khối roster kèm luật capability routing: notes của profile nói nó dùng cho việc gì;
+Lead phải giao phần việc khớp capability (ví dụ sinh ảnh) cho đúng profile thay vì tự làm, vẽ tay thay
+thế hay dùng lại art cũ; Supervisor nêu các profile đó khi giao việc cho Lead. Launch một roster profile
+là Peer delegation đã được Human duyệt, không phải external effect, nên assignment không được cấm nó trừ
+khi chính Human cấm. Exact `launchProfileId` luôn thắng. Khi
 Lead bỏ field đó, daemon dùng specialization/disposition đã explicit nếu nó map được sang Reviewer hoặc
 Architect; nếu không thì dùng global default. Resolver chỉ chọn profile cùng subrole từ provider sớm nhất,
 materialize exact profile vào create receipt và fail closed khi không có match. Global default `null` giữ
@@ -144,6 +149,16 @@ Human có thể pin Lead route trong Settings → host → Agents → **Lead mod
 khi route đang chọn fail preflight hoặc launch, lỗi trả về nêu route kế tiếp để caller tạo Lead mới với đúng route đó và báo
 Human. Daemon không tự failover. Field đi qua wire config (`leadRoutes`, gate `server_info.features.leadRoutes`; list rỗng = xoá); sửa file rồi `paseo daemon reload` cũng áp dụng mà không cần restart. Human
 tạo Lead trực tiếp (WebUI hoặc top-level CLI) không bị list này giới hạn.
+
+Settings → host → Agents → **Role defaults** (hoặc `daemon.roleDefaults` trong `config.json`, gate
+`server_info.features.roleDefaults`) giữ default của Human cho role agent mới: `defaultRole` là role
+được chọn sẵn khi mở draft mới; `supervisor.route` + `supervisor.thinkingOptionId` và
+`lead.thinkingOptionId` là model/effort mặc định (model của Lead vẫn là route đầu của `leadRoutes`).
+Khi Human chọn Supervisor hoặc Lead trong draft, WebUI áp route và effort đó một lần, không ghi đè
+composer preference. Agent-created Supervisor bỏ trống `provider` nhận `supervisor.route`; agent-created
+Supervisor/Lead không truyền `settings.thinkingOptionId` nhận effort mặc định, nhưng chỉ khi model đã
+resolve có option đó — fallback route sang provider khác không bao giờ fail vì effort lạ. Patch thay
+nguyên object; object rỗng xoá default.
 
 ### Hai Codex route độc lập với role
 

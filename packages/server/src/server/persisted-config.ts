@@ -25,6 +25,7 @@ import { TerminalProfileSchema } from "@getpaseo/protocol/terminal-profile";
 import { PaseoServicePortAllocationSchema } from "@getpaseo/protocol/paseo-config-schema";
 import { AgentProviderSchema } from "@getpaseo/protocol/provider-manifest";
 import { RoleProfilePreferencesMapSchema } from "@getpaseo/protocol/role-profile";
+import { RoleDefaultsSchema } from "@getpaseo/protocol/messages";
 
 export const LogLevelSchema = z.enum(["trace", "debug", "info", "warn", "error", "fatal"]);
 export const LogFormatSchema = z.enum(["pretty", "json"]);
@@ -316,6 +317,8 @@ export const PersistedConfigSchema = z
           )
           .min(1)
           .optional(),
+        // Human defaults for new role agents (default role, Supervisor/Lead model and effort).
+        roleDefaults: RoleDefaultsSchema.optional(),
         terminalProfiles: z.array(TerminalProfileSchema).optional(),
         agentProfiles: z.array(AgentProfileSchema).optional(),
         cors: z

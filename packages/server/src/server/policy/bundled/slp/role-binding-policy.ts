@@ -72,12 +72,16 @@ function buildBeadsSkillAdmissionInstruction(
   return "Role skill admission: `beads-issue-tracker` is active from the immutable Foundation bundle. Its assignment-start checkpoint, mutation boundary, and handback rule are projected in the Assignment Contract above; do not search for or load a second copy.";
 }
 
-const PEER_ROSTER_NOTE_LIMIT = 200;
+const PEER_ROSTER_NOTE_LIMIT = 320;
 
 function describeRosterProfile(profile: ApprovedPeerRoster["profiles"][number]): string {
   const route = profile.model ? `${profile.provider}/${profile.model}` : profile.provider;
   const parts = [`\`${profile.id}\` (${profile.name})`, route];
-  if (profile.peerSubrole) parts.push(`subrole ${profile.peerSubrole}`);
+  parts.push(
+    profile.peerSubrole
+      ? `subrole ${profile.peerSubrole}`
+      : "specialist (launch only by exact launchProfileId)",
+  );
   const notes = profile.notes?.trim().replace(/\s+/gu, " ");
   if (notes) {
     parts.push(
@@ -102,6 +106,10 @@ function buildPeerRosterInstruction(
     roleId === "lead"
       ? "Pass an exact id as create_agent.launchProfileId, or omit it to get the default subrole. Do not route Peer work to anything outside this roster."
       : "You never launch Peers. Use this roster to check that each Lead routes Peer work only through these profiles, and flag any Lead whose Peers fall outside it.";
+  const capabilityRouting =
+    roleId === "lead"
+      ? "Capability routing: each profile's notes name what it is for. When the work needs a capability a profile names (for example generating image assets), delegate that part to that profile instead of doing it yourself, hand-drawing substitutes, or reusing old art. Launching a roster profile is Human-approved Peer delegation, not an external effect: the provider tools it runs for its stated capability (for example GenerateImage) are pre-approved, so only skip it when the Human explicitly forbids that capability."
+      : "Capability routing: each profile's notes name what it is for. When you assign a Lead, name the roster profiles that fit its work (for example the image-generation profile for art or asset work). Launching a roster profile is Human-approved Peer delegation, not an external effect, so never forbid it in a Lead assignment unless the Human explicitly did.";
   if (!roster) {
     return `Peer roster: no Human-approved Peer allowlist is configured. Call list_profiles before ${roleId === "lead" ? "creating" : "auditing"} any Peer; if it returns nothing, Peer delegation is unavailable${roleId === "lead" ? ", so do the work lead-direct or report BLOCKED" : ""}.`;
   }
@@ -112,7 +120,9 @@ function buildPeerRosterInstruction(
     "Peer roster (Human-approved, snapshot at launch; list_profiles returns the current one):",
     `default subrole ${roster.defaultSubrole ?? "none"}; provider priority ${roster.providerPriority.join(" > ") || "none"}.`,
   ].join(" ");
-  return [header, ...roster.profiles.map(describeRosterProfile), usage].join("\n");
+  return [header, ...roster.profiles.map(describeRosterProfile), usage, capabilityRouting].join(
+    "\n",
+  );
 }
 
 function composeInstructions(input: RoleBindingInstructionCompositionInput): string {

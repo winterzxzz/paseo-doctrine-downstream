@@ -456,6 +456,7 @@ export interface PaseoDaemonConfig {
   peerDelegationProviderPriority?: MutableDaemonConfig["peerDelegationProviderPriority"];
   peerDelegationDefaultSubrole?: MutableDaemonConfig["peerDelegationDefaultSubrole"];
   leadRoutes?: MutableDaemonConfig["leadRoutes"];
+  roleDefaults?: MutableDaemonConfig["roleDefaults"];
   terminalProfiles?: TerminalProfile[];
   agentProfiles?: AgentProfile[];
   skillSelection?: AgentSkillSelection;
@@ -634,6 +635,7 @@ function resolveOptionalMutableDaemonConfig(
       ? { peerDelegationDefaultSubrole: config.peerDelegationDefaultSubrole }
       : {}),
     ...(config.leadRoutes !== undefined ? { leadRoutes: config.leadRoutes } : {}),
+    ...(config.roleDefaults !== undefined ? { roleDefaults: config.roleDefaults } : {}),
     peerDelegation: config.peerDelegation ?? {
       enabled: false,
       allowedModels: [],

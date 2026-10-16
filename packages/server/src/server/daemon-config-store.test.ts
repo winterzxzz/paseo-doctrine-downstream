@@ -30,6 +30,7 @@ function reloadableConfig(
     terminalProfiles: daemon.terminalProfiles,
     agentProfiles: daemon.agentProfiles,
     leadRoutes: daemon.leadRoutes,
+    roleDefaults: daemon.roleDefaults,
     cors: { allowedOrigins: [] },
     trustedProxies: ["loopback"],
     git: {
@@ -345,6 +346,41 @@ describe("DaemonConfigStore", () => {
     expect(store.getLeadRoutes()).toBeUndefined();
     expect(loadPersistedConfig(paseoHome).daemon?.leadRoutes).toBeUndefined();
     expect(() => store.patch({ leadRoutes: ["not-a-route"] })).toThrow();
+  });
+
+  test("replaces Human role defaults as a whole and clears them with an empty object", () => {
+    const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-role-defaults-"));
+    tempDirs.push(paseoHome);
+    const store = new DaemonConfigStore(paseoHome, {
+      mcp: { injectIntoAgents: false },
+      browserTools: { enabled: false },
+      providers: {},
+      metadataGeneration: { providers: [] },
+      autoArchiveAfterMerge: false,
+      enableTerminalAgentHooks: false,
+      appendSystemPrompt: "",
+    });
+
+    store.patch({
+      roleDefaults: {
+        defaultRole: "supervisor",
+        supervisor: { route: "claude/claude-opus-5-5", thinkingOptionId: "high" },
+        lead: { thinkingOptionId: "medium" },
+      },
+    });
+    store.patch({
+      roleDefaults: { defaultRole: "supervisor", supervisor: { thinkingOptionId: "max" } },
+    });
+
+    const expected = { defaultRole: "supervisor", supervisor: { thinkingOptionId: "max" } };
+    expect(store.getRoleDefaults()).toEqual(expected);
+    expect(loadPersistedConfig(paseoHome).daemon?.roleDefaults).toEqual(expected);
+
+    store.patch({ roleDefaults: { defaultRole: null, lead: {} } });
+
+    expect(store.getRoleDefaults()).toBeUndefined();
+    expect(loadPersistedConfig(paseoHome).daemon?.roleDefaults).toBeUndefined();
+    expect(() => store.patch({ roleDefaults: { supervisor: { route: "not-a-route" } } })).toThrow();
   });
 
   test("materializes only a credential file path in provider runtime env", () => {

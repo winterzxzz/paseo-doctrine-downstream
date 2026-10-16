@@ -39,6 +39,7 @@ interface SupportedMutableConfigPatch {
   peerDelegationProviderPriority?: MutableDaemonConfig["peerDelegationProviderPriority"];
   peerDelegationDefaultSubrole?: MutableDaemonConfig["peerDelegationDefaultSubrole"];
   leadRoutes?: MutableDaemonConfig["leadRoutes"];
+  roleDefaults?: MutableDaemonConfig["roleDefaults"];
   terminalProfiles?: MutableDaemonConfig["terminalProfiles"];
   agentProfiles?: MutableDaemonConfig["agentProfiles"];
   skills?: MutableDaemonConfig["skills"];
@@ -226,6 +227,7 @@ const RELOADABLE_PATHS = [
   "daemon.peerDelegationProviderPriority",
   "daemon.peerDelegationDefaultSubrole",
   "daemon.leadRoutes",
+  "daemon.roleDefaults",
   "daemon.terminalProfiles",
   "daemon.agentProfiles",
   "app.baseUrl",
@@ -257,6 +259,7 @@ const PERSISTED_TO_MUTABLE_PATH = new Map<string, string>([
   ["daemon.peerDelegationProviderPriority", "peerDelegationProviderPriority"],
   ["daemon.peerDelegationDefaultSubrole", "peerDelegationDefaultSubrole"],
   ["daemon.leadRoutes", "leadRoutes"],
+  ["daemon.roleDefaults", "roleDefaults"],
   ["daemon.terminalProfiles", "terminalProfiles"],
   ["daemon.agentProfiles", "agentProfiles"],
   ["app.baseUrl", "app.baseUrl"],
@@ -314,6 +317,7 @@ function pickFoundationPatchFields(
   | "peerDelegationProviderPriority"
   | "peerDelegationDefaultSubrole"
   | "leadRoutes"
+  | "roleDefaults"
 > {
   return {
     ...(patch.beadsCentral !== undefined ? { beadsCentral: patch.beadsCentral } : {}),
@@ -332,6 +336,7 @@ function pickFoundationPatchFields(
       ? { peerDelegationDefaultSubrole: patch.peerDelegationDefaultSubrole }
       : {}),
     ...(patch.leadRoutes !== undefined ? { leadRoutes: patch.leadRoutes } : {}),
+    ...(patch.roleDefaults !== undefined ? { roleDefaults: patch.roleDefaults } : {}),
   };
 }
 
@@ -495,6 +500,10 @@ export class DaemonConfigStore {
     return this.current.leadRoutes;
   }
 
+  public getRoleDefaults(): MutableDaemonConfig["roleDefaults"] {
+    return this.current.roleDefaults;
+  }
+
   public patch(partial: MutableDaemonConfigPatch): MutableDaemonConfig {
     const parsedPatch = pickSupportedPatchFields(MutableDaemonConfigPatchSchema.parse(partial));
     return this.applySupportedPatch(parsedPatch);
@@ -537,6 +546,7 @@ export class DaemonConfigStore {
     }
     if (parsedPatch.plugins !== undefined) merged.plugins = parsedPatch.plugins;
     applyLeadRoutesPatch(merged, parsedPatch.leadRoutes);
+    applyRoleDefaultsPatch(merged, parsedPatch.roleDefaults);
     const parsedNext = MutableDaemonConfigSchema.parse(
       omitMetadataGenerationProvidersFromConfig(
         omitProvidersFromConfig(merged, removedProviders),
@@ -823,6 +833,34 @@ function applyLeadRoutesPatch(
   else delete target.leadRoutes;
 }
 
+// Role defaults replace as a whole object (deepMerge would keep cleared fields); empty clears.
+function applyRoleDefaultsPatch(
+  target: { roleDefaults?: MutableDaemonConfig["roleDefaults"] },
+  roleDefaults: MutableDaemonConfig["roleDefaults"] | undefined,
+): void {
+  if (roleDefaults === undefined) return;
+  const compact = compactRoleDefaults(roleDefaults);
+  if (compact) target.roleDefaults = compact;
+  else delete target.roleDefaults;
+}
+
+function compactRoleDefaults(
+  roleDefaults: NonNullable<MutableDaemonConfig["roleDefaults"]>,
+): MutableDaemonConfig["roleDefaults"] {
+  const next: NonNullable<MutableDaemonConfig["roleDefaults"]> = {};
+  if (roleDefaults.defaultRole) next.defaultRole = roleDefaults.defaultRole;
+  for (const roleId of ["supervisor", "lead"] as const) {
+    const launch = roleDefaults[roleId];
+    if (!launch) continue;
+    const compactLaunch = {
+      ...(launch.route ? { route: launch.route } : {}),
+      ...(launch.thinkingOptionId ? { thinkingOptionId: launch.thinkingOptionId } : {}),
+    };
+    if (Object.keys(compactLaunch).length > 0) next[roleId] = compactLaunch;
+  }
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
 function mergeMutableDaemonPatch(
   persistedDaemon: PersistedConfig["daemon"],
   patch: Omit<SupportedMutableConfigPatch, "removeProviders">,
@@ -862,6 +900,7 @@ function mergeMutableDaemonPatch(
     next.peerDelegationDefaultSubrole = patch.peerDelegationDefaultSubrole;
   }
   applyLeadRoutesPatch(next, patch.leadRoutes);
+  applyRoleDefaultsPatch(next, patch.roleDefaults);
   if (patch.terminalProfiles !== undefined) next.terminalProfiles = patch.terminalProfiles;
   if (patch.agentProfiles !== undefined) next.agentProfiles = patch.agentProfiles;
   return Object.keys(next).length > 0 ? next : undefined;

@@ -5,6 +5,10 @@ import {
   buildProjectTopology,
   buildWorkspaceTopology,
   formatTopologyAssignment,
+  formatTopologyModelName,
+  formatTopologyProviderName,
+  isElevatedTopologyMode,
+  shortTopologyProfileName,
 } from "@/panels/topology-model";
 
 function agent(input: {
@@ -328,5 +332,30 @@ describe("formatTopologyAssignment", () => {
         },
       }),
     ).toBe("Peer reviewer · independent review");
+  });
+});
+
+describe("topology display names", () => {
+  it("humanizes model ids for compact cards", () => {
+    expect(formatTopologyModelName("claude-opus-5-5")).toBe("Opus 5.5");
+    expect(formatTopologyModelName("claude-sonnet-4-5-20250929")).toBe("Sonnet 4.5");
+    expect(formatTopologyModelName("claude-3-5-sonnet-latest")).toBe("Claude 3.5 Sonnet");
+    expect(formatTopologyModelName("factory-droid/gpt-6-astra")).toBe("GPT-6 Astra");
+    expect(formatTopologyModelName("gpt-5.1-codex-max")).toBe("GPT-5.1 Codex Max");
+    expect(formatTopologyModelName("gemini-3.1-pro")).toBe("Gemini 3.1 Pro");
+    expect(formatTopologyModelName("claude-opus-5-5[1m]")).toBe("Opus 5.5");
+    expect(formatTopologyModelName(null)).toBeNull();
+    expect(formatTopologyModelName("  ")).toBeNull();
+  });
+
+  it("formats providers, profiles and elevated modes", () => {
+    expect(formatTopologyProviderName("factory-droid")).toBe("Factory Droid");
+    expect(formatTopologyProviderName("claude")).toBe("Claude");
+    expect(shortTopologyProfileName("Peer Image (GPT-6 Astra)")).toBe("Peer Image");
+    expect(shortTopologyProfileName("(only)")).toBe("(only)");
+    expect(isElevatedTopologyMode("bypassPermissions")).toBe(true);
+    expect(isElevatedTopologyMode("auto-high")).toBe(true);
+    expect(isElevatedTopologyMode("default")).toBe(false);
+    expect(isElevatedTopologyMode(null)).toBe(false);
   });
 });

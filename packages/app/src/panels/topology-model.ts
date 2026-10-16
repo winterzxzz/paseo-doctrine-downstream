@@ -18,6 +18,8 @@ export interface TopologyNode {
   launchProfile: Agent["launchProfile"] | null;
   workspaceId: string | null;
   requiresAttention: boolean;
+  attentionReason: Agent["attentionReason"] | null;
+  lastActivityAt: Date | null;
   issueIds: string[];
 }
 
@@ -63,6 +65,84 @@ export function formatTopologyAssignment(
   return node.assignmentDisposition
     ? `${roleLabel} · ${node.assignmentDisposition.replaceAll("_", " ")}`
     : roleLabel;
+}
+
+const MODEL_WORDS: Record<string, string> = {
+  gpt: "GPT",
+  glm: "GLM",
+  oss: "OSS",
+  xai: "xAI",
+  mini: "mini",
+  nano: "nano",
+};
+
+/**
+ * A short, readable model name for compact surfaces: "claude-opus-5-5" →
+ * "Opus 5.5", "factory-droid/gpt-6-astra" → "GPT-6 Astra". The exact route
+ * stays available to callers for tooltips; this is display text only.
+ */
+export function formatTopologyModelName(model: string | null): string | null {
+  let id = model?.trim() ?? "";
+  if (!id) return null;
+  id = id.replace(/\[[^\]]*\]$/, "");
+  id = id.split("/").pop() ?? id;
+  id = id
+    .replace(/[-_@]\d{8}$/, "")
+    .replace(/[-_]latest$/i, "")
+    .replace(/^claude[-_]/i, "");
+  const merged: string[] = [];
+  for (const token of id.split(/[-_\s]+/).filter(Boolean)) {
+    const previous = merged.at(-1);
+    if (previous && /^\d+(\.\d+)*$/.test(previous) && /^\d{1,2}$/.test(token)) {
+      merged[merged.length - 1] = `${previous}.${token}`;
+    } else {
+      merged.push(token);
+    }
+  }
+  if (merged.length === 0) return model?.trim() ?? null;
+  const words = merged.map((token) => {
+    const known = MODEL_WORDS[token.toLowerCase()];
+    if (known) return known;
+    if (/^\d/.test(token) || /^o\d/.test(token)) return token;
+    return `${token.charAt(0).toUpperCase()}${token.slice(1)}`;
+  });
+  if (/^\d/.test(words[0]) && /^claude/i.test(model ?? "")) words.unshift("Claude");
+  const parts: string[] = [];
+  for (const word of words) {
+    const previous = parts.at(-1);
+    if (previous === "GPT" && /^\d/.test(word)) parts[parts.length - 1] = `GPT-${word}`;
+    else parts.push(word);
+  }
+  return parts.join(" ");
+}
+
+/** "factory-droid" → "Factory Droid". */
+export function formatTopologyProviderName(provider: string): string {
+  return provider
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+}
+
+/** Drops trailing parentheticals: "Peer Image (GPT-6 Astra)" → "Peer Image". */
+export function shortTopologyProfileName(name: string): string {
+  const short = name.replace(/(\s*\([^()]*\))+\s*$/, "").trim();
+  return short || name.trim();
+}
+
+const ELEVATED_MODE_IDS = new Set([
+  "bypassPermissions",
+  "full-access",
+  "danger-full-access",
+  "auto-high",
+  "yolo",
+  "unattended",
+]);
+
+/** Whether the agent runs in a mode that skips per-action approval. */
+export function isElevatedTopologyMode(modeId: string | null): boolean {
+  return modeId !== null && ELEVATED_MODE_IDS.has(modeId);
 }
 
 function roleOf(agent: Agent): TopologyRole {
@@ -196,6 +276,8 @@ function buildTopology(topologyAgents: readonly Agent[]): WorkspaceTopology {
     launchProfile: agent.launchProfile ?? null,
     workspaceId: agent.workspaceId ?? null,
     requiresAttention: agent.requiresAttention ?? false,
+    attentionReason: agent.attentionReason ?? null,
+    lastActivityAt: agent.lastActivityAt ?? null,
     issueIds: issueIdsOf(agent),
   }));
   const nodeById = new Map(nodes.map((node) => [node.id, node]));

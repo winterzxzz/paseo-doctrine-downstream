@@ -10,6 +10,7 @@ import {
 } from "@/hooks/use-agent-form-state";
 import { useDraftAgentFeatures } from "@/hooks/use-draft-agent-features";
 import { useRoleProfiles } from "@/hooks/use-role-profiles";
+import { useDaemonConfig } from "@/hooks/use-daemon-config";
 import {
   buildDraftAgentControls,
   hasDraftContent,
@@ -42,6 +43,7 @@ import {
   ordinaryAssignmentAuthorityOptionsForRole,
 } from "@/workspace-protocol/assignment-authority";
 import { resolveRoleOptions } from "@/workspace-protocol/legacy-role-options";
+import { resolveRoleDraftDefaults } from "@/workspace-protocol/role-defaults";
 
 const ASSIGNMENT_EFFECT_FEATURE_ID = "foundation_assignment_effect";
 const BEADS_ISSUE_GRANT_FEATURE_ID = "foundation_beads_issue_grant";
@@ -233,6 +235,7 @@ export function useAgentInputDraft(input: UseAgentInputDraftInput): AgentInputDr
     isCreateFlow: true,
   });
   const roleProfiles = useRoleProfiles(formState.selectedServerId);
+  const { config: daemonConfig } = useDaemonConfig(formState.selectedServerId);
   const draftKey = useMemo(
     () =>
       resolveDraftKey({
@@ -509,6 +512,46 @@ export function useAgentInputDraft(input: UseAgentInputDraftInput): AgentInputDr
     setProviderAndModelForRole,
     setProviderAndModelFromUser,
   ]);
+
+  // Human role defaults: preselect the default role once, then give a newly picked Supervisor or
+  // Lead its default model and effort. Later manual changes in the draft are left alone.
+  const defaultRoleSettledRef = useRef(composerOptions?.initialRoleId !== undefined);
+  const roleDefaultsAppliedForRef = useRef<PaseoRoleId | null>(null);
+  const applyRoleDefaultsFromUser = formState.applyRoleDefaultsFromUser;
+  useEffect(() => {
+    if (defaultRoleSettledRef.current || !daemonConfig) return;
+    defaultRoleSettledRef.current = true;
+    const defaultRole = daemonConfig.roleDefaults?.defaultRole;
+    if (defaultRole && selectedRole === null) {
+      setSelectedRole(defaultRole);
+      setSelectedAssignmentEffect(defaultAssignmentEffectForRole(defaultRole));
+    }
+  }, [daemonConfig, selectedRole]);
+  useEffect(() => {
+    if (!selectedRole) {
+      roleDefaultsAppliedForRef.current = null;
+      return;
+    }
+    if (roleDefaultsAppliedForRef.current === selectedRole) return;
+    if (!daemonConfig || !allProviderEntries?.length) return;
+    roleDefaultsAppliedForRef.current = selectedRole;
+    const defaults = resolveRoleDraftDefaults(daemonConfig, selectedRole);
+    if (!defaults) return;
+    const entry = allProviderEntries.find((candidate) => candidate.provider === defaults.provider);
+    if (
+      !entry ||
+      entry.enabled === false ||
+      entry.status !== "ready" ||
+      !isProviderRoleBindingSupportedForRole(entry.roleBinding, selectedRole)
+    ) {
+      return;
+    }
+    applyRoleDefaultsFromUser({
+      provider: entry.provider,
+      modelId: defaults.model,
+      ...(defaults.thinkingOptionId ? { thinkingOptionId: defaults.thinkingOptionId } : {}),
+    });
+  }, [allProviderEntries, applyRoleDefaultsFromUser, daemonConfig, selectedRole]);
 
   const {
     features: draftFeatures,

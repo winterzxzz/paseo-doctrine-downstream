@@ -183,13 +183,18 @@ describe("native Foundation role materialization", () => {
     expect(lead.instructions).toContain(
       "- `peer-scout` (Peer Scout) · claude/sonnet · subrole scout · Bounded reconnaissance.",
     );
-    expect(lead.instructions).toContain("- `peer-image` (Peer Image) · factory-droid");
+    expect(lead.instructions).toContain(
+      "- `peer-image` (Peer Image) · factory-droid · specialist (launch only by exact launchProfileId)",
+    );
+    expect(lead.instructions).toContain("delegate that part to that profile");
+    expect(lead.instructions).toContain("not an external effect");
     expect(lead.instructions).toContain("provider priority claude > factory-droid");
     expect(lead.instructions).toContain("create_agent.launchProfileId");
 
     const supervisor = await bind("supervisor");
     expect(supervisor.instructions).toContain("- `peer-scout` (Peer Scout)");
     expect(supervisor.instructions).toContain("You never launch Peers");
+    expect(supervisor.instructions).toContain("never forbid it in a Lead assignment");
 
     expect((await bind("peer")).instructions).not.toContain("Peer roster");
 
