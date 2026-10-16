@@ -348,6 +348,24 @@ describe("DaemonConfigStore", () => {
     expect(() => store.patch({ leadRoutes: ["not-a-route"] })).toThrow();
   });
 
+  test("persists default fast mode so it survives a daemon restart", () => {
+    const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-fast-mode-"));
+    tempDirs.push(paseoHome);
+    const store = new DaemonConfigStore(paseoHome, {
+      mcp: { injectIntoAgents: false },
+      browserTools: { enabled: false },
+      providers: {},
+      metadataGeneration: { providers: [] },
+      autoArchiveAfterMerge: false,
+      enableTerminalAgentHooks: false,
+      appendSystemPrompt: "",
+    });
+
+    store.patch({ defaultFastMode: true });
+
+    expect(loadPersistedConfig(paseoHome).daemon?.defaultFastMode).toBe(true);
+  });
+
   test("replaces Human role defaults as a whole and clears them with an empty object", () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-role-defaults-"));
     tempDirs.push(paseoHome);

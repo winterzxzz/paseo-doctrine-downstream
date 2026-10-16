@@ -855,6 +855,7 @@ function compactRoleDefaults(
     const compactLaunch = {
       ...(launch.route ? { route: launch.route } : {}),
       ...(launch.thinkingOptionId ? { thinkingOptionId: launch.thinkingOptionId } : {}),
+      ...(launch.assignmentEffect ? { assignmentEffect: launch.assignmentEffect } : {}),
     };
     if (Object.keys(compactLaunch).length > 0) next[roleId] = compactLaunch;
   }
@@ -885,6 +886,7 @@ function mergeMutableDaemonPatch(
   if (patch.enableTerminalAgentHooks !== undefined) {
     next.enableTerminalAgentHooks = patch.enableTerminalAgentHooks;
   }
+  if (patch.defaultFastMode !== undefined) next.defaultFastMode = patch.defaultFastMode;
   if (patch.appendSystemPrompt !== undefined) next.appendSystemPrompt = patch.appendSystemPrompt;
   if (patch.roleProfiles !== undefined) {
     next.roleProfiles = validateRoleProfilePreferencesMap(patch.roleProfiles);

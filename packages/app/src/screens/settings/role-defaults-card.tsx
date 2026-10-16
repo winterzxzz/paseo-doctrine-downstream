@@ -4,11 +4,16 @@ import { StyleSheet } from "react-native-unistyles";
 import type { ProviderSnapshotEntry } from "@getpaseo/protocol/agent-types";
 import type { MutableDaemonConfigPatch, RoleDefaults } from "@getpaseo/protocol/messages";
 import type { PaseoRoleId } from "@getpaseo/protocol/role-binding";
+import type { AssignmentEffectClass } from "@getpaseo/protocol/assignment-contract";
 import { SelectField, type SelectFieldOption } from "@/components/ui/select-field";
 import { useDaemonConfig } from "@/hooks/use-daemon-config";
 import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
 import { useHostFeature } from "@/runtime/host-features";
 import { settingsStyles } from "@/styles/settings";
+import {
+  defaultAssignmentEffectForRole,
+  ordinaryAssignmentAuthorityOptionsForRole,
+} from "@/workspace-protocol/assignment-authority";
 import {
   resolveRoleDefaultRoute,
   withDefaultLeadRoute,
@@ -90,23 +95,46 @@ function RoleLaunchRow({
   hint,
   route,
   thinkingOptionId,
+  assignmentEffect,
   entries,
   isLoading,
   disabled,
   onChangeRoute,
   onChangeThinking,
+  onChangeAuthority,
 }: {
   roleId: "supervisor" | "lead";
   title: string;
   hint: string;
   route: string | undefined;
   thinkingOptionId: string | undefined;
+  assignmentEffect: AssignmentEffectClass | undefined;
   entries: readonly ProviderSnapshotEntry[] | undefined;
   isLoading: boolean;
   disabled: boolean;
   onChangeRoute: (route: string | null) => void;
   onChangeThinking: (thinkingOptionId: string | null) => void;
+  onChangeAuthority: (assignmentEffect: AssignmentEffectClass) => void;
 }) {
+  const authorityOptions = useMemo<SelectFieldOption<AssignmentEffectClass>[]>(
+    () =>
+      ordinaryAssignmentAuthorityOptionsForRole(roleId).map((option) => ({
+        id: option.id,
+        value: option.id,
+        label: option.label,
+        description: option.description,
+        testID: `role-default-${roleId}-authority-${option.id}`,
+      })),
+    [roleId],
+  );
+  const authorityValue = assignmentEffect ?? defaultAssignmentEffectForRole(roleId);
+  const authorityDisplay = useMemo(
+    () => ({
+      label:
+        authorityOptions.find((option) => option.value === authorityValue)?.label ?? authorityValue,
+    }),
+    [authorityOptions, authorityValue],
+  );
   const modelOptions = useMemo(
     () => buildModelOptions(entries, roleId, roleId === "lead" ? "Inherit caller" : "No default"),
     [entries, roleId],
@@ -174,6 +202,22 @@ function RoleLaunchRow({
             triggerTestID={`role-default-${roleId}-effort-trigger`}
           />
         </View>
+        <View style={styles.authorityControl}>
+          <SelectField
+            label={`${title} authority`}
+            value={authorityValue}
+            selectedDisplay={authorityDisplay}
+            options={authorityOptions}
+            onChange={onChangeAuthority}
+            placeholder="Authority"
+            emptyText="No authority options"
+            disabled={disabled}
+            title={`${title} authority`}
+            size="sm"
+            field={false}
+            triggerTestID={`role-default-${roleId}-authority-trigger`}
+          />
+        </View>
       </View>
     </View>
   );
@@ -237,6 +281,16 @@ export function RoleDefaultsCard({ serverId }: { serverId: string }) {
       }),
     [config?.leadRoutes, roleDefaults, save],
   );
+  const handleSupervisorAuthority = useCallback(
+    (assignmentEffect: AssignmentEffectClass) =>
+      saveRoleDefaults(withRoleLaunchDefaults(roleDefaults, "supervisor", { assignmentEffect })),
+    [roleDefaults, saveRoleDefaults],
+  );
+  const handleLeadAuthority = useCallback(
+    (assignmentEffect: AssignmentEffectClass) =>
+      saveRoleDefaults(withRoleLaunchDefaults(roleDefaults, "lead", { assignmentEffect })),
+    [roleDefaults, saveRoleDefaults],
+  );
   const handleLeadThinking = useCallback(
     (thinkingOptionId: string | null) =>
       saveRoleDefaults(withRoleLaunchDefaults(roleDefaults, "lead", { thinkingOptionId })),
@@ -286,26 +340,30 @@ export function RoleDefaultsCard({ serverId }: { serverId: string }) {
       <RoleLaunchRow
         roleId="supervisor"
         title="Supervisor"
-        hint="Model and effort for new Supervisors, from a draft or another agent."
+        hint="Used for new Supervisors. Model and effort also apply when another agent creates one."
         route={resolveRoleDefaultRoute(config, "supervisor")}
         thinkingOptionId={roleDefaults?.supervisor?.thinkingOptionId}
+        assignmentEffect={roleDefaults?.supervisor?.assignmentEffect}
         entries={entries}
         isLoading={isLoading}
         disabled={isSaving}
         onChangeRoute={handleSupervisorRoute}
         onChangeThinking={handleSupervisorThinking}
+        onChangeAuthority={handleSupervisorAuthority}
       />
       <RoleLaunchRow
         roleId="lead"
         title="Lead"
-        hint="Model and effort for new Leads. The model is the first Lead route below."
+        hint="Used for new Leads. The model is the first route in Lead model below."
         route={resolveRoleDefaultRoute(config, "lead")}
         thinkingOptionId={roleDefaults?.lead?.thinkingOptionId}
+        assignmentEffect={roleDefaults?.lead?.assignmentEffect}
         entries={entries}
         isLoading={isLoading}
         disabled={isSaving}
         onChangeRoute={handleLeadRoute}
         onChangeThinking={handleLeadThinking}
+        onChangeAuthority={handleLeadAuthority}
       />
     </View>
   );
@@ -313,14 +371,16 @@ export function RoleDefaultsCard({ serverId }: { serverId: string }) {
 
 const styles = StyleSheet.create((theme) => ({
   launchRow: {
-    flexWrap: "wrap",
-    rowGap: theme.spacing[2],
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: theme.spacing[3],
   },
   controls: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: theme.spacing[2],
-    flexShrink: 1,
   },
   modelControl: { width: 230, maxWidth: "100%" },
   effortControl: { width: 130 },
+  authorityControl: { width: 170 },
 }));

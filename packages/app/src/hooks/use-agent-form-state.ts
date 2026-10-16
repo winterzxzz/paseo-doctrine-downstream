@@ -67,6 +67,8 @@ export interface UseAgentFormStateResult {
   allProviderModels: Map<string, AgentModelDefinition[]>;
   modelSelectorProviders: ProviderSelectorProvider[];
   isAllModelsLoading: boolean;
+  /** True once saved preferences and the provider snapshot have resolved the form. */
+  isResolutionComplete: boolean;
   isProviderModelsRefreshing: boolean;
   availableThinkingOptions: NonNullable<AgentModelDefinition["thinkingOptions"]>;
   isModelLoading: boolean;
@@ -260,6 +262,7 @@ export function useAgentFormState(options: UseAgentFormStateOptions): UseAgentFo
   const isModelSelectionLoading =
     resolution.status === "pending" || snapshotIsLoading || selectedProviderIsLoading;
   const isAllModelsLoading = isModelSelectionLoading;
+  const isResolutionComplete = resolution.status === "completed";
 
   useEffect(() => {
     dispatch({
@@ -541,6 +544,7 @@ export function useAgentFormState(options: UseAgentFormStateOptions): UseAgentFo
       allProviderModels,
       modelSelectorProviders,
       isAllModelsLoading,
+      isResolutionComplete,
       isProviderModelsRefreshing: snapshotIsRefreshing,
       availableThinkingOptions,
       isModelLoading,
@@ -574,6 +578,7 @@ export function useAgentFormState(options: UseAgentFormStateOptions): UseAgentFo
       allProviderModels,
       modelSelectorProviders,
       isAllModelsLoading,
+      isResolutionComplete,
       snapshotIsRefreshing,
       availableThinkingOptions,
       isModelLoading,

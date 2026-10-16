@@ -32,7 +32,7 @@ export {
 import { TerminalProfileSchema } from "./terminal-profile.js";
 export { TerminalProfileSchema, type TerminalProfile } from "./terminal-profile.js";
 import { z } from "zod";
-import { AssignmentEnvelopeSchema } from "./assignment-contract.js";
+import { AssignmentEffectClassSchema, AssignmentEnvelopeSchema } from "./assignment-contract.js";
 import { TerminalActivitySchema } from "./terminal-activity.js";
 import { CLIENT_CAPS } from "./client-capabilities.js";
 import { AGENT_LIFECYCLE_STATUSES } from "./agent-lifecycle.js";
@@ -270,6 +270,8 @@ export const RoleLaunchDefaultsSchema = z
     /** Default `provider/model`. Lead uses `leadRoutes` instead. */
     route: LeadRouteSchema.optional(),
     thinkingOptionId: z.string().min(1).optional(),
+    /** Assignment authority preselected for this role in a new draft. */
+    assignmentEffect: AssignmentEffectClassSchema.optional(),
   })
   .passthrough();
 

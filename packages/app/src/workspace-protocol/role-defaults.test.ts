@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  resolveDefaultAssignmentEffect,
   resolveRoleDraftDefaults,
   withDefaultLeadRoute,
   withRoleLaunchDefaults,
@@ -54,5 +55,22 @@ describe("role defaults", () => {
     expect(withRoleLaunchDefaults(undefined, "lead", { thinkingOptionId: "low" })).toEqual({
       lead: { thinkingOptionId: "low" },
     });
+  });
+
+  it("starts a draft with the Human authority when the role offers it", () => {
+    const authorityConfig = {
+      roleDefaults: {
+        supervisor: { assignmentEffect: "delegation" as const },
+        lead: { assignmentEffect: "bootstrap" as const },
+      },
+    };
+    expect(resolveDefaultAssignmentEffect(authorityConfig, "supervisor")).toBe("delegation");
+    expect(resolveDefaultAssignmentEffect(authorityConfig, "lead")).toBe("mutating");
+    expect(resolveDefaultAssignmentEffect(null, "supervisor")).toBe("read-only");
+    expect(
+      withRoleLaunchDefaults(authorityConfig.roleDefaults, "supervisor", {
+        assignmentEffect: "read-only",
+      }).supervisor,
+    ).toEqual({ assignmentEffect: "read-only" });
   });
 });

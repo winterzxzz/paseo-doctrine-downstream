@@ -43,7 +43,10 @@ import {
   ordinaryAssignmentAuthorityOptionsForRole,
 } from "@/workspace-protocol/assignment-authority";
 import { resolveRoleOptions } from "@/workspace-protocol/legacy-role-options";
-import { resolveRoleDraftDefaults } from "@/workspace-protocol/role-defaults";
+import {
+  resolveDefaultAssignmentEffect,
+  resolveRoleDraftDefaults,
+} from "@/workspace-protocol/role-defaults";
 
 const ASSIGNMENT_EFFECT_FEATURE_ID = "foundation_assignment_effect";
 const BEADS_ISSUE_GRANT_FEATURE_ID = "foundation_beads_issue_grant";
@@ -524,16 +527,21 @@ export function useAgentInputDraft(input: UseAgentInputDraftInput): AgentInputDr
     const defaultRole = daemonConfig.roleDefaults?.defaultRole;
     if (defaultRole && selectedRole === null) {
       setSelectedRole(defaultRole);
-      setSelectedAssignmentEffect(defaultAssignmentEffectForRole(defaultRole));
+      setSelectedAssignmentEffect(resolveDefaultAssignmentEffect(daemonConfig, defaultRole));
     }
   }, [daemonConfig, selectedRole]);
+  const isFormResolved = formState.isResolutionComplete;
+  useEffect(() => {
+    // A fresh resolution rewrites the form from saved preferences, so apply the defaults again.
+    if (!isFormResolved) roleDefaultsAppliedForRef.current = null;
+  }, [isFormResolved]);
   useEffect(() => {
     if (!selectedRole) {
       roleDefaultsAppliedForRef.current = null;
       return;
     }
     if (roleDefaultsAppliedForRef.current === selectedRole) return;
-    if (!daemonConfig || !allProviderEntries?.length) return;
+    if (!isFormResolved || !daemonConfig || !allProviderEntries?.length) return;
     roleDefaultsAppliedForRef.current = selectedRole;
     const defaults = resolveRoleDraftDefaults(daemonConfig, selectedRole);
     if (!defaults) return;
@@ -551,7 +559,7 @@ export function useAgentInputDraft(input: UseAgentInputDraftInput): AgentInputDr
       modelId: defaults.model,
       ...(defaults.thinkingOptionId ? { thinkingOptionId: defaults.thinkingOptionId } : {}),
     });
-  }, [allProviderEntries, applyRoleDefaultsFromUser, daemonConfig, selectedRole]);
+  }, [allProviderEntries, applyRoleDefaultsFromUser, daemonConfig, isFormResolved, selectedRole]);
 
   const {
     features: draftFeatures,
@@ -585,10 +593,10 @@ export function useAgentInputDraft(input: UseAgentInputDraftInput): AgentInputDr
     (roleId: PaseoRoleId) => {
       setSelectedRole(roleId);
       if (roleId !== selectedRole) {
-        setSelectedAssignmentEffect(defaultAssignmentEffectForRole(roleId));
+        setSelectedAssignmentEffect(resolveDefaultAssignmentEffect(daemonConfig, roleId));
       }
     },
-    [selectedRole],
+    [daemonConfig, selectedRole],
   );
   const setAgentControlFeature = useCallback(
     (featureId: string, value: unknown) => {

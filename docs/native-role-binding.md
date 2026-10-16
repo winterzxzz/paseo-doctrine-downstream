@@ -153,8 +153,10 @@ tạo Lead trực tiếp (WebUI hoặc top-level CLI) không bị list này gi�
 Settings → host → Agents → **Role defaults** (hoặc `daemon.roleDefaults` trong `config.json`, gate
 `server_info.features.roleDefaults`) giữ default của Human cho role agent mới: `defaultRole` là role
 được chọn sẵn khi mở draft mới; `supervisor.route` + `supervisor.thinkingOptionId` và
-`lead.thinkingOptionId` là model/effort mặc định (model của Lead vẫn là route đầu của `leadRoutes`).
-Khi Human chọn Supervisor hoặc Lead trong draft, WebUI áp route và effort đó một lần, không ghi đè
+`lead.thinkingOptionId` là model/effort mặc định (model của Lead vẫn là route đầu của `leadRoutes`);
+`supervisor.assignmentEffect` và `lead.assignmentEffect` là assignment authority chọn sẵn trong draft.
+Khi Human chọn Supervisor hoặc Lead trong draft, WebUI áp route và effort đó sau khi form đã resolve
+saved preferences (áp lại nếu form resolve lại), không ghi đè
 composer preference. Agent-created Supervisor bỏ trống `provider` nhận `supervisor.route`; agent-created
 Supervisor/Lead không truyền `settings.thinkingOptionId` nhận effort mặc định, nhưng chỉ khi model đã
 resolve có option đó — fallback route sang provider khác không bao giờ fail vì effort lạ. Patch thay
