@@ -50,6 +50,8 @@ export function computeNotificationPlan({
 }: ComputeNotificationPlanInput): NotificationPlan {
   let mostRecentPresentIndex: number | null = null;
   let mostRecentPresentAtMs = Number.NEGATIVE_INFINITY;
+  let mostRecentAbsentIndex: number | null = null;
+  let mostRecentAbsentAtMs = Number.NEGATIVE_INFINITY;
 
   for (const [clientIndex, state] of allStates.entries()) {
     const clampedActivityAtMs =
@@ -58,6 +60,10 @@ export function computeNotificationPlan({
       clampedActivityAtMs !== null && nowMs - clampedActivityAtMs <= PRESENCE_THRESHOLD_MS;
 
     if (!isPresent) {
+      if (clampedActivityAtMs !== null && clampedActivityAtMs > mostRecentAbsentAtMs) {
+        mostRecentAbsentIndex = clientIndex;
+        mostRecentAbsentAtMs = clampedActivityAtMs;
+      }
       continue;
     }
 
@@ -75,7 +81,10 @@ export function computeNotificationPlan({
     return { inAppRecipientIndex: mostRecentPresentIndex, shouldPush: false };
   }
 
-  return { inAppRecipientIndex: null, shouldPush: pushEligible };
+  // Downstream: a desktop browser tab left alone for a few minutes is "absent", and a host with
+  // no push subscription would then notify nobody. The most recently active connected client
+  // still gets the OS notification, alongside push.
+  return { inAppRecipientIndex: mostRecentAbsentIndex, shouldPush: pushEligible };
 }
 
 export function isPushEligibleAttentionReason(

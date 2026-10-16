@@ -34,7 +34,7 @@ describe("computeNotificationPlan", () => {
         pushEligible: true,
         nowMs,
       }),
-    ).toEqual({ inAppRecipientIndex: null, shouldPush: true });
+    ).toEqual({ inAppRecipientIndex: 0, shouldPush: true });
   });
 
   it("suppresses notifications when a focused client is present", () => {
@@ -133,6 +133,21 @@ describe("computeNotificationPlan", () => {
     ).toEqual({ inAppRecipientIndex: 1, shouldPush: false });
   });
 
+  it("still notifies the most recently active client when every client is absent", () => {
+    expect(
+      computeNotificationPlan({
+        allStates: [
+          state({ lastActivityAtMs: staleAtMs - 60_000 }),
+          state({ appVisible: false, lastActivityAtMs: staleAtMs }),
+          state({ lastActivityAtMs: null }),
+        ],
+        focusTarget: { kind: "agent", id: "agent-1" },
+        pushEligible: true,
+        nowMs,
+      }),
+    ).toEqual({ inAppRecipientIndex: 1, shouldPush: true });
+  });
+
   it("never treats no-heartbeat clients as present", () => {
     expect(
       computeNotificationPlan({
@@ -152,7 +167,7 @@ describe("computeNotificationPlan", () => {
         pushEligible: true,
         nowMs,
       }),
-    ).toEqual({ inAppRecipientIndex: null, shouldPush: true });
+    ).toEqual({ inAppRecipientIndex: 0, shouldPush: true });
   });
 
   it("does not push error attention when no clients are present", () => {
@@ -163,7 +178,7 @@ describe("computeNotificationPlan", () => {
         pushEligible: false,
         nowMs,
       }),
-    ).toEqual({ inAppRecipientIndex: null, shouldPush: false });
+    ).toEqual({ inAppRecipientIndex: 0, shouldPush: false });
   });
 
   it("lets a foreground mobile-style client with recent activity win as most recent", () => {
@@ -180,7 +195,7 @@ describe("computeNotificationPlan", () => {
     ).toEqual({ inAppRecipientIndex: 1, shouldPush: false });
   });
 
-  it("selects no in-app recipient and pushes when two web-style clients are stale", () => {
+  it("notifies the first stale web-style client and pushes when both are equally stale", () => {
     expect(
       computeNotificationPlan({
         allStates: [state({ lastActivityAtMs: staleAtMs }), state({ lastActivityAtMs: staleAtMs })],
@@ -188,7 +203,7 @@ describe("computeNotificationPlan", () => {
         pushEligible: true,
         nowMs,
       }),
-    ).toEqual({ inAppRecipientIndex: null, shouldPush: true });
+    ).toEqual({ inAppRecipientIndex: 0, shouldPush: true });
   });
 
   it("never suppresses when focusTarget is null even if a client focuses a matching id", () => {
@@ -221,7 +236,7 @@ describe("computeNotificationPlan", () => {
         pushEligible: true,
         nowMs,
       }),
-    ).toEqual({ inAppRecipientIndex: null, shouldPush: true });
+    ).toEqual({ inAppRecipientIndex: 0, shouldPush: true });
   });
 });
 
