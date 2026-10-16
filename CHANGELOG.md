@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.11.2-paseo.83 - 2026-10-17
+
+### Added
+
+- Role defaults có thêm ô **authority** cho Supervisor (Observe / Coordinate Leads) và Lead
+  (Work & coordinate / Inspect only / Coordinate only); draft mới chọn sẵn authority đó.
+
+### Fixed
+
+- Draft mới với role mặc định Supervisor giờ dùng đúng model/effort đã đặt (trước bị saved
+  preference ghi đè về Opus 5.5).
+- Default fast mode không còn tự tắt sau khi restart daemon: lựa chọn giờ được ghi vào `config.json`.
+
 ## 0.11.2-paseo.82 - 2026-10-17
 
 ### Fixed
