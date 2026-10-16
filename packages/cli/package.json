@@ -1,6 +1,6 @@
 {
   "name": "@getpaseo/cli",
-  "version": "0.11.2-paseo.80",
+  "version": "0.11.2-paseo.81",
   "private": true,
   "description": "Paseo CLI - control your AI coding agents from the command line",
   "bin": {

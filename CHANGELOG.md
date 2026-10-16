@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.2-paseo.81 - 2026-10-17
+
+### Fixed
+
+- Agent xong việc vẫn báo notification khi tab WebUI bị bỏ không quá 3 phút. Trước đây client
+  "vắng mặt" chỉ được gửi push, nên host chưa đăng ký push (không có điện thoại) không nhận được
+  gì; giờ client hoạt động gần nhất vẫn nhận OS notification, song song với push.
+
 ## 0.11.2-paseo.80 - 2026-10-16
 
 ### Added
