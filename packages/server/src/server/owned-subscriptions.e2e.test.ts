@@ -13,6 +13,7 @@ import {
   FileTransferOpcode,
   TerminalStreamOpcode,
 } from "@getpaseo/protocol/binary-frames/index";
+import { PARENT_AGENT_ID_LABEL } from "@getpaseo/protocol/agent-labels";
 import { DaemonClient } from "./test-utils/daemon-client.js";
 import { createTestPaseoDaemon } from "./test-utils/paseo-daemon.js";
 import {
@@ -1257,6 +1258,36 @@ test("archive and delete replies retain their historical names and reach only th
     expect(sibling.frames).toEqual([]);
   } finally {
     for (const peer of peers) peer.close();
+    await admin.close();
+    await daemon.close();
+  }
+});
+
+test("deleting an agent deletes its whole subagent tree and nothing else", async () => {
+  const daemon = await createTestPaseoDaemon({ mcpEnabled: false });
+  const admin = new DaemonClient({ url: `ws://127.0.0.1:${daemon.port}/ws` });
+  try {
+    await admin.connect();
+    const root = await admin.createAgent({ provider: "codex", cwd: daemon.staticDir });
+    const child = await admin.createAgent({
+      provider: "codex",
+      cwd: daemon.staticDir,
+      labels: { [PARENT_AGENT_ID_LABEL]: root.id },
+    });
+    const grandchild = await admin.createAgent({
+      provider: "codex",
+      cwd: daemon.staticDir,
+      labels: { [PARENT_AGENT_ID_LABEL]: child.id },
+    });
+    const unrelated = await admin.createAgent({ provider: "codex", cwd: daemon.staticDir });
+
+    await admin.deleteAgent(root.id);
+
+    expect(await admin.fetchAgent(root.id)).toBeNull();
+    expect(await admin.fetchAgent(child.id)).toBeNull();
+    expect(await admin.fetchAgent(grandchild.id)).toBeNull();
+    expect((await admin.fetchAgent(unrelated.id))?.agent.id).toBe(unrelated.id);
+  } finally {
     await admin.close();
     await daemon.close();
   }

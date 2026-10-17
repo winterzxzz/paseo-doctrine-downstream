@@ -22,7 +22,7 @@ const archivedOutsideAgent = {
   archivedAt: "2026-10-01T00:00:00.000Z",
   cwd: "/tmp/elsewhere",
 };
-let daemonAgents: (typeof agent)[] = [agent];
+let daemonAgents: Array<typeof agent & { labels?: Record<string, string> }> = [agent];
 const toEntry = (entry: typeof agent) => ({ agent: entry });
 // The fake daemon pages history two agents at a time.
 const historyPage = (cursor: string | undefined) => {
@@ -41,6 +41,7 @@ const fetchAgentHistory = vi.fn(async (options: { page: { cursor?: string } }) =
 );
 const deleteAgent = vi.fn(async () => undefined);
 const close = vi.fn(async () => undefined);
+let serverFeatures: Record<string, boolean> = {};
 
 vi.mock("../../utils/client.js", () => ({
   connectToDaemon: vi.fn(async () => ({
@@ -50,6 +51,7 @@ vi.mock("../../utils/client.js", () => ({
     cancelAgent,
     deleteAgent,
     close,
+    getLastServerInfoMessage: () => ({ features: serverFeatures }),
   })),
   getDaemonHost: vi.fn(() => "ws://127.0.0.1:6767"),
 }));
@@ -57,6 +59,7 @@ vi.mock("../../utils/client.js", () => ({
 describe("runDeleteCommand", () => {
   beforeEach(() => {
     daemonAgents = [agent];
+    serverFeatures = {};
     deleteAgent.mockClear();
     fetchAgentHistory.mockClear();
   });
@@ -96,6 +99,47 @@ describe("runDeleteCommand", () => {
     expect(result.data).toEqual({
       deletedCount: 2,
       agentIds: [agent.id, archivedAgent.id],
+    });
+  });
+
+  it("reports subagents the daemon deletes with the agent", async () => {
+    const child = {
+      ...archivedAgent,
+      labels: { "paseo.parent-agent-id": agent.id },
+    };
+    const grandchild = {
+      ...archivedOutsideAgent,
+      labels: { "paseo.parent-agent-id": child.id },
+    };
+    daemonAgents = [agent, child, grandchild];
+    serverFeatures = { agentCascadeDelete: true };
+
+    const result = await runDeleteCommand(agent.id, { daemonTarget }, {} as never);
+
+    expect(deleteAgent).toHaveBeenCalledTimes(1);
+    expect(deleteAgent).toHaveBeenCalledWith(agent.id);
+    expect(result.data).toEqual({
+      deletedCount: 3,
+      agentIds: [agent.id, grandchild.id, child.id],
+    });
+  });
+
+  it("sends one delete per tree with --all when the daemon cascades", async () => {
+    const child = {
+      ...archivedAgent,
+      labels: { "paseo.parent-agent-id": agent.id },
+    };
+    daemonAgents = [child, agent, archivedOutsideAgent];
+    serverFeatures = { agentCascadeDelete: true };
+
+    const result = await runDeleteCommand(undefined, { daemonTarget, all: true }, {} as never);
+
+    expect(deleteAgent).toHaveBeenCalledTimes(2);
+    expect(deleteAgent).toHaveBeenCalledWith(agent.id);
+    expect(deleteAgent).toHaveBeenCalledWith(archivedOutsideAgent.id);
+    expect(result.data).toEqual({
+      deletedCount: 3,
+      agentIds: [agent.id, child.id, archivedOutsideAgent.id],
     });
   });
 });

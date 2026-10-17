@@ -126,6 +126,7 @@ import {
   cancelAgentRunCommand,
   closeAgentCommand,
   detachAgentCommand,
+  listDescendantIdsForDelete,
   setAgentModeCommand,
   updateAgentCommand,
   type ArchiveAgentCommandOptions,
@@ -3486,6 +3487,34 @@ export class Session {
   }
 
   private async handleDeleteAgentRequest(agentId: string, requestId: string): Promise<void> {
+    // Deleting a Supervisor or Lead deletes its whole subagent tree: children would otherwise
+    // be orphans no sidebar row or subagents track can reach. Children go first, deepest
+    // first, each closed (interrupting a running turn) before its storage is removed. The
+    // requested agent's own agent_deleted is emitted last, so the caller's request settles
+    // only after the whole tree is gone.
+    let descendantIds: string[] = [];
+    try {
+      descendantIds = await listDescendantIdsForDelete(
+        this.agentStorage,
+        this.agentManager.listAgents(),
+        agentId,
+      );
+    } catch (error) {
+      this.sessionLogger.warn({ err: error, agentId }, "Failed to list subagents for delete");
+    }
+    if (descendantIds.length > 0) {
+      this.sessionLogger.info(
+        { agentId, descendantIds },
+        `Deleting ${descendantIds.length} subagent(s) of ${agentId}`,
+      );
+    }
+    for (const descendantId of descendantIds) {
+      await this.deleteSingleAgent(descendantId, `${requestId}:cascade:${descendantId}`);
+    }
+    await this.deleteSingleAgent(agentId, requestId);
+  }
+
+  private async deleteSingleAgent(agentId: string, requestId: string): Promise<void> {
     this.sessionLogger.info({ agentId }, `Deleting agent ${agentId} from registry`);
 
     const knownWorkspaceId =

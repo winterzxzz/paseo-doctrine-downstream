@@ -9,8 +9,10 @@ export interface WorkspaceAgentActivity {
   enteredAt: Date | null;
   // Role of the root agent, when it is role-bound.
   roleId?: PaseoRoleId;
-  // A Lead created by a Supervisor is reached from the Supervisor's subagents track, the
-  // same way a Peer is reached from its Lead, so its workspace stays out of the sidebar.
+  // Only roots get a sidebar row: a Supervisor, or an agent the Human created. Anything an
+  // agent spawned (a Lead under a Supervisor, an Engineer or Peer under a Lead, a reviewer)
+  // is reached from its parent's subagents track, so a workspace that holds only such
+  // children stays out of the sidebar.
   hiddenFromSidebar?: true;
 }
 
@@ -25,11 +27,15 @@ export function buildWorkspaceAgentActivityIndex(
 ): Map<string, WorkspaceAgentActivity> {
   const activityByWorkspaceId = new Map<string, WorkspaceAgentActivity>();
   const latestActivityAtByWorkspaceId = new Map<string, Date>();
+  const workspacesWithHumanRoot = new Set<string>();
 
   for (const agent of agents.values()) {
     const parentAgent = agent.parentAgentId ? agents.get(agent.parentAgentId) : undefined;
     if (agent.archivedAt || !agent.workspaceId || !isWorkspaceRootAgent(agent, parentAgent)) {
       continue;
+    }
+    if (!parentAgent) {
+      workspacesWithHumanRoot.add(agent.workspaceId);
     }
 
     const enteredAt = agent.attentionTimestamp ?? agent.updatedAt;
@@ -40,6 +46,13 @@ export function buildWorkspaceAgentActivityIndex(
     latestActivityAtByWorkspaceId.set(agent.workspaceId, enteredAt);
 
     activityByWorkspaceId.set(agent.workspaceId, rootAgentActivity(agent, parentAgent, enteredAt));
+  }
+
+  for (const [workspaceId, activity] of activityByWorkspaceId) {
+    if (workspacesWithHumanRoot.has(workspaceId) && activity.hiddenFromSidebar) {
+      const { hiddenFromSidebar: _hidden, ...visible } = activity;
+      activityByWorkspaceId.set(workspaceId, visible);
+    }
   }
 
   for (const [workspaceId, activity] of activityByWorkspaceId) {
@@ -67,7 +80,7 @@ function rootAgentActivity(
     attentionReason: agent.attentionReason,
   });
   const roleId = agent.roleBinding?.roleId;
-  const hiddenFromSidebar = roleId === "lead" && parentAgent?.roleBinding?.roleId === "supervisor";
+  const hiddenFromSidebar = parentAgent !== undefined;
   return {
     agentId: agent.id,
     status,

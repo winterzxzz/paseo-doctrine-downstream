@@ -1894,6 +1894,8 @@ export class VoiceAssistantWebSocketServer {
         ...(this.advertiseDaemonStatusRpc ? { daemonStatusRpc: true } : {}),
         // COMPAT(daemonConfigReload): added in v0.4.0, remove gate after 2027-02-14.
         daemonConfigReload: true,
+        // COMPAT(agentCascadeDelete): added in v0.11.2-paseo.85, remove gate after 2027-04-17.
+        agentCascadeDelete: true,
         // COMPAT(distributionUpdate): added in v0.5.0-paseo.41, remove gate after 2027-08-25.
         distributionUpdate: true,
         // COMPAT(relayConfig): added in v0.2.6, remove gate after 2027-01-31.

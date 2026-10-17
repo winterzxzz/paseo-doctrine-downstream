@@ -273,12 +273,39 @@ async function listUnarchivedDescendantIds(
   storage: LifecycleAgentStorage,
   rootAgentId: string,
 ): Promise<string[]> {
-  const childrenByParent = new Map<string, string[]>();
+  const records = (await storage.list()).filter((record) => !record.archivedAt);
+  return collectDescendantIds(records, rootAgentId);
+}
+
+/**
+ * Every agent below `rootAgentId` — archived or not, stored or only live — ordered deepest
+ * first, so a cascade delete removes a child before its parent and never leaves an orphan
+ * pointing at a deleted parent mid-way.
+ */
+export async function listDescendantIdsForDelete(
+  storage: Pick<LifecycleAgentStorage, "list">,
+  liveAgents: ReadonlyArray<{ id: string; labels: Record<string, string> }>,
+  rootAgentId: string,
+): Promise<string[]> {
+  const byId = new Map<string, { id: string; labels: Record<string, string> }>();
   for (const record of await storage.list()) {
-    if (record.archivedAt) continue;
-    const parentId = getParentAgentIdFromLabels(record.labels);
+    byId.set(record.id, { id: record.id, labels: record.labels });
+  }
+  for (const agent of liveAgents) {
+    byId.set(agent.id, agent);
+  }
+  return collectDescendantIds([...byId.values()], rootAgentId).toReversed();
+}
+
+function collectDescendantIds(
+  agents: ReadonlyArray<{ id: string; labels: Record<string, string> }>,
+  rootAgentId: string,
+): string[] {
+  const childrenByParent = new Map<string, string[]>();
+  for (const agent of agents) {
+    const parentId = getParentAgentIdFromLabels(agent.labels);
     if (!parentId) continue;
-    childrenByParent.set(parentId, [...(childrenByParent.get(parentId) ?? []), record.id]);
+    childrenByParent.set(parentId, [...(childrenByParent.get(parentId) ?? []), agent.id]);
   }
   const descendants: string[] = [];
   const queue = [...(childrenByParent.get(rootAgentId) ?? [])];

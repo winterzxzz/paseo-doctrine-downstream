@@ -205,7 +205,7 @@ describe("workspace agent activity index", () => {
     });
   });
 
-  it("treats a cross-workspace subagent as activity in its own workspace", () => {
+  it("tracks a cross-workspace subagent in its own workspace but hides that workspace", () => {
     const index = buildWorkspaceAgentActivityIndex(
       new Map([
         [
@@ -245,6 +245,7 @@ describe("workspace agent activity index", () => {
             agentId: "child",
             status: "running",
             enteredAt: new Date("2026-06-01T10:03:00.000Z"),
+            hiddenFromSidebar: true,
           },
         ],
       ]),
@@ -367,5 +368,99 @@ describe("workspace agent activity index", () => {
     });
     expect(index.get("workspace-human-lead")).toMatchObject({ roleId: "lead" });
     expect(index.get("workspace-human-lead")?.hiddenFromSidebar).toBeUndefined();
+  });
+
+  it("hides every agent-spawned workspace below a Supervisor, at any depth", () => {
+    const index = buildWorkspaceAgentActivityIndex(
+      new Map([
+        [
+          "sup",
+          agent({
+            id: "sup",
+            workspaceId: "workspace-sup",
+            updatedAt: "2026-06-01T10:00:00.000Z",
+            roleId: "supervisor",
+          }),
+        ],
+        [
+          "lead",
+          agent({
+            id: "lead",
+            workspaceId: "workspace-sup",
+            updatedAt: "2026-06-01T10:01:00.000Z",
+            parentAgentId: "sup",
+            roleId: "lead",
+          }),
+        ],
+        [
+          "engineer",
+          agent({
+            id: "engineer",
+            workspaceId: "workspace-engineer",
+            status: "running",
+            updatedAt: "2026-06-01T10:02:00.000Z",
+            parentAgentId: "lead",
+            roleId: "peer",
+          }),
+        ],
+        [
+          "reviewer",
+          agent({
+            id: "reviewer",
+            workspaceId: "workspace-reviewer",
+            updatedAt: "2026-06-01T10:03:00.000Z",
+            parentAgentId: "engineer",
+          }),
+        ],
+      ]),
+    );
+
+    expect(index.get("workspace-sup")?.hiddenFromSidebar).toBeUndefined();
+    expect(index.get("workspace-engineer")).toMatchObject({
+      agentId: "engineer",
+      hiddenFromSidebar: true,
+    });
+    expect(index.get("workspace-reviewer")).toMatchObject({
+      agentId: "reviewer",
+      hiddenFromSidebar: true,
+    });
+  });
+
+  it("keeps a workspace visible when a Human-created agent shares it with a newer child", () => {
+    const index = buildWorkspaceAgentActivityIndex(
+      new Map([
+        [
+          "sup",
+          agent({
+            id: "sup",
+            workspaceId: "workspace-sup",
+            updatedAt: "2026-06-01T10:00:00.000Z",
+            roleId: "supervisor",
+          }),
+        ],
+        [
+          "human",
+          agent({
+            id: "human",
+            workspaceId: "workspace-shared",
+            updatedAt: "2026-06-01T10:01:00.000Z",
+          }),
+        ],
+        [
+          "child",
+          agent({
+            id: "child",
+            workspaceId: "workspace-shared",
+            status: "running",
+            updatedAt: "2026-06-01T10:05:00.000Z",
+            parentAgentId: "sup",
+            roleId: "lead",
+          }),
+        ],
+      ]),
+    );
+
+    expect(index.get("workspace-shared")).toMatchObject({ agentId: "child", status: "running" });
+    expect(index.get("workspace-shared")?.hiddenFromSidebar).toBeUndefined();
   });
 });
