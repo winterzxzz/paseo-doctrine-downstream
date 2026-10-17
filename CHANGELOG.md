@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.11.2-paseo.84 - 2026-10-17
+
+### Added
+
+- `roleDefaults.supervisor.permission` (`ask` / `bypass`) trong `config.json` ghi đè runtime
+  permission cho các Supervisor khởi chạy sau đó.
+
+### Fixed
+
+- Agent ACP (Droid) không còn kẹt ở lỗi "A foreground turn is already active" khi agent bỏ qua
+  lệnh cancel: tin nhắn tiếp theo bỏ turn đã cancel và chạy turn mới.
+
 ## 0.11.2-paseo.83 - 2026-10-17
 
 ### Added
