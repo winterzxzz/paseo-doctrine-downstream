@@ -41,6 +41,16 @@ export interface RuntimePermissionSubject {
   executionProfileId?: string;
 }
 
+/** Human Supervisor runtime permission from Settings; null keeps the per-authority policy. */
+export type SupervisorPermissionOverride = "ask" | "bypass" | null;
+
+let supervisorPermissionOverride: SupervisorPermissionOverride = null;
+
+/** Set from `roleDefaults.supervisor.permission`; applies to Supervisors launched afterwards. */
+export function setSupervisorPermissionOverride(value: SupervisorPermissionOverride): void {
+  supervisorPermissionOverride = value;
+}
+
 const REVIEWER_EXECUTION_PROFILE_IDS = new Set(["reviewer", "review"]);
 
 function isReviewerPeer(subject: RuntimePermissionSubject): boolean {
@@ -69,6 +79,7 @@ export function resolveRuntimePermissionPolicy(
     case "peer":
       return isReviewerPeer(subject) ? "no-write" : "bypass";
     case "supervisor":
+      if (supervisorPermissionOverride) return supervisorPermissionOverride;
       if (subject.effectClass === "read-only") return "no-write";
       if (subject.effectClass === "delegation") return "ask";
       return "bypass";

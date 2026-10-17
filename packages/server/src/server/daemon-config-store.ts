@@ -856,6 +856,7 @@ function compactRoleDefaults(
       ...(launch.route ? { route: launch.route } : {}),
       ...(launch.thinkingOptionId ? { thinkingOptionId: launch.thinkingOptionId } : {}),
       ...(launch.assignmentEffect ? { assignmentEffect: launch.assignmentEffect } : {}),
+      ...(roleId === "supervisor" && launch.permission ? { permission: launch.permission } : {}),
     };
     if (Object.keys(compactLaunch).length > 0) next[roleId] = compactLaunch;
   }

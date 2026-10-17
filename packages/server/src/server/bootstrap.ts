@@ -148,6 +148,7 @@ import type { LocalSpeechProviderConfig } from "./speech/providers/local/config.
 import type { RequestedSpeechProviders } from "./speech/speech-types.js";
 import { createSpeechService } from "./speech/speech-runtime.js";
 import { AgentManager } from "./agent/agent-manager.js";
+import { setSupervisorPermissionOverride } from "./agent/assignment-capability-boundary.js";
 import {
   resolveTrustedSembleRuntime,
   type TrustedSembleRuntime,
@@ -1905,6 +1906,12 @@ export async function createPaseoDaemon(
             });
             daemonConfigStore.onFieldChange("defaultFastMode", (value) => {
               agentManager.setDefaultFastMode(value === true);
+            });
+            setSupervisorPermissionOverride(
+              daemonConfigStore.get().roleDefaults?.supervisor?.permission ?? null,
+            );
+            daemonConfigStore.onChange((next) => {
+              setSupervisorPermissionOverride(next.roleDefaults?.supervisor?.permission ?? null);
             });
             const relayEnabled = config.relayEnabled ?? true;
             const relayEndpoint = config.relayEndpoint ?? "relay.paseo.sh:443";

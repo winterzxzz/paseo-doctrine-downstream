@@ -272,6 +272,8 @@ export const RoleLaunchDefaultsSchema = z
     thinkingOptionId: z.string().min(1).optional(),
     /** Assignment authority preselected for this role in a new draft. */
     assignmentEffect: AssignmentEffectClassSchema.optional(),
+    /** Supervisor only: runtime permission instead of the per-authority policy. */
+    permission: z.enum(["ask", "bypass"]).optional(),
   })
   .passthrough();
 
