@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.11.2-paseo.85 - 2026-10-17
+
+### Changed
+
+- Xoá một Supervisor hoặc Lead (`paseo delete`, `delete_agent_request`) giờ xoá luôn toàn bộ agent
+  con bên dưới (Lead, Engineer, Peer, reviewer, image agent…), từ sâu nhất lên, dừng agent đang
+  chạy trước khi xoá. `paseo delete` báo đủ số agent đã bị xoá.
+
+### Fixed
+
+- Sidebar chỉ hiện agent gốc (Supervisor hoặc agent do Human tạo): Engineer/Peer/reviewer do Lead
+  tạo không còn hiện thành dòng riêng; mở chúng từ track subagents của agent cha.
+
 ## 0.11.2-paseo.84 - 2026-10-17
 
 ### Added
