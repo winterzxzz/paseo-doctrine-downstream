@@ -1814,6 +1814,10 @@ export class ACPAgentSession implements AgentSession, ACPClient {
   private readonly extensionCommandsParser?: ACPExtensionCommandsParser;
   private currentTurnUsage: AgentUsage | undefined;
   private activeForegroundTurnId: string | null = null;
+  // The foreground turn we asked the agent to cancel. Some agents (Droid) keep
+  // the prompt request open after session/cancel, so the next startTurn
+  // abandons that turn instead of refusing forever.
+  private cancelRequestedTurnId: string | null = null;
   private fallbackAssistantMessageId: string | null = null;
   private closed = false;
   private historyPending = false;
@@ -1982,7 +1986,10 @@ export class ACPAgentSession implements AgentSession, ACPClient {
       throw new Error(`${this.provider} session is not initialized`);
     }
     if (this.activeForegroundTurnId) {
-      throw new Error("A foreground turn is already active");
+      if (this.cancelRequestedTurnId !== this.activeForegroundTurnId) {
+        throw new Error("A foreground turn is already active");
+      }
+      this.abandonCanceledTurn(this.activeForegroundTurnId);
     }
 
     this.deliverTranslatedEvents(this.flushPendingUserMessage());
@@ -2002,10 +2009,16 @@ export class ACPAgentSession implements AgentSession, ACPClient {
         prompt: toACPContentBlocks(prompt),
       })
       .then((response) => {
+        if (this.isAbandonedTurn(turnId)) {
+          return;
+        }
         this.handlePromptResponse(response, turnId);
         return;
       })
       .catch((error) => {
+        if (this.isAbandonedTurn(turnId)) {
+          return;
+        }
         const summary = summarizeACPRequestError(error);
         this.finishTurn({
           type: "turn_failed",
@@ -2565,8 +2578,34 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     this.cancelPendingPermissions();
 
     if (this.activeForegroundTurnId) {
+      this.cancelRequestedTurnId = this.activeForegroundTurnId;
       await this.connection.cancel({ sessionId: this.sessionId });
     }
+  }
+
+  private abandonCanceledTurn(turnId: string): void {
+    this.logger.warn(
+      { agentId: this.agentId, provider: this.provider, sessionId: this.sessionId, turnId },
+      "ACP agent never settled a canceled prompt; abandoning it for the next turn",
+    );
+    this.deliverTranslatedEvents(this.flushPendingUserMessage());
+    this.cancelPendingPermissions();
+    this.activeForegroundTurnId = null;
+    this.fallbackAssistantMessageId = null;
+    if (this.submittedUserMessageTurnId === turnId) {
+      this.submittedUserMessageTurnId = null;
+    }
+  }
+
+  private isAbandonedTurn(turnId: string): boolean {
+    if (this.activeForegroundTurnId === turnId) {
+      return false;
+    }
+    this.logger.debug(
+      { agentId: this.agentId, provider: this.provider, sessionId: this.sessionId, turnId },
+      "Ignoring ACP prompt settlement for an abandoned turn",
+    );
+    return true;
   }
 
   async close(): Promise<void> {
@@ -3454,6 +3493,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
       this.cancelPendingPermissions();
     }
     this.activeForegroundTurnId = null;
+    this.cancelRequestedTurnId = null;
     this.fallbackAssistantMessageId = null;
     if (this.submittedUserMessageTurnId === event.turnId) {
       this.submittedUserMessageTurnId = null;

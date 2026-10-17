@@ -3436,6 +3436,69 @@ describe("ACPAgentSession", () => {
     expect(asInternals<ACPSessionInternals>(session).activeForegroundTurnId).toBeNull();
   });
 
+  test("startTurn refuses a second turn while the first one is still running", async () => {
+    const session = createSession();
+    const prompt = vi.fn(() => new Promise<PromptResponse>(() => undefined));
+
+    asInternals<ACPSessionInternals>(session).sessionId = "session-1";
+    asInternals<ACPSessionInternals>(session).connection = { prompt };
+
+    await session.startTurn("first");
+
+    await expect(session.startTurn("second")).rejects.toThrow(
+      "A foreground turn is already active",
+    );
+    expect(prompt).toHaveBeenCalledOnce();
+  });
+
+  test("startTurn abandons a canceled turn the agent never settled", async () => {
+    const session = createSession();
+    const events: Array<{ type: string; turnId?: string }> = [];
+    const promptResolvers: Array<(value: PromptResponse) => void> = [];
+    const prompt = vi.fn(
+      () =>
+        new Promise<PromptResponse>((resolve) => {
+          promptResolvers.push(resolve);
+        }),
+    );
+    const cancel = vi.fn(async () => undefined);
+
+    asInternals<ACPSessionInternals>(session).sessionId = "session-1";
+    asInternals<ACPSessionInternals>(session).connection = { prompt, cancel };
+
+    session.subscribe((event) => {
+      events.push(event as { type: string; turnId?: string });
+    });
+
+    const { turnId: firstTurnId } = await session.startTurn("first");
+    await session.interrupt();
+    expect(cancel).toHaveBeenCalledWith({ sessionId: "session-1" });
+
+    const { turnId: secondTurnId } = await session.startTurn("second");
+
+    expect(prompt).toHaveBeenCalledTimes(2);
+    expect(asInternals<ACPSessionInternals>(session).activeForegroundTurnId).toBe(secondTurnId);
+
+    promptResolvers[0]({ stopReason: "cancelled" });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(asInternals<ACPSessionInternals>(session).activeForegroundTurnId).toBe(secondTurnId);
+    expect(events.filter((event) => event.turnId === firstTurnId).map((e) => e.type)).not.toContain(
+      "turn_canceled",
+    );
+
+    promptResolvers[1]({ stopReason: "end_turn" });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(events.find((event) => event.type === "turn_completed")).toMatchObject({
+      type: "turn_completed",
+      turnId: secondTurnId,
+    });
+    expect(asInternals<ACPSessionInternals>(session).activeForegroundTurnId).toBeNull();
+  });
+
   test("flushes an image-only provider echo before a rejected turn finishes", async () => {
     const session = createSession();
     const events: AgentStreamEvent[] = [];
