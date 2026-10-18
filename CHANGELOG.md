@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.2-paseo.86 - 2026-10-18
+
+### Fixed
+
+- Workspace riêng của Peer/image agent không còn hiện lại trong sidebar sau khi Lead archive
+  agent đó: khi agent cuối cùng trong workspace bị archive và mọi agent trong đó đều do agent khác
+  tạo, daemon archive luôn workspace. Worktree và workspace có agent do Human tạo giữ quy tắc cũ.
+
 ## 0.11.2-paseo.85 - 2026-10-17
 
 ### Changed
