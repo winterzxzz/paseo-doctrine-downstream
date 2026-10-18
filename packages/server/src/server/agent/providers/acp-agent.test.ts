@@ -3499,6 +3499,49 @@ describe("ACPAgentSession", () => {
     expect(asInternals<ACPSessionInternals>(session).activeForegroundTurnId).toBeNull();
   });
 
+  test("startTurn restarts a worker that still holds an abandoned canceled prompt", async () => {
+    const terminator = new FakeTerminator();
+    const session = createSession({ terminateProcess: terminator.terminate });
+    const events: Array<{ type: string; turnId?: string }> = [];
+    const wedgedChild = createTerminalChildStub();
+    const wedgedPrompt = vi.fn(
+      (input: { messageId: string }): Promise<PromptResponse> =>
+        input.messageId === "first"
+          ? new Promise<PromptResponse>(() => undefined)
+          : Promise.reject(new Error("Invalid request: A prompt is already running")),
+    );
+    const freshPrompt = vi.fn(async () => ({ stopReason: "end_turn" }) as PromptResponse);
+    const loadSession = vi.fn(async () => ({}));
+    const freshChild = createTerminalChildStub();
+    const internals = asInternals<
+      ACPSessionInternals & {
+        child: ChildProcess | null;
+        spawnProcess: () => Promise<unknown>;
+      }
+    >(session);
+    internals.sessionId = "session-1";
+    internals.child = wedgedChild;
+    internals.connection = { prompt: wedgedPrompt, cancel: vi.fn(async () => undefined) };
+    internals.spawnProcess = vi.fn(async () => {
+      internals.child = freshChild;
+      internals.connection = { prompt: freshPrompt, loadSession };
+      return { child: freshChild, initialize: { agentCapabilities: { loadSession: true } } };
+    });
+    session.subscribe((event) => events.push(event as { type: string; turnId?: string }));
+
+    await session.startTurn("first", { clientMessageId: "first" });
+    await session.interrupt();
+    const { turnId } = await session.startTurn("second", { clientMessageId: "second" });
+    const completedTurnIds = () =>
+      events.filter((event) => event.type === "turn_completed").map((event) => event.turnId);
+    await vi.waitFor(() => expect(completedTurnIds()).toEqual([turnId]));
+
+    expect(terminator.terminated).toEqual([wedgedChild]);
+    expect(loadSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "session-1" }));
+    expect(freshPrompt).toHaveBeenCalledWith(expect.objectContaining({ messageId: "second" }));
+    expect(events.some((event) => event.type === "turn_failed")).toBe(false);
+  });
+
   test("flushes an image-only provider echo before a rejected turn finishes", async () => {
     const session = createSession();
     const events: AgentStreamEvent[] = [];

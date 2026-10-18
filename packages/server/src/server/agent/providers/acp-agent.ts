@@ -1913,37 +1913,68 @@ export class ACPAgentSession implements AgentSession, ACPClient {
       this.sessionId = handle.sessionId;
       this.bootstrapThreadEventPending = true;
 
-      const sessionCapabilities = this.agentCapabilities?.sessionCapabilities;
-      if (this.agentCapabilities?.loadSession) {
-        this.replayingHistory = true;
+      await this.attachExistingSession(handle.sessionId);
+      this.historyPending = this.persistedHistory.length > 0;
+      await this.applyConfiguredOverrides();
+    } catch (error) {
+      await this.closeAfterInitializationFailure(error);
+    }
+  }
+
+  private async attachExistingSession(sessionId: string): Promise<void> {
+    if (this.agentCapabilities?.loadSession) {
+      this.replayingHistory = true;
+      try {
         const response = await this.runACPRequest(() =>
           this.connection!.loadSession({
-            sessionId: handle.sessionId,
+            sessionId,
             cwd: this.config.cwd,
             mcpServers: this.acpMcpServers(),
           }),
         );
         this.deliverTranslatedEvents(this.flushPendingUserMessage());
+        this.applySessionState(response);
+      } finally {
         this.replayingHistory = false;
-        this.historyPending = this.persistedHistory.length > 0;
-        this.applySessionState(response);
-      } else if (sessionCapabilities?.resume) {
-        const response = await this.runACPRequest(() =>
-          this.connection!.unstable_resumeSession({
-            sessionId: handle.sessionId,
-            cwd: this.config.cwd,
-            mcpServers: this.acpMcpServers(),
-          }),
-        );
-        this.applySessionState(response);
-      } else {
-        throw new Error(`${this.provider} does not support ACP session resume`);
       }
-
-      await this.applyConfiguredOverrides();
-    } catch (error) {
-      await this.closeAfterInitializationFailure(error);
+    } else if (this.agentCapabilities?.sessionCapabilities?.resume) {
+      const response = await this.runACPRequest(() =>
+        this.connection!.unstable_resumeSession({
+          sessionId,
+          cwd: this.config.cwd,
+          mcpServers: this.acpMcpServers(),
+        }),
+      );
+      this.applySessionState(response);
+    } else {
+      throw new Error(`${this.provider} does not support ACP session resume`);
     }
+  }
+
+  /**
+   * Some ACP agents (Factory Droid) never settle a canceled prompt and keep rejecting every new
+   * prompt for the session as already running. The worker is wedged, so replace it with a fresh
+   * process that reloads the same session; the history it replays is already on the timeline.
+   */
+  private async restartWedgedWorker(): Promise<void> {
+    const sessionId = this.sessionId;
+    if (!sessionId) {
+      throw new Error(`${this.provider} session is not initialized`);
+    }
+    const previous = this.child;
+    this.cancelPendingPermissions();
+    this.child = null;
+    this.connection = null;
+    if (previous) {
+      await this.terminateProcess(previous, { gracefulTimeoutMs: 2_000, forceTimeoutMs: 2_000 });
+    }
+
+    const historyLength = this.persistedHistory.length;
+    const spawned = await this.spawnProcess();
+    this.agentCapabilities = spawned.initialize.agentCapabilities ?? null;
+    await this.attachExistingSession(sessionId);
+    this.persistedHistory.length = historyLength;
+    await this.applyConfiguredOverrides();
   }
 
   private async closeAfterInitializationFailure(error: unknown): Promise<never> {
@@ -1985,11 +2016,13 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     if (!this.connection || !this.sessionId) {
       throw new Error(`${this.provider} session is not initialized`);
     }
+    let followsAbandonedTurn = false;
     if (this.activeForegroundTurnId) {
       if (this.cancelRequestedTurnId !== this.activeForegroundTurnId) {
         throw new Error("A foreground turn is already active");
       }
       this.abandonCanceledTurn(this.activeForegroundTurnId);
+      followsAbandonedTurn = true;
     }
 
     this.deliverTranslatedEvents(this.flushPendingUserMessage());
@@ -2002,35 +2035,60 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     this.pushEvent({ type: "turn_started", provider: this.provider, turnId });
     this.emitSubmittedUserMessage(prompt, messageId, turnId, options?.clientMessageId);
 
-    void this.connection
-      .prompt({
-        sessionId: this.sessionId,
-        messageId,
-        prompt: toACPContentBlocks(prompt),
-      })
-      .then((response) => {
-        if (this.isAbandonedTurn(turnId)) {
-          return;
-        }
-        this.handlePromptResponse(response, turnId);
-        return;
-      })
-      .catch((error) => {
-        if (this.isAbandonedTurn(turnId)) {
-          return;
-        }
-        const summary = summarizeACPRequestError(error);
-        this.finishTurn({
-          type: "turn_failed",
-          provider: this.provider,
-          error: summary.message,
-          code: summary.code,
-          diagnostic: this.collectDiagnostic(summary.diagnostic ?? summary.message),
-          turnId,
-        });
-      });
+    void this.dispatchPrompt({ turnId, messageId, prompt, followsAbandonedTurn });
 
     return { turnId };
+  }
+
+  private async dispatchPrompt(input: {
+    turnId: string;
+    messageId: string;
+    prompt: AgentPromptInput;
+    followsAbandonedTurn: boolean;
+  }): Promise<void> {
+    const { turnId, messageId, prompt } = input;
+    const send = () =>
+      this.connection!.prompt({
+        sessionId: this.sessionId!,
+        messageId,
+        prompt: toACPContentBlocks(prompt),
+      });
+    try {
+      let response: PromptResponse;
+      try {
+        response = await send();
+      } catch (error) {
+        if (!input.followsAbandonedTurn || !this.child || this.isAbandonedTurn(turnId)) {
+          throw error;
+        }
+        this.logger.warn(
+          { err: error, agentId: this.agentId, provider: this.provider, turnId },
+          "ACP agent rejected the prompt after an abandoned cancel; restarting the worker",
+        );
+        await this.restartWedgedWorker();
+        if (this.isAbandonedTurn(turnId)) {
+          return;
+        }
+        response = await send();
+      }
+      if (this.isAbandonedTurn(turnId)) {
+        return;
+      }
+      this.handlePromptResponse(response, turnId);
+    } catch (error) {
+      if (this.isAbandonedTurn(turnId)) {
+        return;
+      }
+      const summary = summarizeACPRequestError(error);
+      this.finishTurn({
+        type: "turn_failed",
+        provider: this.provider,
+        error: summary.message,
+        code: summary.code,
+        diagnostic: this.collectDiagnostic(summary.diagnostic ?? summary.message),
+        turnId,
+      });
+    }
   }
 
   subscribe(callback: (event: AgentStreamEvent) => void): () => void {
@@ -2977,7 +3035,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     });
     const spawnError = rejectOnSpawnError(child, stderrChunks);
     child.once("exit", (code, signal) => {
-      if (this.closed) {
+      if (this.closed || this.child !== child) {
         return;
       }
       if (this.activeForegroundTurnId) {
