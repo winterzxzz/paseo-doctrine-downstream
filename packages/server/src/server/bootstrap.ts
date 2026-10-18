@@ -258,6 +258,7 @@ import {
   type CreateAgentCommandDependencies,
 } from "./agent/create-agent/create.js";
 import { archiveAgentCommand, cancelAgentRunCommand } from "./agent/lifecycle-command.js";
+import { archiveWorkspaceLeftByArchivedChild } from "./agent/archive-child-workspace.js";
 import { CreateAgentLifecycleDispatch } from "./agent/create-agent-lifecycle-dispatch.js";
 import {
   HubRelationshipController,
@@ -1571,6 +1572,20 @@ export async function createPaseoDaemon(
       await scheduleService.completeForAgent(agentId);
     } catch (error) {
       logger.warn({ err: error, agentId }, "Failed to complete schedules for archived agent");
+    }
+    try {
+      await archiveWorkspaceLeftByArchivedChild(
+        {
+          agentStorage,
+          workspaceRegistry,
+          archiveWorkspaceRecord: archiveWorkspaceRecordExternal,
+          emitWorkspaceUpdatesForWorkspaceIds: emitWorkspaceUpdatesExternal,
+          logger,
+        },
+        agentId,
+      );
+    } catch (error) {
+      logger.warn({ err: error, agentId }, "Failed to archive workspace left by archived child");
     }
   });
   logger.info({ elapsed: elapsed() }, "Schedule service initialized");
