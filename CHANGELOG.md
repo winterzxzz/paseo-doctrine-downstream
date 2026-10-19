@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.11.2-paseo.87 - 2026-10-19
+
+### Added
+
+- Trang Project topology có thêm mục "Needs you" ở đầu: gom mọi permission đang chờ, lỗi và agent
+  đã xong chưa xem của tất cả project, chờ lâu nhất lên trước, bấm vào là mở thẳng agent.
+- Mỗi agent đang chạy trên trang topology hiện thời gian của turn hiện tại và, khi client đang giữ
+  timeline của agent đó, tool đang gọi. Dòng project tự xếp chồng theo bề rộng trang thay vì bị ép
+  mất tên khi sidebar rộng.
+
+### Fixed
+
+- Factory Droid không còn kẹt Supervisor ở trạng thái lỗi sau một lần cancel bị bỏ dở: khi prompt
+  đầu tiên sau đó bị từ chối, daemon thay worker, nạp lại session và gửi lại prompt một lần.
+
 ## 0.11.2-paseo.86 - 2026-10-18
 
 ### Fixed
