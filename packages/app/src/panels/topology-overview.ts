@@ -1,4 +1,7 @@
 import type { TopologyNode } from "@/panels/topology-model";
+import type { StreamItem } from "@/types/stream";
+import { describeToolCall } from "@/tool-calls/detail-level/grouping";
+import { buildToolCallDisplayModel } from "@/utils/tool-call-display";
 
 /** One project's state, most urgent first. */
 export type ProjectActivityState = "needs-you" | "working" | "review" | "idle" | "inactive";
@@ -119,4 +122,101 @@ export function compareProjectOverviews(
       (left.overview.lastActivityAt?.getTime() ?? 0) ||
     left.label.localeCompare(right.label)
   );
+}
+
+export type AttentionReason = "permission" | "error" | "finished";
+
+export const ATTENTION_REASON_LABELS: Record<AttentionReason, string> = {
+  permission: "Permission",
+  error: "Error",
+  finished: "To review",
+};
+
+const ATTENTION_REASON_ORDER: AttentionReason[] = ["permission", "error", "finished"];
+
+/** One agent waiting on the Human, across every project on the host. */
+export interface AttentionItem {
+  node: TopologyNode;
+  projectId: string;
+  projectLabel: string;
+  reason: AttentionReason;
+  /** When the wait began; the inbox shows how long it has lasted. */
+  since: Date | null;
+  /** The permission being asked for, or the error text. */
+  detail: string | null;
+}
+
+function attentionReasonOf(node: TopologyNode): AttentionReason {
+  if (node.status === "error" || node.attentionReason === "error") return "error";
+  return node.attentionReason === "finished" ? "finished" : "permission";
+}
+
+/**
+ * Everything that waits on the Human, most blocking first: permission requests, then errors,
+ * then finished work nobody has looked at. Within a reason, the longest wait comes first.
+ */
+export function buildAttentionInbox(
+  projects: readonly { id: string; label: string; overview: ProjectOverview }[],
+): AttentionItem[] {
+  const items: AttentionItem[] = [];
+  for (const project of projects) {
+    for (const node of [...project.overview.needsYou, ...project.overview.toReview]) {
+      const reason = attentionReasonOf(node);
+      let detail: string | null = null;
+      if (reason === "permission") detail = node.pendingPermission;
+      else if (reason === "error") detail = node.lastError;
+      items.push({
+        node,
+        projectId: project.id,
+        projectLabel: project.label,
+        reason,
+        since: node.attentionAt ?? node.lastActivityAt,
+        detail,
+      });
+    }
+  }
+  return items.sort(
+    (left, right) =>
+      ATTENTION_REASON_ORDER.indexOf(left.reason) - ATTENTION_REASON_ORDER.indexOf(right.reason) ||
+      (left.since?.getTime() ?? Number.MAX_SAFE_INTEGER) -
+        (right.since?.getTime() ?? Number.MAX_SAFE_INTEGER),
+  );
+}
+
+/** What a running agent is doing now, read from the part of its timeline this client holds. */
+export interface AgentLiveActivity {
+  label: string;
+  at: Date;
+}
+
+/**
+ * The newest step of the current turn: the tool it is calling, or that it is thinking or
+ * writing. Null when this client holds none of the turn, so a stale step never shows as live.
+ */
+export function describeLiveActivity(
+  tail: readonly StreamItem[] | undefined,
+  turnStartedAt: Date | null,
+): AgentLiveActivity | null {
+  if (!tail) return null;
+  for (let index = tail.length - 1; index >= 0; index -= 1) {
+    const item = tail[index];
+    if (turnStartedAt && item.timestamp < turnStartedAt) return null;
+    if (item.kind === "thought") return { label: "Thinking", at: item.timestamp };
+    if (item.kind === "assistant_message") return { label: "Writing", at: item.timestamp };
+    if (item.kind !== "tool_call") continue;
+    const call = describeToolCall(item);
+    const display = buildToolCallDisplayModel({
+      name: call.name,
+      status: call.status === "executing" ? "running" : call.status,
+      error: call.error ?? null,
+      detail: call.detail,
+      metadata: call.metadata,
+    });
+    const summary = display.summary?.trim();
+    return {
+      label: summary ? `${display.displayName} ${summary}` : display.displayName,
+      at: item.timestamp,
+    };
+  }
+  return null;
 }

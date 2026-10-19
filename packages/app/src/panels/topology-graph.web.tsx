@@ -227,7 +227,7 @@ const TOPOLOGY_CSS = `
 .tp-line { width: 16px; height: 2px; border-radius: 2px; background: var(--tp-edge); }
 .tp-warning { color: var(--tp-st-warning); font-size: 11px; }
 
-.tp-page { display: flex; flex-direction: column; gap: 28px; width: 100%; max-width: 1280px; margin: 0 auto; font-family: inherit; }
+.tp-page { container: tp-page / inline-size; display: flex; flex-direction: column; gap: 28px; width: 100%; max-width: 1280px; margin: 0 auto; font-family: inherit; }
 .tp-page-title { color: var(--tp-fg); font-size: 20px; font-weight: 500; }
 .tp-page-head { display: flex; flex-direction: column; gap: 8px; }
 .tp-project { display: flex; flex-direction: column; gap: 10px; }
@@ -269,15 +269,38 @@ const TOPOLOGY_CSS = `
 .tp-ov-chevron { color: var(--tp-fg-faint); display: flex; transition: transform .15s ease; }
 .tp-ov-row[aria-expanded="true"] .tp-ov-chevron, .tp-ov-group[aria-expanded="true"] .tp-ov-chevron { transform: rotate(90deg); }
 .tp-ov-graph { position: relative; border-top: 1px solid var(--tp-border); background: var(--tp-bg); }
+.tp-ov-focus[data-live] { flex-direction: column; gap: 3px; }
+.tp-ov-focus[data-live] .tp-ov-agent + .tp-ov-agent::before { content: none; }
+.tp-ov-activity { display: inline-flex; flex: 0 1 auto; align-items: center; gap: 6px; color: var(--tp-fg-faint); }
+.tp-ov-focus[data-live] .tp-ov-agent { max-width: 100%; }
+.tp-ov-focus[data-live] .tp-ov-agent-title { flex: 0 1 auto; min-width: 4ch; }
+.tp-ov-activity::before { content: "—"; flex: none; }
+.tp-ov-activity-label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--tp-fg-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+.tp-ov-activity-time { flex: none; color: var(--tp-st-running); font-variant-numeric: tabular-nums; }
+.tp-inbox { display: flex; flex-direction: column; gap: 8px; }
+.tp-inbox-title { display: flex; align-items: center; gap: 8px; color: var(--tp-fg); font-size: 13px; font-weight: 500; }
+.tp-inbox-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; font-size: 11px; color: var(--tp-st-danger); background: color-mix(in srgb, var(--tp-st-danger) 14%, transparent); }
+.tp-inbox-row { display: grid; grid-template-columns: 104px minmax(0, 1fr) auto 16px; align-items: center; gap: 14px; padding: 10px 14px; cursor: pointer; outline: none; }
+.tp-inbox-row + .tp-inbox-row { border-top: 1px solid var(--tp-border); }
+.tp-inbox-row:hover, .tp-inbox-row:focus-visible { background: var(--tp-surface-hover); }
+.tp-inbox-agent { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12.5px; color: var(--tp-fg); white-space: nowrap; overflow: hidden; }
+.tp-inbox-project { flex: none; color: var(--tp-fg-muted); }
+.tp-inbox-project::after { content: "›"; margin-left: 8px; color: var(--tp-fg-faint); }
+.tp-inbox-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--tp-fg-muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .tp-ov-group { display: flex; align-items: center; gap: 8px; padding: 0 2px; color: var(--tp-fg-muted); font-size: 12px; cursor: pointer; user-select: none; }
 .tp-ov-group:hover { color: var(--tp-fg); }
-@media (max-width: 720px) {
+@container tp-page (max-width: 640px) {
   .tp-ov-row { grid-template-columns: minmax(0, 1fr) auto 16px; row-gap: 6px; }
   .tp-ov-state { grid-column: 1; grid-row: 1; }
   .tp-ov-time { grid-column: 2; grid-row: 1; }
   .tp-ov-chevron { grid-column: 3; grid-row: 1; }
   .tp-ov-main { grid-column: 1 / -1; grid-row: 2; }
   .tp-ov-counts { grid-column: 1 / -1; grid-row: 3; }
+  .tp-inbox-row { grid-template-columns: minmax(0, 1fr) auto 16px; row-gap: 6px; }
+  .tp-inbox-row .tp-ov-state { grid-column: 1; grid-row: 1; }
+  .tp-inbox-row .tp-ov-time { grid-column: 2; grid-row: 1; }
+  .tp-inbox-row .tp-ov-chevron { grid-column: 3; grid-row: 1; }
+  .tp-inbox-row .tp-ov-main { grid-column: 1 / -1; grid-row: 2; }
 }
 
 @keyframes tp-enter { from { opacity: 0; } to { opacity: 1; } }

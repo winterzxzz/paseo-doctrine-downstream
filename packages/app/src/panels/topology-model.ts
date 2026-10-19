@@ -20,6 +20,13 @@ export interface TopologyNode {
   requiresAttention: boolean;
   attentionReason: Agent["attentionReason"] | null;
   lastActivityAt: Date | null;
+  /** When the current turn opened; null while no turn is open. */
+  turnStartedAt: Date | null;
+  /** When the agent began waiting on the Human (permission, error, or finished). */
+  attentionAt: Date | null;
+  /** What the oldest pending permission asks for, in one line. */
+  pendingPermission: string | null;
+  lastError: string | null;
   issueIds: string[];
 }
 
@@ -156,6 +163,12 @@ function titleOf(agent: Agent): string {
   );
 }
 
+function pendingPermissionOf(agent: Agent): string | null {
+  const request = agent.pendingPermissions?.[0];
+  if (!request) return null;
+  return request.title?.trim() || request.description?.trim() || request.name;
+}
+
 function issueIdsOf(agent: Agent): string[] {
   const issueIds = agent.roleBinding?.assignment?.resourceGrants?.beadsIssueIds;
   return [...new Set(issueIds ?? [])].sort();
@@ -278,6 +291,10 @@ function buildTopology(topologyAgents: readonly Agent[]): WorkspaceTopology {
     requiresAttention: agent.requiresAttention ?? false,
     attentionReason: agent.attentionReason ?? null,
     lastActivityAt: agent.lastActivityAt ?? null,
+    turnStartedAt: agent.turn?.phase === "open" ? agent.turn.startedAt : null,
+    attentionAt: agent.attentionTimestamp ?? null,
+    pendingPermission: pendingPermissionOf(agent),
+    lastError: agent.lastError?.trim() || null,
     issueIds: issueIdsOf(agent),
   }));
   const nodeById = new Map(nodes.map((node) => [node.id, node]));

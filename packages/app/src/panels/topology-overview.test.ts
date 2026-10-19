@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { TopologyNode } from "@/panels/topology-model";
-import { compareProjectOverviews, summarizeProject } from "@/panels/topology-overview";
+import {
+  buildAttentionInbox,
+  compareProjectOverviews,
+  describeLiveActivity,
+  summarizeProject,
+} from "@/panels/topology-overview";
+import type { StreamItem } from "@/types/stream";
 
 function node(id: string, overrides: Partial<TopologyNode> = {}): TopologyNode {
   return {
@@ -18,6 +24,10 @@ function node(id: string, overrides: Partial<TopologyNode> = {}): TopologyNode {
     requiresAttention: false,
     attentionReason: null,
     lastActivityAt: null,
+    turnStartedAt: null,
+    attentionAt: null,
+    pendingPermission: null,
+    lastError: null,
     issueIds: [],
     ...overrides,
   };
@@ -71,5 +81,73 @@ describe("compareProjectOverviews", () => {
       "idle-new",
       "idle-old",
     ]);
+  });
+});
+
+describe("buildAttentionInbox", () => {
+  it("lists permission requests, then errors, then unread finished work, longest wait first", () => {
+    const project = (id: string, nodes: TopologyNode[]) => ({
+      id,
+      label: id,
+      overview: summarizeProject(nodes),
+    });
+    const inbox = buildAttentionInbox([
+      project("alpha", [
+        node("done", { requiresAttention: true, attentionReason: "finished", attentionAt: at(1) }),
+        node("late-ask", {
+          requiresAttention: true,
+          attentionReason: "permission",
+          attentionAt: at(8),
+          pendingPermission: "Run npm test",
+        }),
+      ]),
+      project("beta", [
+        node("broken", { status: "error", lastError: "exit 1", attentionAt: at(2) }),
+        node("early-ask", {
+          role: "peer",
+          requiresAttention: true,
+          attentionReason: "permission",
+          attentionAt: at(3),
+        }),
+        node("busy", { status: "running" }),
+      ]),
+    ]);
+    expect(inbox.map((item) => [item.node.id, item.reason, item.projectLabel])).toEqual([
+      ["early-ask", "permission", "beta"],
+      ["late-ask", "permission", "alpha"],
+      ["broken", "error", "beta"],
+      ["done", "finished", "alpha"],
+    ]);
+    expect(inbox[1].detail).toBe("Run npm test");
+    expect(inbox[2].detail).toBe("exit 1");
+  });
+});
+
+describe("describeLiveActivity", () => {
+  const shell = (minute: number, command: string): StreamItem => ({
+    kind: "tool_call",
+    id: `tool-${minute}`,
+    timestamp: at(minute),
+    payload: {
+      source: "agent",
+      data: {
+        provider: "claude",
+        callId: `call-${minute}`,
+        name: "Bash",
+        status: "running",
+        error: null,
+        detail: { type: "shell", command },
+      },
+    },
+  });
+
+  it("names the newest tool call of the current turn", () => {
+    const activity = describeLiveActivity([shell(2, "ls"), shell(5, "npm test")], at(1));
+    expect(activity).toEqual({ label: "Shell npm test", at: at(5) });
+  });
+
+  it("shows nothing when the client holds no step of the current turn", () => {
+    expect(describeLiveActivity([shell(2, "ls")], at(4))).toBeNull();
+    expect(describeLiveActivity(undefined, at(4))).toBeNull();
   });
 });

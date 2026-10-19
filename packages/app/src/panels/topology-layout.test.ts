@@ -33,6 +33,10 @@ function node(id: string, overrides: Partial<TopologyNode> = {}): TopologyNode {
     requiresAttention: false,
     attentionReason: null,
     lastActivityAt: null,
+    turnStartedAt: null,
+    attentionAt: null,
+    pendingPermission: null,
+    lastError: null,
     issueIds: [],
     ...overrides,
   };

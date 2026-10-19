@@ -21,10 +21,14 @@ import {
 } from "@/panels/topology-graph.web";
 import { buildHostTopology, type TopologyEdge, type TopologyNode } from "@/panels/topology-model";
 import {
+  ATTENTION_REASON_LABELS,
   PROJECT_STATE_LABELS,
   PROJECT_STATE_ORDER,
+  buildAttentionInbox,
   compareProjectOverviews,
+  describeLiveActivity,
   summarizeProject,
+  type AttentionItem,
   type ProjectActivityState,
   type ProjectOverview,
 } from "@/panels/topology-overview";
@@ -86,11 +90,49 @@ function ProjectGraph({
   );
 }
 
-function FocusAgent({
+function LiveActivity({
+  serverId,
   node,
+  now,
+}: {
+  serverId: string;
+  node: TopologyNode;
+  now: Date;
+}) {
+  // Selected per agent so a streaming timeline re-renders only its own line.
+  const tail = useSessionStore((state) => state.sessions[serverId]?.agentStreamTail.get(node.id));
+  const activity = useMemo(
+    () => describeLiveActivity(tail, node.turnStartedAt),
+    [node.turnStartedAt, tail],
+  );
+  const runTime = node.turnStartedAt ? formatCompactTimeAgo(node.turnStartedAt, now) : null;
+  return (
+    <span className="tp-ov-activity">
+      {runTime ? (
+        <span className="tp-ov-activity-time" title="Time in the current turn">
+          {runTime === "now" ? "<1m" : runTime}
+        </span>
+      ) : null}
+      {activity ? (
+        <span className="tp-ov-activity-label" title={activity.label}>
+          {activity.label}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function FocusAgent({
+  serverId,
+  node,
+  now,
+  live,
   onOpenAgent,
 }: {
+  serverId: string;
   node: TopologyNode;
+  now: Date;
+  live: boolean;
   onOpenAgent: (agentId: string) => void;
 }) {
   const handleClick = useCallback(
@@ -112,6 +154,7 @@ function FocusAgent({
         <span className="tp-ov-agent-role">{TOPOLOGY_ROLE_META[node.role].label}</span>
       )}
       <span className="tp-ov-agent-title">{node.title}</span>
+      {live ? <LiveActivity serverId={serverId} node={node} now={now} /> : null}
     </span>
   );
 }
@@ -131,12 +174,14 @@ function focusPrefix(state: ProjectActivityState): string | null {
 }
 
 function ProjectOverviewRow({
+  serverId,
   group,
   expanded,
   now,
   onToggle,
   onOpenAgent,
 }: {
+  serverId: string;
   group: ProjectGroup;
   expanded: boolean;
   now: Date;
@@ -155,6 +200,7 @@ function ProjectOverviewRow({
   );
   const extraFocus = focusPool(overview).length - overview.focus.length;
   const prefix = focusPrefix(overview.state);
+  const live = overview.state === "working";
   return (
     <div className="tp-ov-item" data-testid={`host-topology-project-${group.id}`}>
       <div
@@ -173,10 +219,17 @@ function ProjectOverviewRow({
         <span className="tp-ov-main">
           <span className="tp-ov-name">{group.label}</span>
           {overview.focus.length > 0 ? (
-            <span className="tp-ov-focus">
+            <span className="tp-ov-focus" data-live={live || undefined}>
               {prefix ? <span className="tp-ov-more">{prefix}</span> : null}
               {overview.focus.map((node) => (
-                <FocusAgent key={node.id} node={node} onOpenAgent={onOpenAgent} />
+                <FocusAgent
+                  key={node.id}
+                  serverId={serverId}
+                  node={node}
+                  now={now}
+                  live={live}
+                  onOpenAgent={onOpenAgent}
+                />
               ))}
               {extraFocus > 0 ? <span className="tp-ov-more">+{extraFocus}</span> : null}
             </span>
@@ -203,7 +256,9 @@ function ProjectOverviewRow({
           </span>
         </span>
         <span className="tp-ov-time">
-          {overview.lastActivityAt ? formatCompactTimeAgo(overview.lastActivityAt, now) : ""}
+          {!live && overview.lastActivityAt
+            ? formatCompactTimeAgo(overview.lastActivityAt, now)
+            : ""}
         </span>
         <span className="tp-ov-chevron">
           <ChevronRight color="currentColor" size={14} />
@@ -214,13 +269,101 @@ function ProjectOverviewRow({
   );
 }
 
+function AttentionInboxRow({
+  item,
+  now,
+  onOpenAgent,
+}: {
+  item: AttentionItem;
+  now: Date;
+  onOpenAgent: (agentId: string) => void;
+}) {
+  const { node } = item;
+  const handleOpen = useCallback(() => onOpenAgent(node.id), [node.id, onOpenAgent]);
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      onOpenAgent(node.id);
+    },
+    [node.id, onOpenAgent],
+  );
+  const waited = item.since ? formatCompactTimeAgo(item.since, now) : null;
+  return (
+    <div
+      className="tp-inbox-row"
+      role="link"
+      tabIndex={0}
+      aria-label={`${ATTENTION_REASON_LABELS[item.reason]}: ${node.title} in ${item.projectLabel}`}
+      data-testid={`host-topology-inbox-${node.id}`}
+      onClick={handleOpen}
+      onKeyDown={handleKeyDown}
+    >
+      <span
+        className="tp-ov-state"
+        data-state={item.reason === "finished" ? "review" : "needs-you"}
+      >
+        <span className="tp-ov-state-dot" />
+        {ATTENTION_REASON_LABELS[item.reason]}
+      </span>
+      <span className="tp-ov-main">
+        <span className="tp-inbox-agent">
+          <span className="tp-inbox-project">{item.projectLabel}</span>
+          <span className="tp-ov-agent" data-role={node.role}>
+            {node.role === "unbound" ? null : (
+              <span className="tp-ov-agent-role">{TOPOLOGY_ROLE_META[node.role].label}</span>
+            )}
+            <span className="tp-ov-agent-title">{node.title}</span>
+          </span>
+        </span>
+        {item.detail ? (
+          <span className="tp-inbox-detail" title={item.detail}>
+            {item.detail}
+          </span>
+        ) : null}
+      </span>
+      <span className="tp-ov-time" title="Waiting for">
+        {waited && waited !== "now" ? `waiting ${waited}` : (waited ?? "")}
+      </span>
+      <span className="tp-ov-chevron">
+        <ChevronRight color="currentColor" size={14} />
+      </span>
+    </div>
+  );
+}
+
+function AttentionInbox({
+  items,
+  now,
+  onOpenAgent,
+}: {
+  items: AttentionItem[];
+  now: Date;
+  onOpenAgent: (agentId: string) => void;
+}) {
+  return (
+    <section className="tp-inbox" data-testid="host-topology-inbox">
+      <span className="tp-inbox-title">
+        Needs you <span className="tp-inbox-count">{items.length}</span>
+      </span>
+      <div className="tp-ov-list">
+        {items.map((item) => (
+          <AttentionInboxRow key={item.node.id} item={item} now={now} onOpenAgent={onOpenAgent} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function ProjectOverviewList({
+  serverId,
   groups,
   expanded,
   now,
   onToggle,
   onOpenAgent,
 }: {
+  serverId: string;
   groups: ProjectGroup[];
   expanded: ReadonlySet<string>;
   now: Date;
@@ -232,6 +375,7 @@ function ProjectOverviewList({
       {groups.map((group) => (
         <ProjectOverviewRow
           key={group.id}
+          serverId={serverId}
           group={group}
           expanded={expanded.has(group.id)}
           now={now}
@@ -307,6 +451,7 @@ export function HostTopologyScreen({ serverId }: { serverId: string }) {
     () => projectGroups.filter((group) => group.overview.state === "inactive"),
     [projectGroups],
   );
+  const inbox = useMemo(() => buildAttentionInbox(projectGroups), [projectGroups]);
   const stateCounts = useMemo(() => {
     const counts = new Map<ProjectActivityState, number>();
     for (const group of projectGroups) {
@@ -360,8 +505,12 @@ export function HostTopologyScreen({ serverId }: { serverId: string }) {
                 </span>
               ) : null}
             </div>
+            {inbox.length > 0 ? (
+              <AttentionInbox items={inbox} now={now} onOpenAgent={handleOpenAgent} />
+            ) : null}
             {activeGroups.length > 0 ? (
               <ProjectOverviewList
+                serverId={serverId}
                 groups={activeGroups}
                 expanded={expanded}
                 now={now}
@@ -385,6 +534,7 @@ export function HostTopologyScreen({ serverId }: { serverId: string }) {
                 </div>
                 {showInactive ? (
                   <ProjectOverviewList
+                    serverId={serverId}
                     groups={inactiveGroups}
                     expanded={expanded}
                     now={now}
