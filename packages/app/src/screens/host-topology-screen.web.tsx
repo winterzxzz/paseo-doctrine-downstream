@@ -202,7 +202,11 @@ function ProjectOverviewRow({
   const prefix = focusPrefix(overview.state);
   const live = overview.state === "working";
   return (
-    <div className="tp-ov-item" data-testid={`host-topology-project-${group.id}`}>
+    <div
+      className="tp-ov-item"
+      data-state={overview.state}
+      data-testid={`host-topology-project-${group.id}`}
+    >
       <div
         className="tp-ov-row"
         role="button"
@@ -212,12 +216,14 @@ function ProjectOverviewRow({
         onClick={handleToggle}
         onKeyDown={handleKeyDown}
       >
-        <span className="tp-ov-state" data-state={overview.state}>
-          <span className="tp-ov-state-dot" />
-          {PROJECT_STATE_LABELS[overview.state]}
-        </span>
         <span className="tp-ov-main">
-          <span className="tp-ov-name">{group.label}</span>
+          <span className="tp-ov-title-line">
+            <span className="tp-ov-name">{group.label}</span>
+            <span className="tp-ov-state" data-state={overview.state}>
+              <span className="tp-ov-state-dot" />
+              {PROJECT_STATE_LABELS[overview.state]}
+            </span>
+          </span>
           {overview.focus.length > 0 ? (
             <span className="tp-ov-focus" data-live={live || undefined}>
               {prefix ? <span className="tp-ov-more">{prefix}</span> : null}
@@ -289,9 +295,11 @@ function AttentionInboxRow({
     [node.id, onOpenAgent],
   );
   const waited = item.since ? formatCompactTimeAgo(item.since, now) : null;
+  const state = item.reason === "finished" ? "review" : "needs-you";
   return (
     <div
       className="tp-inbox-row"
+      data-state={state}
       role="link"
       tabIndex={0}
       aria-label={`${ATTENTION_REASON_LABELS[item.reason]}: ${node.title} in ${item.projectLabel}`}
@@ -299,15 +307,12 @@ function AttentionInboxRow({
       onClick={handleOpen}
       onKeyDown={handleKeyDown}
     >
-      <span
-        className="tp-ov-state"
-        data-state={item.reason === "finished" ? "review" : "needs-you"}
-      >
-        <span className="tp-ov-state-dot" />
-        {ATTENTION_REASON_LABELS[item.reason]}
-      </span>
       <span className="tp-ov-main">
         <span className="tp-inbox-agent">
+          <span className="tp-ov-state" data-state={state}>
+            <span className="tp-ov-state-dot" />
+            {ATTENTION_REASON_LABELS[item.reason]}
+          </span>
           <span className="tp-inbox-project">{item.projectLabel}</span>
           <span className="tp-ov-agent" data-role={node.role}>
             {node.role === "unbound" ? null : (
@@ -343,7 +348,7 @@ function AttentionInbox({
 }) {
   return (
     <section className="tp-inbox" data-testid="host-topology-inbox">
-      <span className="tp-inbox-title">
+      <span className="tp-ov-section-title">
         Needs you <span className="tp-inbox-count">{items.length}</span>
       </span>
       <div className="tp-ov-list">
@@ -509,14 +514,17 @@ export function HostTopologyScreen({ serverId }: { serverId: string }) {
               <AttentionInbox items={inbox} now={now} onOpenAgent={handleOpenAgent} />
             ) : null}
             {activeGroups.length > 0 ? (
-              <ProjectOverviewList
-                serverId={serverId}
-                groups={activeGroups}
-                expanded={expanded}
-                now={now}
-                onToggle={handleToggleProject}
-                onOpenAgent={handleOpenAgent}
-              />
+              <section className="tp-inbox">
+                <span className="tp-ov-section-title">Active · {activeGroups.length}</span>
+                <ProjectOverviewList
+                  serverId={serverId}
+                  groups={activeGroups}
+                  expanded={expanded}
+                  now={now}
+                  onToggle={handleToggleProject}
+                  onOpenAgent={handleOpenAgent}
+                />
+              </section>
             ) : null}
             {inactiveGroups.length > 0 ? (
               <>

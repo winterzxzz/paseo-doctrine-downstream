@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.2-paseo.89 - 2026-10-20
+
+### Changed
+
+- Trang Project topology tổng đồng bộ với topology panel: mỗi project và mỗi mục "Needs you" là một
+  card riêng có vạch màu theo trạng thái (đang chạy, cần bạn, chờ review, idle), card đang chạy có
+  viền sáng. Nhãn trạng thái nằm cạnh tên project thay vì chiếm một cột, chừa thêm chỗ cho dòng hoạt
+  động; vai trò agent và số đếm hiển thị dạng chip, thời gian của turn không còn bị cắt.
+
 ## 0.11.2-paseo.88 - 2026-10-20
 
 ### Changed
