@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.2-paseo.88 - 2026-10-20
+
+### Changed
+
+- Topology panel của project gọn và dễ đọc hơn: thanh header mảnh chạy hết chiều ngang thay cho hộp
+  tóm tắt lơ lửng, card agent có vạch màu theo vai trò và viền sáng khi đang chạy hoặc lỗi, đường
+  nối giữa các agent đậm hơn. Footer card không còn trống: hiện agent đang làm việc bao lâu, quyền
+  đang chờ duyệt, lỗi, hoặc lần hoạt động gần nhất.
+
 ## 0.11.2-paseo.87 - 2026-10-19
 
 ### Added

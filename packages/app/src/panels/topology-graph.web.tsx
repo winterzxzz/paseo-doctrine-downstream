@@ -5,7 +5,6 @@ import {
   BaseEdge,
   Controls,
   Handle,
-  Panel,
   Position,
   ReactFlow,
   getSmoothStepPath,
@@ -21,13 +20,15 @@ import {
 } from "@xyflow/react";
 import {
   Bot,
+  Activity,
   CircleDashed,
   CircleDot,
   Compass,
+  Clock,
   Crown,
-  GitFork,
   Network,
   ShieldAlert,
+  ShieldQuestion,
   TriangleAlert,
 } from "lucide-react-native";
 import {
@@ -35,6 +36,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   type CSSProperties,
   type ComponentType,
   type ReactNode,
@@ -62,6 +64,7 @@ import {
   type TopologySize,
 } from "@/panels/topology-layout";
 import type { Theme } from "@/styles/theme";
+import { formatCompactTimeAgo, formatCompactTimeAgoAsProse } from "@/utils/time";
 
 interface FlowNodeData extends Record<string, unknown> {
   topologyNode: TopologyNode;
@@ -137,7 +140,8 @@ const ISSUE_STATUS_PRIORITY: Record<BeadsIssue["status"], number> = {
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 const TOPOLOGY_CSS = `
-.tp-root { position: absolute; inset: 0; overflow: hidden; background: var(--tp-bg); font-family: inherit; }
+.tp-root { position: absolute; inset: 0; overflow: hidden; display: flex; flex-direction: column; background: var(--tp-bg); font-family: inherit; }
+.tp-canvas { position: relative; flex: 1; min-height: 0; background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--tp-surface) 55%, transparent), transparent 70%); }
 .tp-theme { display: contents; }
 .tp-root .react-flow { background: transparent; }
 .tp-root .react-flow__handle { opacity: 0; width: 1px; height: 1px; min-width: 0; min-height: 0; border: 0; pointer-events: none; }
@@ -152,22 +156,26 @@ const TOPOLOGY_CSS = `
 
 .tp-node {
   --tp-role: var(--tp-role-unbound);
-  position: relative; width: 100%; height: 100%; box-sizing: border-box; padding: 12px 14px;
+  position: relative; width: 100%; height: 100%; box-sizing: border-box; padding: 13px 14px 12px;
   display: flex; flex-direction: column;
-  border: 1px solid var(--tp-border); border-radius: 12px; overflow: hidden;
-  background: var(--tp-surface);
-  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+  border: 1px solid var(--tp-border); border-radius: 14px; overflow: hidden;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tp-role) 7%, var(--tp-surface)), var(--tp-surface) 56px);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--tp-fg) 4%, transparent) inset, 0 10px 28px -14px rgba(0, 0, 0, .45);
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease, transform .15s ease;
   animation: tp-enter .3s ease-out both;
 }
 [data-role="supervisor"] { --tp-role: var(--tp-role-supervisor); }
 [data-role="lead"] { --tp-role: var(--tp-role-lead); }
 [data-role="peer"] { --tp-role: var(--tp-role-peer); }
-.tp-node:hover { border-color: var(--tp-border-strong); }
+.tp-node::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: linear-gradient(90deg, var(--tp-role), color-mix(in srgb, var(--tp-role) 0%, transparent) 80%); }
+.tp-node:hover { border-color: var(--tp-border-strong); transform: translateY(-1px); }
+.tp-node[data-status="running"], .tp-node[data-status="initializing"] { border-color: color-mix(in srgb, var(--tp-status) 38%, var(--tp-border)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--tp-status) 10%, transparent), 0 10px 32px -12px color-mix(in srgb, var(--tp-status) 35%, transparent); }
+.tp-node[data-status="error"] { border-color: color-mix(in srgb, var(--tp-status) 45%, var(--tp-border)); }
 .tp-node[data-selected="true"] { border-color: color-mix(in srgb, var(--tp-role) 60%, var(--tp-border)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tp-role) 16%, transparent); }
 .tp-node[data-status="closed"] { opacity: .55; }
 
-.tp-head { display: flex; align-items: center; gap: 6px; height: 20px; flex: none; }
-.tp-role-icon { color: var(--tp-role); display: flex; align-items: center; }
+.tp-head { display: flex; align-items: center; gap: 7px; height: 22px; flex: none; }
+.tp-role-icon { color: var(--tp-role); display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 7px; background: color-mix(in srgb, var(--tp-role) 15%, transparent); }
 .tp-role-label { color: var(--tp-role); font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
 .tp-head-spacer { flex: 1; }
 .tp-flag { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 6px; color: var(--tp-fg-faint); }
@@ -185,7 +193,7 @@ const TOPOLOGY_CSS = `
 .tp-status[data-status="running"] { color: var(--tp-st-running); }
 .tp-status[data-status="error"] { color: var(--tp-st-danger); }
 
-.tp-title { flex: none; margin-top: 8px; max-height: 36px; color: var(--tp-fg); font-size: 13px; font-weight: 500; line-height: 18px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+.tp-title { flex: none; margin-top: 10px; max-height: 38px; color: var(--tp-fg); font-size: 13.5px; font-weight: 500; line-height: 19px; letter-spacing: -.005em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
 .tp-meta { flex: none; margin-top: 4px; height: 16px; line-height: 16px; font-size: 11.5px; color: var(--tp-fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tp-meta-sep { color: var(--tp-fg-faint); padding: 0 5px; }
 .tp-meta-faint { color: var(--tp-fg-faint); }
@@ -197,32 +205,32 @@ const TOPOLOGY_CSS = `
 .tp-foot-status { flex: none; white-space: nowrap; color: var(--tp-fg-faint); }
 .tp-foot-status[data-issue-status="in_progress"] { color: var(--tp-st-running); }
 .tp-foot-status[data-issue-status="blocked"] { color: var(--tp-st-danger); }
+.tp-foot[data-tone="running"] .tp-foot-icon, .tp-foot[data-tone="running"] .tp-foot-lead { color: var(--tp-st-running); }
+.tp-foot[data-tone="warning"] .tp-foot-icon, .tp-foot[data-tone="warning"] .tp-foot-lead { color: var(--tp-st-warning); }
+.tp-foot[data-tone="danger"] .tp-foot-icon, .tp-foot[data-tone="danger"] .tp-foot-lead { color: var(--tp-st-danger); }
+.tp-foot[data-tone="faint"] .tp-foot-text { color: var(--tp-fg-faint); }
+.tp-foot-lead { font-variant-numeric: tabular-nums; }
 .tp-foot-id { flex: none; color: var(--tp-fg-faint); font-family: ${MONO}; font-size: 10.5px; }
 
-.tp-edge { stroke: var(--tp-edge); stroke-width: 1.25; stroke-opacity: .45; fill: none; }
-.tp-edge-flow { stroke: var(--tp-edge); stroke-width: 1.5; stroke-opacity: .9; fill: none; stroke-linecap: round; stroke-dasharray: 1 9; animation: tp-flow 1.2s linear infinite; pointer-events: none; }
+.tp-edge { stroke: var(--tp-edge); stroke-width: 1.5; stroke-opacity: .6; fill: none; }
+.tp-edge-flow { stroke: var(--tp-edge); stroke-width: 2; stroke-opacity: .9; fill: none; stroke-linecap: round; stroke-dasharray: 1 9; animation: tp-flow 1.2s linear infinite; pointer-events: none; }
 [data-kind="supervision"] { --tp-edge: var(--tp-role-supervisor); }
 [data-kind="delegation"] { --tp-edge: var(--tp-role-lead); }
 
-.tp-hud { display: flex; flex-direction: column; gap: 10px; width: 320px; max-width: calc(100vw - 32px); box-sizing: border-box; padding: 12px; border: 1px solid var(--tp-border); border-radius: 12px; background: color-mix(in srgb, var(--tp-surface) 92%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
-.tp-hud-head { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.tp-hud-title { display: flex; align-items: center; gap: 7px; min-width: 0; color: var(--tp-fg); font-size: 13px; font-weight: 500; }
+.tp-hud { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; min-height: 44px; box-sizing: border-box; padding: 8px 14px; border-bottom: 1px solid var(--tp-border); background: color-mix(in srgb, var(--tp-surface) 70%, var(--tp-bg)); }
+.tp-hud-title { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--tp-fg); font-size: 13px; font-weight: 500; }
 .tp-hud-title > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tp-hud-title > svg { color: var(--tp-fg-muted); flex: none; }
-.tp-hud-activity { display: flex; align-items: center; gap: 5px; padding-left: 20px; font-size: 11px; line-height: 16px; color: var(--tp-fg-muted); white-space: nowrap; }
-.tp-hud-activity-running { display: inline-flex; align-items: center; gap: 5px; color: var(--tp-st-running); }
+.tp-hud-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.tp-hud-spacer { flex: 1; }
+.tp-hud-chip { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 11.5px; color: var(--tp-fg-muted); background: var(--tp-surface-hover); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tp-hud-chip b { color: var(--tp-fg); font-weight: 500; }
+.tp-hud-chip[data-tone="running"] { color: var(--tp-st-running); background: color-mix(in srgb, var(--tp-st-running) 14%, transparent); }
+.tp-hud-chip[data-tone="running"] b { color: inherit; }
+.tp-hud-chip[data-tone="warning"] { color: var(--tp-st-warning); background: color-mix(in srgb, var(--tp-st-warning) 14%, transparent); }
 .tp-hud-activity-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.tp-hud-tiles { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 1px; border: 1px solid var(--tp-border); border-radius: 8px; overflow: hidden; background: var(--tp-border); }
-.tp-hud-tile { display: flex; flex-direction: column; gap: 1px; padding: 7px 9px; background: var(--tp-surface); min-width: 0; }
-.tp-hud-tile-value { font-size: 16px; font-weight: 500; line-height: 20px; color: var(--tp-role, var(--tp-fg)); font-variant-numeric: tabular-nums; }
-.tp-hud-tile-label { font-size: 10.5px; line-height: 14px; color: var(--tp-fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tp-hud-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
-.tp-hud-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--tp-fg-muted); white-space: nowrap; }
-.tp-hud-sub { color: var(--tp-fg-muted); font-size: 11px; }
-.tp-hud-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
-.tp-hud-stat { display: inline-flex; align-items: center; gap: 5px; color: var(--tp-fg-muted); font-size: 11px; white-space: nowrap; }
-.tp-hud-stat b { color: var(--tp-fg); font-weight: 500; }
-.tp-hud-stat > .tp-dot::after { display: none; }
+.tp-hud-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--tp-fg-faint); white-space: nowrap; }
 .tp-swatch { width: 6px; height: 6px; border-radius: 50%; background: var(--tp-role); }
 .tp-line { width: 16px; height: 2px; border-radius: 2px; background: var(--tp-edge); }
 .tp-warning { color: var(--tp-st-warning); font-size: 11px; }
@@ -308,6 +316,7 @@ const TOPOLOGY_CSS = `
 @keyframes tp-flow { to { stroke-dashoffset: -20; } }
 @media (prefers-reduced-motion: reduce) {
   .tp-node, .tp-edge-flow, .tp-dot::after { animation: none !important; }
+  .tp-node:hover { transform: none; }
 }
 `;
 
@@ -315,7 +324,53 @@ function pluralize(count: number, singular: string, plural = `${singular}s`): st
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
-function CardFooter({ data, shortId }: { data: FlowNodeData; shortId: string }) {
+function useMinuteClock(): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  return now;
+}
+
+/** What the agent is doing or waiting on, in one line, for a card with no assigned issues. */
+function describeCardActivity(
+  node: TopologyNode,
+  now: Date,
+): {
+  tone: "running" | "warning" | "danger" | "faint";
+  icon: ComponentType<{ color: string; size: number }>;
+  lead: string | null;
+  text: string;
+} {
+  if (node.pendingPermission) {
+    return { tone: "warning", icon: ShieldQuestion, lead: "Waiting", text: node.pendingPermission };
+  }
+  if (node.status === "error") {
+    return { tone: "danger", icon: TriangleAlert, lead: "Error", text: node.lastError ?? "" };
+  }
+  if (isActiveStatus(node.status)) {
+    const elapsed = node.turnStartedAt ? formatCompactTimeAgo(node.turnStartedAt, now) : null;
+    return {
+      tone: "running",
+      icon: Activity,
+      lead: elapsed === "now" ? "<1m" : elapsed,
+      text: node.status === "initializing" ? "Starting" : "Working",
+    };
+  }
+  if (node.lastActivityAt) {
+    return {
+      tone: "faint",
+      icon: Clock,
+      lead: null,
+      text: `Active ${formatCompactTimeAgoAsProse(formatCompactTimeAgo(node.lastActivityAt, now))}`,
+    };
+  }
+  return { tone: "faint", icon: Clock, lead: null, text: "No activity yet" };
+}
+
+function CardFooter({ data, now }: { data: FlowNodeData; now: Date }) {
+  const node = data.topologyNode;
   const issue = data.issues[0];
   if (issue) {
     const count = data.issues.length;
@@ -340,25 +395,24 @@ function CardFooter({ data, shortId }: { data: FlowNodeData; shortId: string }) 
       </div>
     );
   }
+  const activity = describeCardActivity(node, now);
+  const Icon = activity.icon;
+  const text = [activity.text, data.childSummary].filter(Boolean).join(" · ");
   return (
-    <div className="tp-foot">
-      {data.childSummary ? (
-        <>
-          <span className="tp-foot-icon">
-            <GitFork color="currentColor" size={12} />
-          </span>
-          <span className="tp-foot-text">{data.childSummary}</span>
-        </>
-      ) : (
-        <span className="tp-foot-text" />
-      )}
-      <span className="tp-foot-id">{shortId}</span>
+    <div className="tp-foot" data-tone={activity.tone} title={text}>
+      <span className="tp-foot-icon">
+        <Icon color="currentColor" size={12} />
+      </span>
+      {activity.lead ? <span className="tp-foot-lead">{activity.lead}</span> : null}
+      <span className="tp-foot-text">{text}</span>
+      <span className="tp-foot-id">{node.shortId}</span>
     </div>
   );
 }
 
 function AgentTopologyNode({ data, selected }: NodeProps<FlowNode>) {
   const node = data.topologyNode;
+  const now = useMinuteClock();
   const RoleIcon = TOPOLOGY_ROLE_META[node.role].icon;
   const modelName = formatTopologyModelName(node.model) ?? "Default model";
   const providerName = formatTopologyProviderName(node.provider);
@@ -384,7 +438,7 @@ function AgentTopologyNode({ data, selected }: NodeProps<FlowNode>) {
       <Handle type="target" position={Position.Left} isConnectable={false} />
       <div className="tp-head">
         <span className="tp-role-icon">
-          <RoleIcon color="currentColor" size={13} />
+          <RoleIcon color="currentColor" size={12} />
         </span>
         <span className="tp-role-label">{TOPOLOGY_ROLE_META[node.role].label}</span>
         <span className="tp-head-spacer" />
@@ -421,7 +475,7 @@ function AgentTopologyNode({ data, selected }: NodeProps<FlowNode>) {
         <span className="tp-meta-sep">·</span>
         <span className="tp-meta-faint">{profileName ?? providerName}</span>
       </div>
-      <CardFooter data={data} shortId={node.shortId} />
+      <CardFooter data={data} now={now} />
       <Handle type="source" position={Position.Right} isConnectable={false} />
     </div>
   );
@@ -628,65 +682,70 @@ function TopologyHud({
   const activeCount = statusCounts
     .filter(({ status }) => isActiveStatus(status))
     .reduce((sum, { count }) => sum + count, 0);
-  const idleCount = statusCounts.find(({ status }) => status === "idle")?.count ?? 0;
   const statusTitle = statusCounts
     .map(({ status, count }) => `${count} ${TOPOLOGY_STATUS_LABELS[status]}`)
     .join(" · ");
   return (
     <div className="tp-hud" aria-label={`${projectName} topology summary`}>
-      <div className="tp-hud-head">
-        <div
-          className="tp-hud-title"
-          title={`${pluralize(agentCount, "agent")} · ${pluralize(edgeCount, "relationship")}`}
+      <div
+        className="tp-hud-title"
+        title={`${pluralize(agentCount, "agent")} · ${pluralize(edgeCount, "relationship")}`}
+      >
+        <Network color="currentColor" size={14} />
+        <span>{projectName}</span>
+      </div>
+      <div className="tp-hud-group">
+        <span
+          className="tp-hud-chip"
+          data-tone={activeCount > 0 ? "running" : undefined}
+          title={statusTitle}
         >
-          <Network color="currentColor" size={13} />
-          <span>{projectName}</span>
-        </div>
-        <div className="tp-hud-activity" title={statusTitle}>
+          {activeCount > 0 ? <span className="tp-hud-activity-dot" /> : null}
           {activeCount > 0 ? (
-            <span className="tp-hud-activity-running">
-              <span className="tp-hud-activity-dot" />
-              {activeCount} running
-            </span>
+            <>
+              <b>{activeCount}</b> running
+            </>
           ) : (
-            <span>All idle</span>
+            "All idle"
           )}
-          {activeCount > 0 && idleCount > 0 ? <span>· {idleCount} idle</span> : null}
-        </div>
-      </div>
-      <div className="tp-hud-tiles">
+        </span>
         {TOPOLOGY_ROLE_ORDER.filter((role) => roleCounts[role] > 0).map((role) => (
-          <div key={role} className="tp-hud-tile" data-role={role}>
-            <span className="tp-hud-tile-value">{roleCounts[role]}</span>
-            <span className="tp-hud-tile-label">
-              {roleCounts[role] === 1
-                ? TOPOLOGY_ROLE_META[role].label
-                : TOPOLOGY_ROLE_META[role].plural}
-            </span>
-          </div>
-        ))}
-        {grantedIssueCount > 0 ? (
-          <div className="tp-hud-tile">
-            <span className="tp-hud-tile-value">{issuesLoading ? "–" : grantedIssueCount}</span>
-            <span className="tp-hud-tile-label">
-              {grantedIssueCount === 1 ? "Issue" : "Issues"}
-            </span>
-          </div>
-        ) : null}
-      </div>
-      <div className="tp-hud-legend">
-        {edgeKinds.map((kind) => (
-          <span key={kind} className="tp-hud-legend-item" data-kind={kind}>
-            <span className="tp-line" />
-            {kind === "delegation" ? "Delegates" : "Supervises"}
+          <span key={role} className="tp-hud-chip" data-role={role}>
+            <span className="tp-swatch" />
+            <b>{roleCounts[role]}</b>
+            {roleCounts[role] === 1
+              ? TOPOLOGY_ROLE_META[role].label
+              : TOPOLOGY_ROLE_META[role].plural}
           </span>
         ))}
+        {grantedIssueCount > 0 ? (
+          <span className="tp-hud-chip">
+            <CircleDot color="currentColor" size={11} />
+            <b>{issuesLoading ? "–" : grantedIssueCount}</b>
+            {grantedIssueCount === 1 ? "issue" : "issues"}
+          </span>
+        ) : null}
+        {warningCount > 0 ? (
+          <span className="tp-hud-chip" data-tone="warning">
+            {pluralize(warningCount, "relationship")} need review
+          </span>
+        ) : null}
+        {issuesUnavailable && grantedIssueCount > 0 ? (
+          <span className="tp-hud-chip" data-tone="warning">
+            Issue details unavailable
+          </span>
+        ) : null}
       </div>
-      {warningCount > 0 ? (
-        <div className="tp-warning">{pluralize(warningCount, "relationship")} need review</div>
-      ) : null}
-      {issuesUnavailable && grantedIssueCount > 0 ? (
-        <div className="tp-warning">Issue details unavailable</div>
+      <span className="tp-hud-spacer" />
+      {edgeKinds.length > 0 ? (
+        <div className="tp-hud-legend">
+          {edgeKinds.map((kind) => (
+            <span key={kind} className="tp-hud-legend-item" data-kind={kind}>
+              <span className="tp-line" />
+              {kind === "delegation" ? "Delegates" : "Supervises"}
+            </span>
+          ))}
+        </div>
       ) : null}
     </div>
   );
@@ -738,43 +797,41 @@ function TopologyCanvas({
   return (
     <div className="tp-root" style={themeVars} data-testid={testID}>
       <style>{TOPOLOGY_CSS}</style>
-      <ReactFlow<FlowNode, FlowEdge>
-        key="project-horizontal"
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={NODE_TYPES}
-        edgeTypes={EDGE_TYPES}
-        onNodeClick={handleNodeClick}
-        onMoveStart={handleMoveStart}
-        onMove={handleMove}
-        colorMode={colorScheme}
-        fitView
-        fitViewOptions={FIT_VIEW_OPTIONS}
-        minZoom={0.15}
-        maxZoom={1.5}
-        nodesDraggable={false}
-        nodesConnectable={false}
-        edgesReconnectable={false}
-        elementsSelectable
-        panOnDrag
-        zoomOnScroll={!embedded}
-        zoomOnPinch
-        preventScrolling={!embedded}
-        deleteKeyCode={null}
-      >
-        <AutoFit nodeCount={nodes.length} userMovedRef={userMovedRef} />
-        <Background variant={BackgroundVariant.Dots} gap={24} size={1} color={dotColor} />
-        <Controls
-          position="bottom-right"
-          showInteractive={false}
+      {hud ? <TopologyHud {...hud} /> : null}
+      <div className="tp-canvas">
+        <ReactFlow<FlowNode, FlowEdge>
+          key="project-horizontal"
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={NODE_TYPES}
+          edgeTypes={EDGE_TYPES}
+          onNodeClick={handleNodeClick}
+          onMoveStart={handleMoveStart}
+          onMove={handleMove}
+          colorMode={colorScheme}
+          fitView
           fitViewOptions={FIT_VIEW_OPTIONS}
-        />
-        {hud ? (
-          <Panel position="top-left">
-            <TopologyHud {...hud} />
-          </Panel>
-        ) : null}
-      </ReactFlow>
+          minZoom={0.15}
+          maxZoom={1.5}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          edgesReconnectable={false}
+          elementsSelectable
+          panOnDrag
+          zoomOnScroll={!embedded}
+          zoomOnPinch
+          preventScrolling={!embedded}
+          deleteKeyCode={null}
+        >
+          <AutoFit nodeCount={nodes.length} userMovedRef={userMovedRef} />
+          <Background variant={BackgroundVariant.Dots} gap={22} size={1.4} color={dotColor} />
+          <Controls
+            position="bottom-right"
+            showInteractive={false}
+            fitViewOptions={FIT_VIEW_OPTIONS}
+          />
+        </ReactFlow>
+      </div>
     </div>
   );
 }
