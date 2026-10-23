@@ -80,5 +80,6 @@ export function useTopologyPanelState() {
     grantedIssueCount,
     issuesLoading: issuesQuery.isLoading,
     issuesError: issuesQuery.error,
+    serverId,
   };
 }

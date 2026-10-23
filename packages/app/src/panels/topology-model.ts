@@ -28,6 +28,8 @@ export interface TopologyNode {
   pendingPermission: string | null;
   lastError: string | null;
   issueIds: string[];
+  /** Tokens in the agent's context window after its latest turn; null when the provider did not report it. */
+  contextTokens: number | null;
 }
 
 export interface TopologyEdge {
@@ -296,6 +298,7 @@ function buildTopology(topologyAgents: readonly Agent[]): WorkspaceTopology {
     pendingPermission: pendingPermissionOf(agent),
     lastError: agent.lastError?.trim() || null,
     issueIds: issueIdsOf(agent),
+    contextTokens: agent.lastUsage?.contextWindowUsedTokens ?? null,
   }));
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const sourceById = new Map(topologyAgents.map((agent) => [agent.id, agent]));

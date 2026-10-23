@@ -28,6 +28,7 @@ function TopologyPanel() {
     issuesLoading,
     issuesError,
     projectName,
+    serverId,
   } = useTopologyPanelState();
   const hud = useMemo<TopologyHudProps>(() => {
     return {
@@ -66,6 +67,7 @@ function TopologyPanel() {
         nodes={topology.nodes}
         edges={topology.edges}
         issueById={issueById}
+        serverId={serverId}
         hud={hud}
         testID="project-topology-panel"
         onOpenAgent={openAgent}

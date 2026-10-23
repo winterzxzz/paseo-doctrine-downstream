@@ -21,7 +21,7 @@ export const TOPOLOGY_NODE_WIDTH = 264;
  * CSS and overflow is clipped), so columns align and the layout never relies
  * on DOM measurement.
  */
-export const TOPOLOGY_NODE_HEIGHT = 148;
+export const TOPOLOGY_NODE_HEIGHT = 196;
 /** Horizontal space between relationship depths (Supervisor → Lead → Peer). */
 export const TOPOLOGY_DEPTH_GAP = 88;
 /** Horizontal space between columns of a Peer grid or the unrelated-agent grid. */

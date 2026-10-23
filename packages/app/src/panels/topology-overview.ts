@@ -220,3 +220,41 @@ export function describeLiveActivity(
   }
   return null;
 }
+
+/** Where one delegated agent stands, as its parent's progress bar shows it. */
+export type ChildWorkState = "needs-you" | "running" | "done";
+
+export function childWorkStateOf(node: TopologyNode): ChildWorkState {
+  if (needsHuman(node)) return "needs-you";
+  if (isRunning(node)) return "running";
+  return "done";
+}
+
+export interface ChildProgress {
+  /** One entry per child, in the order the children were created. */
+  children: { id: string; state: ChildWorkState }[];
+  done: number;
+  running: number;
+  needsYou: number;
+}
+
+export function summarizeChildProgress(children: readonly TopologyNode[]): ChildProgress {
+  const states = children.map(childWorkStateOf);
+  return {
+    children: children.map((child, index) => ({ id: child.id, state: states[index] })),
+    done: states.filter((state) => state === "done").length,
+    running: states.filter((state) => state === "running").length,
+    needsYou: states.filter((state) => state === "needs-you").length,
+  };
+}
+
+/** "950", "84k", "1.2M". */
+export function formatTokenCount(tokens: number): string {
+  if (tokens < 1_000) return String(Math.round(tokens));
+  if (tokens < 1_000_000) {
+    const thousands = tokens / 1_000;
+    return `${thousands < 10 ? thousands.toFixed(1).replace(/\.0$/, "") : Math.round(thousands)}k`;
+  }
+  const millions = tokens / 1_000_000;
+  return `${millions < 10 ? millions.toFixed(1).replace(/\.0$/, "") : Math.round(millions)}M`;
+}

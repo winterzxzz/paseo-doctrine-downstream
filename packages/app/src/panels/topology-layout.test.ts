@@ -38,6 +38,7 @@ function node(id: string, overrides: Partial<TopologyNode> = {}): TopologyNode {
     pendingPermission: null,
     lastError: null,
     issueIds: [],
+    contextTokens: null,
     ...overrides,
   };
 }

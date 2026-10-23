@@ -21,6 +21,7 @@ import {
 import {
   Bot,
   Activity,
+  CircleCheck,
   CircleDashed,
   CircleDot,
   Compass,
@@ -64,12 +65,23 @@ import {
   type TopologySize,
 } from "@/panels/topology-layout";
 import type { Theme } from "@/styles/theme";
+import {
+  describeLiveActivity,
+  formatTokenCount,
+  summarizeChildProgress,
+  type ChildProgress,
+} from "@/panels/topology-overview";
+import { useSessionStore } from "@/stores/session-store";
 import { formatCompactTimeAgo, formatCompactTimeAgoAsProse } from "@/utils/time";
 
 interface FlowNodeData extends Record<string, unknown> {
   topologyNode: TopologyNode;
-  /** "2 Peers · 1 running", or null for an agent with no children. */
-  childSummary: string | null;
+  /** Host whose session store holds this agent's live timeline; null when the host has none. */
+  serverId: string | null;
+  /** 1-based position among its parent's children, in creation order; null for a root. */
+  ordinal: number | null;
+  /** How the agent's delegated work stands, or null for an agent with no children. */
+  childProgress: ChildProgress | null;
   issues: {
     id: string;
     title: string;
@@ -198,6 +210,26 @@ const TOPOLOGY_CSS = `
 .tp-meta-sep { color: var(--tp-fg-faint); padding: 0 5px; }
 .tp-meta-faint { color: var(--tp-fg-faint); }
 
+.tp-task, .tp-detail { flex: none; display: flex; align-items: center; gap: 6px; height: 18px; line-height: 18px; font-size: 11.5px; color: var(--tp-fg-muted); min-width: 0; }
+.tp-task { margin-top: 10px; color: var(--tp-fg); }
+.tp-detail { margin-top: 4px; }
+.tp-task-icon { flex: none; display: flex; color: var(--tp-fg-faint); }
+.tp-task-lead { flex: none; font-variant-numeric: tabular-nums; }
+.tp-task-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-task[data-tone="running"] .tp-task-icon, .tp-task[data-tone="running"] .tp-task-lead { color: var(--tp-st-running); }
+.tp-task[data-tone="running"] .tp-task-text { font-family: ${MONO}; font-size: 11px; }
+.tp-task[data-tone="warning"] { color: var(--tp-st-warning); }
+.tp-task[data-tone="warning"] .tp-task-icon { color: var(--tp-st-warning); }
+.tp-task[data-tone="danger"] { color: var(--tp-st-danger); }
+.tp-task[data-tone="danger"] .tp-task-icon { color: var(--tp-st-danger); }
+.tp-task[data-tone="success"] .tp-task-icon { color: var(--tp-st-success); }
+.tp-task[data-tone="faint"] { color: var(--tp-fg-faint); }
+.tp-progress-bar { flex: 1; min-width: 40px; display: flex; gap: 3px; }
+.tp-progress-seg { flex: 1; height: 4px; border-radius: 2px; background: var(--tp-st-success); }
+.tp-progress-seg[data-state="running"] { background: var(--tp-st-running); animation: tp-breathe 1.6s ease-in-out infinite; }
+.tp-progress-seg[data-state="needs-you"] { background: var(--tp-st-warning); }
+.tp-progress-text { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tp-progress-text b { color: var(--tp-fg); font-weight: 500; }
 .tp-foot { flex: none; margin-top: auto; height: 28px; box-sizing: border-box; padding-top: 9px; border-top: 1px solid var(--tp-border); display: flex; align-items: center; gap: 6px; font-size: 11px; line-height: 18px; color: var(--tp-fg-muted); min-width: 0; }
 .tp-foot-icon { flex: none; display: flex; color: var(--tp-fg-faint); }
 .tp-foot-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -210,9 +242,12 @@ const TOPOLOGY_CSS = `
 .tp-foot[data-tone="danger"] .tp-foot-icon, .tp-foot[data-tone="danger"] .tp-foot-lead { color: var(--tp-st-danger); }
 .tp-foot[data-tone="faint"] .tp-foot-text { color: var(--tp-fg-faint); }
 .tp-foot-lead { font-variant-numeric: tabular-nums; }
+.tp-foot b { color: var(--tp-fg); font-weight: 500; }
+.tp-foot-sep { color: var(--tp-fg-faint); }
 .tp-foot-id { flex: none; color: var(--tp-fg-faint); font-family: ${MONO}; font-size: 10.5px; }
 
 .tp-edge { stroke: var(--tp-edge); stroke-width: 1.5; stroke-opacity: .6; fill: none; }
+.tp-edge-port { fill: var(--tp-bg); stroke: var(--tp-edge); stroke-width: 1.5; }
 .tp-edge-flow { stroke: var(--tp-edge); stroke-width: 2; stroke-opacity: .9; fill: none; stroke-linecap: round; stroke-dasharray: 1 9; animation: tp-flow 1.2s linear infinite; pointer-events: none; }
 [data-kind="supervision"] { --tp-edge: var(--tp-role-supervisor); }
 [data-kind="delegation"] { --tp-edge: var(--tp-role-lead); }
@@ -327,8 +362,9 @@ const TOPOLOGY_CSS = `
 @keyframes tp-enter { from { opacity: 0; } to { opacity: 1; } }
 @keyframes tp-ping { from { transform: scale(.6); opacity: .8; } to { transform: scale(2); opacity: 0; } }
 @keyframes tp-flow { to { stroke-dashoffset: -20; } }
+@keyframes tp-breathe { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) {
-  .tp-node, .tp-edge-flow, .tp-dot::after, .tp-ov-state-dot::after { animation: none !important; }
+  .tp-node, .tp-edge-flow, .tp-progress-seg, .tp-dot::after, .tp-ov-state-dot::after { animation: none !important; }
   .tp-node:hover { transform: none; }
 }
 `;
@@ -346,12 +382,15 @@ function useMinuteClock(): Date {
   return now;
 }
 
-/** What the agent is doing or waiting on, in one line, for a card with no assigned issues. */
-function describeCardActivity(
+type CardTone = "running" | "warning" | "danger" | "success" | "faint";
+
+/** What the agent is doing or waiting on right now, in one line. */
+function describeCardTask(
   node: TopologyNode,
+  liveLabel: string | null,
   now: Date,
 ): {
-  tone: "running" | "warning" | "danger" | "faint";
+  tone: CardTone;
   icon: ComponentType<{ color: string; size: number }>;
   lead: string | null;
   text: string;
@@ -368,56 +407,114 @@ function describeCardActivity(
       tone: "running",
       icon: Activity,
       lead: elapsed === "now" ? "<1m" : elapsed,
-      text: node.status === "initializing" ? "Starting" : "Working",
+      text: node.status === "initializing" ? "Starting" : (liveLabel ?? "Working"),
     };
   }
-  if (node.lastActivityAt) {
-    return {
-      tone: "faint",
-      icon: Clock,
-      lead: null,
-      text: `Active ${formatCompactTimeAgoAsProse(formatCompactTimeAgo(node.lastActivityAt, now))}`,
-    };
+  if (node.status === "closed") {
+    return { tone: "faint", icon: CircleCheck, lead: null, text: "Closed" };
   }
-  return { tone: "faint", icon: Clock, lead: null, text: "No activity yet" };
+  if (node.requiresAttention && node.attentionReason === "finished") {
+    return { tone: "success", icon: CircleCheck, lead: null, text: "Finished, ready to review" };
+  }
+  return { tone: "faint", icon: Clock, lead: null, text: "Waiting for instructions" };
 }
 
-function CardFooter({ data, now }: { data: FlowNodeData; now: Date }) {
+/** The newest step of a running agent's turn, read from this client's copy of its timeline. */
+function useLiveActivityLabel(serverId: string | null, node: TopologyNode): string | null {
+  const live = serverId !== null && isActiveStatus(node.status);
+  const tail = useSessionStore((state) =>
+    live ? state.sessions[serverId]?.agentStreamTail.get(node.id) : undefined,
+  );
+  return useMemo(
+    () => describeLiveActivity(tail, node.turnStartedAt)?.label ?? null,
+    [node.turnStartedAt, tail],
+  );
+}
+
+function CardTask({ data, now }: { data: FlowNodeData; now: Date }) {
   const node = data.topologyNode;
-  const issue = data.issues[0];
-  if (issue) {
-    const count = data.issues.length;
-    const hasTitle = issue.title !== issue.id;
-    return (
-      <div className="tp-foot" title={hasTitle ? issue.title : undefined}>
-        <span className="tp-foot-icon">
-          <CircleDot color="currentColor" size={12} />
-        </span>
-        <span className="tp-foot-text">
-          {count > 1 || !hasTitle ? (
-            <span className="tp-foot-count">{pluralize(count, "issue")}</span>
-          ) : null}
-          {count > 1 && hasTitle ? " · " : null}
-          {hasTitle ? issue.title : null}
-        </span>
-        {issue.status ? (
-          <span className="tp-foot-status" data-issue-status={issue.status}>
-            {ISSUE_STATUS_LABELS[issue.status]}
-          </span>
-        ) : null}
-      </div>
-    );
-  }
-  const activity = describeCardActivity(node, now);
-  const Icon = activity.icon;
-  const text = [activity.text, data.childSummary].filter(Boolean).join(" · ");
+  const liveLabel = useLiveActivityLabel(data.serverId, node);
+  const task = describeCardTask(node, liveLabel, now);
+  const Icon = task.icon;
   return (
-    <div className="tp-foot" data-tone={activity.tone} title={text}>
-      <span className="tp-foot-icon">
+    <div className="tp-task" data-tone={task.tone} title={task.text}>
+      <span className="tp-task-icon">
         <Icon color="currentColor" size={12} />
       </span>
-      {activity.lead ? <span className="tp-foot-lead">{activity.lead}</span> : null}
-      <span className="tp-foot-text">{text}</span>
+      {task.lead ? <span className="tp-task-lead">{task.lead}</span> : null}
+      <span className="tp-task-text">{task.text}</span>
+    </div>
+  );
+}
+
+function CardProgress({ progress }: { progress: ChildProgress }) {
+  const total = progress.children.length;
+  const extras = [
+    progress.needsYou > 0 ? `${progress.needsYou} need you` : null,
+    progress.running > 0 ? `${progress.running} running` : null,
+  ].filter(Boolean);
+  const text = `${progress.done}/${total} done${extras.length > 0 ? ` · ${extras.join(" · ")}` : ""}`;
+  return (
+    <div className="tp-detail" title={text}>
+      <span className="tp-progress-bar" aria-hidden="true">
+        {progress.children.map((child) => (
+          <span key={child.id} className="tp-progress-seg" data-state={child.state} />
+        ))}
+      </span>
+      <span className="tp-progress-text">
+        <b>
+          {progress.done}/{total}
+        </b>{" "}
+        done
+        {extras.length > 0 ? ` · ${extras.join(" · ")}` : null}
+      </span>
+    </div>
+  );
+}
+
+function CardIssue({ issues }: { issues: FlowNodeData["issues"] }) {
+  const issue = issues[0];
+  if (!issue) return null;
+  const count = issues.length;
+  const hasTitle = issue.title !== issue.id;
+  return (
+    <div className="tp-detail" title={hasTitle ? issue.title : undefined}>
+      <span className="tp-task-icon">
+        <CircleDot color="currentColor" size={12} />
+      </span>
+      <span className="tp-task-text">
+        {count > 1 || !hasTitle ? (
+          <span className="tp-foot-count">{pluralize(count, "issue")}</span>
+        ) : null}
+        {count > 1 && hasTitle ? " · " : null}
+        {hasTitle ? issue.title : null}
+      </span>
+      {issue.status ? (
+        <span className="tp-foot-status" data-issue-status={issue.status}>
+          {ISSUE_STATUS_LABELS[issue.status]}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function CardFooter({ node, now }: { node: TopologyNode; now: Date }) {
+  const lastActive =
+    !isActiveStatus(node.status) && node.lastActivityAt
+      ? `Active ${formatCompactTimeAgoAsProse(formatCompactTimeAgo(node.lastActivityAt, now))}`
+      : null;
+  const tokens = node.contextTokens;
+  return (
+    <div className="tp-foot">
+      <span className="tp-foot-text">
+        {tokens !== null ? (
+          <span title="Tokens in the agent's context window">
+            <b>{formatTokenCount(tokens)}</b> tokens
+          </span>
+        ) : null}
+        {tokens !== null && lastActive ? <span className="tp-foot-sep"> · </span> : null}
+        {lastActive}
+      </span>
       <span className="tp-foot-id">{node.shortId}</span>
     </div>
   );
@@ -453,7 +550,10 @@ function AgentTopologyNode({ data, selected }: NodeProps<FlowNode>) {
         <span className="tp-role-icon">
           <RoleIcon color="currentColor" size={12} />
         </span>
-        <span className="tp-role-label">{TOPOLOGY_ROLE_META[node.role].label}</span>
+        <span className="tp-role-label">
+          {TOPOLOGY_ROLE_META[node.role].label}
+          {data.ordinal !== null ? ` ${data.ordinal}` : null}
+        </span>
         <span className="tp-head-spacer" />
         {node.requiresAttention ? (
           <span
@@ -488,7 +588,13 @@ function AgentTopologyNode({ data, selected }: NodeProps<FlowNode>) {
         <span className="tp-meta-sep">·</span>
         <span className="tp-meta-faint">{profileName ?? providerName}</span>
       </div>
-      <CardFooter data={data} now={now} />
+      <CardTask data={data} now={now} />
+      {data.childProgress ? (
+        <CardProgress progress={data.childProgress} />
+      ) : (
+        <CardIssue issues={data.issues} />
+      )}
+      <CardFooter node={node} now={now} />
       <Handle type="source" position={Position.Right} isConnectable={false} />
     </div>
   );
@@ -517,6 +623,8 @@ function RelationshipEdge({
     <g data-kind={kind}>
       <BaseEdge path={path} className="tp-edge" />
       {data?.active ? <path d={path} className="tp-edge-flow" /> : null}
+      <circle cx={sourceX} cy={sourceY} r={3} className="tp-edge-port" />
+      <circle cx={targetX} cy={targetY} r={3} className="tp-edge-port" />
     </g>
   );
 }
@@ -596,9 +704,10 @@ function toFlowNodes(
   edges: readonly TopologyEdge[],
   issueById: ReadonlyMap<string, BeadsIssue>,
   packed: boolean,
+  serverId: string | null,
 ): FlowNode[] {
   const boxes = layoutTopology(nodes, edges, packed);
-  const childSummaries = summarizeChildren(nodes, edges);
+  const { ordinals, progress } = summarizeChildren(nodes, edges);
   return nodes.map((node) => {
     const box = boxes.get(node.id);
     const height = box?.height ?? TOPOLOGY_NODE_HEIGHT;
@@ -621,7 +730,9 @@ function toFlowNodes(
       style: { width: TOPOLOGY_NODE_WIDTH, height },
       data: {
         topologyNode: node,
-        childSummary: childSummaries.get(node.id) ?? null,
+        serverId,
+        ordinal: ordinals.get(node.id) ?? null,
+        childProgress: progress.get(node.id) ?? null,
         issues,
       },
       draggable: false,
@@ -638,29 +749,28 @@ function toFlowNodes(
 function summarizeChildren(
   nodes: readonly TopologyNode[],
   edges: readonly TopologyEdge[],
-): Map<string, string> {
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+): { ordinals: Map<string, number>; progress: Map<string, ChildProgress> } {
+  const nodeOrder = new Map(nodes.map((node, index) => [node.id, index]));
   const childrenByParent = new Map<string, TopologyNode[]>();
   for (const edge of edges) {
-    const child = nodeById.get(edge.target);
-    if (!child || !nodeById.has(edge.source)) continue;
-    childrenByParent.set(edge.source, [...(childrenByParent.get(edge.source) ?? []), child]);
+    const childIndex = nodeOrder.get(edge.target);
+    if (childIndex === undefined || !nodeOrder.has(edge.source)) continue;
+    childrenByParent.set(edge.source, [
+      ...(childrenByParent.get(edge.source) ?? []),
+      nodes[childIndex],
+    ]);
   }
-  const summaries = new Map<string, string>();
+  const ordinals = new Map<string, number>();
+  const progress = new Map<string, ChildProgress>();
   for (const [parentId, children] of childrenByParent) {
-    const roleCounts = TOPOLOGY_ROLE_ORDER.flatMap((role) => {
-      const count = children.filter((child) => child.role === role).length;
-      if (count === 0) return [];
-      const meta = TOPOLOGY_ROLE_META[role];
-      return [`${count} ${count === 1 ? meta.label : meta.plural}`];
-    });
-    const running = children.filter((child) => isActiveStatus(child.status)).length;
-    summaries.set(
-      parentId,
-      `${roleCounts.join(", ")}${running > 0 ? ` · ${running} running` : ""}`,
+    // Nodes arrive in creation order, so sorting by it numbers children as they were delegated.
+    const ordered = [...children].sort(
+      (left, right) => (nodeOrder.get(left.id) ?? 0) - (nodeOrder.get(right.id) ?? 0),
     );
+    ordered.forEach((child, index) => ordinals.set(child.id, index + 1));
+    progress.set(parentId, summarizeChildProgress(ordered));
   }
-  return summaries;
+  return { ordinals, progress };
 }
 
 function isActiveStatus(status: TopologyNode["status"] | undefined): boolean {
@@ -908,6 +1018,8 @@ export interface TopologyGraphProps {
   nodes: TopologyNode[];
   edges: TopologyEdge[];
   issueById?: ReadonlyMap<string, BeadsIssue>;
+  /** Host the agents run on; lets running cards show their live step. */
+  serverId?: string | null;
   hud?: TopologyHudProps | null;
   /**
    * The page owns scrolling: the wheel scrolls past the graph instead of zooming
@@ -923,6 +1035,7 @@ export function TopologyGraph({
   nodes,
   edges,
   issueById = EMPTY_ISSUES,
+  serverId = null,
   hud = null,
   embedded = false,
   testID,
@@ -940,8 +1053,8 @@ export function TopologyGraph({
     }));
   }, [edges, nodes]);
   const flowNodes = useMemo(
-    () => toFlowNodes(nodes, edges, issueById, embedded),
-    [edges, embedded, issueById, nodes],
+    () => toFlowNodes(nodes, edges, issueById, embedded, serverId),
+    [edges, embedded, issueById, nodes, serverId],
   );
   return (
     <ThemedTopologyCanvas

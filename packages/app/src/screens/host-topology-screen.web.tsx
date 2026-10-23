@@ -68,9 +68,11 @@ function useMinuteClock(): Date {
 }
 
 function ProjectGraph({
+  serverId,
   group,
   onOpenAgent,
 }: {
+  serverId: string;
   group: ProjectGroup;
   onOpenAgent: (agentId: string) => void;
 }) {
@@ -85,7 +87,13 @@ function ProjectGraph({
   }, [group.edges, group.nodes]);
   return (
     <div className="tp-ov-graph" style={frameStyle}>
-      <TopologyGraph nodes={group.nodes} edges={group.edges} embedded onOpenAgent={onOpenAgent} />
+      <TopologyGraph
+        nodes={group.nodes}
+        edges={group.edges}
+        serverId={serverId}
+        embedded
+        onOpenAgent={onOpenAgent}
+      />
     </div>
   );
 }
@@ -270,7 +278,9 @@ function ProjectOverviewRow({
           <ChevronRight color="currentColor" size={14} />
         </span>
       </div>
-      {expanded ? <ProjectGraph group={group} onOpenAgent={onOpenAgent} /> : null}
+      {expanded ? (
+        <ProjectGraph serverId={serverId} group={group} onOpenAgent={onOpenAgent} />
+      ) : null}
     </div>
   );
 }

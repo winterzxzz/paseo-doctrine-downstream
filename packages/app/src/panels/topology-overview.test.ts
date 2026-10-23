@@ -4,6 +4,8 @@ import {
   buildAttentionInbox,
   compareProjectOverviews,
   describeLiveActivity,
+  formatTokenCount,
+  summarizeChildProgress,
   summarizeProject,
 } from "@/panels/topology-overview";
 import type { StreamItem } from "@/types/stream";
@@ -29,6 +31,7 @@ function node(id: string, overrides: Partial<TopologyNode> = {}): TopologyNode {
     pendingPermission: null,
     lastError: null,
     issueIds: [],
+    contextTokens: null,
     ...overrides,
   };
 }
@@ -149,5 +152,44 @@ describe("describeLiveActivity", () => {
   it("shows nothing when the client holds no step of the current turn", () => {
     expect(describeLiveActivity([shell(2, "ls")], at(4))).toBeNull();
     expect(describeLiveActivity(undefined, at(4))).toBeNull();
+  });
+});
+
+describe("summarizeChildProgress", () => {
+  it("counts each delegated agent as done, running, or needing the Human", () => {
+    const progress = summarizeChildProgress([
+      node("closed", { role: "peer", status: "closed" }),
+      node("finished", {
+        role: "peer",
+        requiresAttention: true,
+        attentionReason: "finished",
+      }),
+      node("asking", {
+        role: "peer",
+        requiresAttention: true,
+        attentionReason: "permission",
+        pendingPermission: "git push",
+      }),
+      node("working", { role: "peer", status: "running" }),
+      node("broken", { role: "peer", status: "error" }),
+    ]);
+    expect(progress.children.map((child) => child.state)).toEqual([
+      "done",
+      "done",
+      "needs-you",
+      "running",
+      "needs-you",
+    ]);
+    expect(progress).toMatchObject({ done: 2, running: 1, needsYou: 2 });
+  });
+});
+
+describe("formatTokenCount", () => {
+  it("abbreviates thousands and millions", () => {
+    expect(formatTokenCount(950)).toBe("950");
+    expect(formatTokenCount(8_400)).toBe("8.4k");
+    expect(formatTokenCount(84_200)).toBe("84k");
+    expect(formatTokenCount(1_000_000)).toBe("1M");
+    expect(formatTokenCount(1_260_000)).toBe("1.3M");
   });
 });

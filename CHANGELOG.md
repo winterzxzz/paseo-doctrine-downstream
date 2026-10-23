@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.2-paseo.90 - 2026-10-23
+
+### Changed
+
+- Card agent trong topology panel cho biết agent đang làm gì: dòng riêng hiện tool đang gọi khi
+  agent chạy (kèm thời gian turn), quyền đang chờ duyệt, lỗi, hoặc "Finished, ready to review".
+  Card Lead có thanh tiến độ chia đoạn theo từng Peer (xong, cần bạn, đang chạy) kèm "4/5 done".
+  Peer được đánh số theo thứ tự giao việc ("Peer 3"), footer hiện số token trong context, và hai
+  đầu mỗi đường nối có chấm tròn.
+
 ## 0.11.2-paseo.89 - 2026-10-20
 
 ### Changed
