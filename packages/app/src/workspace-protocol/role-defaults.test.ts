@@ -57,6 +57,24 @@ describe("role defaults", () => {
     });
   });
 
+  it("keeps the Supervisor permission across other edits and clears it on null", () => {
+    const withBypass = withRoleLaunchDefaults(config.roleDefaults, "supervisor", {
+      permission: "bypass",
+    });
+    expect(withBypass.supervisor).toEqual({
+      route: "claude/claude-fable-5-1",
+      thinkingOptionId: "high",
+      permission: "bypass",
+    });
+    expect(
+      withRoleLaunchDefaults(withBypass, "supervisor", { thinkingOptionId: "low" }).supervisor
+        ?.permission,
+    ).toBe("bypass");
+    expect(
+      withRoleLaunchDefaults(withBypass, "supervisor", { permission: null }).supervisor,
+    ).toEqual({ route: "claude/claude-fable-5-1", thinkingOptionId: "high" });
+  });
+
   it("starts a draft with the Human authority when the role offers it", () => {
     const authorityConfig = {
       roleDefaults: {

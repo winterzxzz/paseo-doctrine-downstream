@@ -57,6 +57,8 @@ export function withRoleLaunchDefaults(
     route?: string | null;
     thinkingOptionId?: string | null;
     assignmentEffect?: AssignmentEffectClass | null;
+    /** Supervisor only: runtime permission instead of the per-authority policy. */
+    permission?: SupervisorPermission | null;
   },
 ): RoleDefaults {
   const current = roleDefaults?.[roleId] ?? {};
@@ -65,15 +67,23 @@ export function withRoleLaunchDefaults(
   const route = pick(launch.route, current.route);
   const thinkingOptionId = pick(launch.thinkingOptionId, current.thinkingOptionId);
   const assignmentEffect = pick(launch.assignmentEffect, current.assignmentEffect);
+  const permission =
+    roleId === "supervisor" ? pick(launch.permission, current.permission) : undefined;
   return {
     ...roleDefaults,
     [roleId]: {
       ...(route ? { route } : {}),
       ...(thinkingOptionId ? { thinkingOptionId } : {}),
       ...(assignmentEffect ? { assignmentEffect } : {}),
+      ...(permission ? { permission } : {}),
     },
   };
 }
+
+/** How a new Supervisor's runtime asks for permission: "ask", "bypass", or unset (by authority). */
+export type SupervisorPermission = NonNullable<
+  NonNullable<RoleDefaults["supervisor"]>["permission"]
+>;
 
 /** The assignment authority a new draft starts with for a role: the Human default, if allowed. */
 export function resolveDefaultAssignmentEffect(

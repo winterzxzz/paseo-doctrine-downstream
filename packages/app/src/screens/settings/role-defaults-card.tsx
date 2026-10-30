@@ -18,9 +18,34 @@ import {
   resolveRoleDefaultRoute,
   withDefaultLeadRoute,
   withRoleLaunchDefaults,
+  type SupervisorPermission,
 } from "@/workspace-protocol/role-defaults";
 
 const NONE = "__none__";
+
+const PERMISSION_OPTIONS: SelectFieldOption<string>[] = [
+  {
+    id: NONE,
+    value: NONE,
+    label: "By authority",
+    description: "Coordinate Leads asks; Observe is read-only",
+    testID: "role-default-supervisor-permission-none",
+  },
+  {
+    id: "bypass",
+    value: "bypass",
+    label: "Bypass",
+    description: "Never asks for permission, in any authority",
+    testID: "role-default-supervisor-permission-bypass",
+  },
+  {
+    id: "ask",
+    value: "ask",
+    label: "Ask",
+    description: "Asks before edits and commands",
+    testID: "role-default-supervisor-permission-ask",
+  },
+];
 
 const DEFAULT_ROLE_OPTIONS: SelectFieldOption<string>[] = [
   { id: NONE, value: NONE, label: "No role", description: "Plain agent" },
@@ -102,6 +127,8 @@ function RoleLaunchRow({
   onChangeRoute,
   onChangeThinking,
   onChangeAuthority,
+  permission,
+  onChangePermission,
 }: {
   roleId: "supervisor" | "lead";
   title: string;
@@ -115,6 +142,9 @@ function RoleLaunchRow({
   onChangeRoute: (route: string | null) => void;
   onChangeThinking: (thinkingOptionId: string | null) => void;
   onChangeAuthority: (assignmentEffect: AssignmentEffectClass) => void;
+  /** Supervisor only: the runtime permission picker. */
+  permission?: SupervisorPermission | undefined;
+  onChangePermission?: (permission: SupervisorPermission | null) => void;
 }) {
   const authorityOptions = useMemo<SelectFieldOption<AssignmentEffectClass>[]>(
     () =>
@@ -149,6 +179,12 @@ function RoleLaunchRow({
     [onChangeThinking],
   );
   const effortValue = thinkingOptionId ?? NONE;
+  const permissionValue = permission ?? NONE;
+  const handlePermission = useCallback(
+    (value: string) =>
+      onChangePermission?.(value === NONE ? null : (value as SupervisorPermission)),
+    [onChangePermission],
+  );
   const modelDisplay = useMemo(
     () => (route ? { label: routeLabel(entries, route) } : display(modelOptions, NONE)),
     [entries, modelOptions, route],
@@ -218,6 +254,24 @@ function RoleLaunchRow({
             triggerTestID={`role-default-${roleId}-authority-trigger`}
           />
         </View>
+        {onChangePermission ? (
+          <View style={styles.authorityControl}>
+            <SelectField
+              label={`${title} permission`}
+              value={permissionValue}
+              selectedDisplay={display(PERMISSION_OPTIONS, permissionValue)}
+              options={PERMISSION_OPTIONS}
+              onChange={handlePermission}
+              placeholder="Permission"
+              emptyText="No permission options"
+              disabled={disabled}
+              title={`${title} permission`}
+              size="sm"
+              field={false}
+              triggerTestID={`role-default-${roleId}-permission-trigger`}
+            />
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -286,6 +340,11 @@ export function RoleDefaultsCard({ serverId }: { serverId: string }) {
       saveRoleDefaults(withRoleLaunchDefaults(roleDefaults, "supervisor", { assignmentEffect })),
     [roleDefaults, saveRoleDefaults],
   );
+  const handleSupervisorPermission = useCallback(
+    (permission: SupervisorPermission | null) =>
+      saveRoleDefaults(withRoleLaunchDefaults(roleDefaults, "supervisor", { permission })),
+    [roleDefaults, saveRoleDefaults],
+  );
   const handleLeadAuthority = useCallback(
     (assignmentEffect: AssignmentEffectClass) =>
       saveRoleDefaults(withRoleLaunchDefaults(roleDefaults, "lead", { assignmentEffect })),
@@ -340,7 +399,7 @@ export function RoleDefaultsCard({ serverId }: { serverId: string }) {
       <RoleLaunchRow
         roleId="supervisor"
         title="Supervisor"
-        hint="Used for new Supervisors. Model and effort also apply when another agent creates one."
+        hint="Used for new Supervisors. Model, effort and permission also apply when another agent creates one."
         route={resolveRoleDefaultRoute(config, "supervisor")}
         thinkingOptionId={roleDefaults?.supervisor?.thinkingOptionId}
         assignmentEffect={roleDefaults?.supervisor?.assignmentEffect}
@@ -350,6 +409,8 @@ export function RoleDefaultsCard({ serverId }: { serverId: string }) {
         onChangeRoute={handleSupervisorRoute}
         onChangeThinking={handleSupervisorThinking}
         onChangeAuthority={handleSupervisorAuthority}
+        permission={roleDefaults?.supervisor?.permission}
+        onChangePermission={handleSupervisorPermission}
       />
       <RoleLaunchRow
         roleId="lead"
