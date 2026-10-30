@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.11.2-paseo.96 - 2026-10-30
+
+### Added
+
+- Topology panel: nút lọc theo trạng thái (Needs you, Working, To review, Idle) làm mờ các agent
+  khác; chế độ List xếp agent theo mức cần chú ý; cột Latest activity bên phải hiện thay đổi mới
+  nhất của từng agent.
+- 5 theme có màu nền khác biệt rõ: Solarized Dark, Monokai, Cobalt2, Synthwave '84, Hacker.
+
+### Changed
+
+- Card trong topology cao theo nội dung, không còn khoảng trống ở agent đang rảnh; graph được căn
+  lại giữa khi khung hiện ra sau lúc bị ẩn.
+- Chọn font giao diện và font code từ danh sách các font đã cài (kèm mẫu "Aa"), cỡ chữ chỉnh bằng
+  nút −/+ thay cho ô nhập.
+
+### Removed
+
+- Theme One Dark (trùng màu nền với Ghostty).
+
 ## 0.11.2-paseo.93 - 2026-10-30
 
 ### Changed
