@@ -1,15 +1,19 @@
 import { Platform } from "react-native";
 import {
   catppuccinLattePalette,
+  cobalt2Palette,
+  hackerPalette,
+  monokaiPalette,
   catppuccinMochaPalette,
   draculaPalette,
   everforestDarkPalette,
   githubLightPalette,
   gruvboxDarkPalette,
   nordPalette,
-  oneDarkPalette,
   rosePinePalette,
+  solarizedDarkPalette,
   solarizedLightPalette,
+  synthwavePalette,
   tokyoNightPalette,
 } from "./theme-palettes";
 import { darkHighlightColors, lightHighlightColors } from "@getpaseo/highlight";
@@ -815,7 +819,11 @@ export const darkCatppuccinTheme = buildDarkTheme(buildDarkSemanticColors(catppu
 export const darkDraculaTheme = buildDarkTheme(buildDarkSemanticColors(draculaPalette));
 export const darkNordTheme = buildDarkTheme(buildDarkSemanticColors(nordPalette));
 export const darkTokyoNightTheme = buildDarkTheme(buildDarkSemanticColors(tokyoNightPalette));
-export const darkOneDarkTheme = buildDarkTheme(buildDarkSemanticColors(oneDarkPalette));
+export const darkSolarizedTheme = buildDarkTheme(buildDarkSemanticColors(solarizedDarkPalette));
+export const darkMonokaiTheme = buildDarkTheme(buildDarkSemanticColors(monokaiPalette));
+export const darkCobalt2Theme = buildDarkTheme(buildDarkSemanticColors(cobalt2Palette));
+export const darkSynthwaveTheme = buildDarkTheme(buildDarkSemanticColors(synthwavePalette));
+export const darkHackerTheme = buildDarkTheme(buildDarkSemanticColors(hackerPalette));
 export const darkGruvboxTheme = buildDarkTheme(buildDarkSemanticColors(gruvboxDarkPalette));
 export const darkRosePineTheme = buildDarkTheme(buildDarkSemanticColors(rosePinePalette));
 export const darkEverforestTheme = buildDarkTheme(buildDarkSemanticColors(everforestDarkPalette));
@@ -911,14 +919,7 @@ export const THEME_OPTIONS = [
     swatch: "#7aa2f7",
     label: "Tokyo Night",
   },
-  {
-    name: "oneDark",
-    group: "community",
-    unistylesName: "darkOneDark",
-    theme: darkOneDarkTheme,
-    swatch: "#61afef",
-    label: "One Dark",
-  },
+
   {
     name: "gruvbox",
     group: "community",
@@ -942,6 +943,46 @@ export const THEME_OPTIONS = [
     theme: darkEverforestTheme,
     swatch: "#a7c080",
     label: "Everforest",
+  },
+  {
+    name: "solarizedDark",
+    group: "community",
+    unistylesName: "darkSolarized",
+    theme: darkSolarizedTheme,
+    swatch: "#b58900",
+    label: "Solarized Dark",
+  },
+  {
+    name: "monokai",
+    group: "community",
+    unistylesName: "darkMonokai",
+    theme: darkMonokaiTheme,
+    swatch: "#a6e22e",
+    label: "Monokai",
+  },
+  {
+    name: "cobalt2",
+    group: "community",
+    unistylesName: "darkCobalt2",
+    theme: darkCobalt2Theme,
+    swatch: "#ffc600",
+    label: "Cobalt2",
+  },
+  {
+    name: "synthwave",
+    group: "community",
+    unistylesName: "darkSynthwave",
+    theme: darkSynthwaveTheme,
+    swatch: "#ff7edb",
+    label: "Synthwave '84",
+  },
+  {
+    name: "hacker",
+    group: "community",
+    unistylesName: "darkHacker",
+    theme: darkHackerTheme,
+    swatch: "#39ff14",
+    label: "Hacker",
   },
   {
     name: "catppuccinLatte",

@@ -2369,8 +2369,7 @@ export const fr: TranslationResources = {
         title: "Polices",
         systemDefault: "Police par défaut du système",
         interfaceFont: "Police de l’interface",
-        interfaceFontHint:
-          "Utilisée dans toute l’application. Laissez vide pour utiliser la police par défaut du système",
+        interfaceFontHint: "Utilisée dans toute l’app",
         interfaceFontAccessibility: "Famille de police de l’interface",
         interfaceSize: "Taille de l’interface",
         interfaceSizeHint: "Utilisée pour la navigation, les contrôles et les libellés",
@@ -2379,8 +2378,7 @@ export const fr: TranslationResources = {
         contentSizeHint: "Utilisée pour le texte de la discussion et le Markdown rendu",
         contentSizeAccessibility: "Taille de police du contenu",
         codeFont: "Police du code",
-        codeFontHint:
-          "Utilisée pour le code, les diffs et la sortie du terminal. Laissez vide pour utiliser la police par défaut du système",
+        codeFontHint: "Utilisée pour le code, les diffs et la sortie du terminal",
         codeFontAccessibility: "Famille de police du code",
         codeSize: "Taille du code",
         codeSizeHint: "Utilisée pour le code, les diffs et la sortie du terminal",

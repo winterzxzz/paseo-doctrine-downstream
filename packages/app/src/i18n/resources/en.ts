@@ -2444,7 +2444,7 @@ export const en = {
         title: "Fonts",
         systemDefault: "System default",
         interfaceFont: "Interface font",
-        interfaceFontHint: "Used across the app. Leave empty for the system default",
+        interfaceFontHint: "Used across the app",
         interfaceFontAccessibility: "Interface font family",
         interfaceSize: "Interface size",
         interfaceSizeHint: "Used for navigation, controls, and labels",
@@ -2453,8 +2453,7 @@ export const en = {
         contentSizeHint: "Used for chat text and rendered Markdown",
         contentSizeAccessibility: "Content font size",
         codeFont: "Code font",
-        codeFontHint:
-          "Used in code, diffs, and the terminal output. Leave empty for the system default",
+        codeFontHint: "Used in code, diffs, and the terminal output",
         codeFontAccessibility: "Code font family",
         codeSize: "Code size",
         codeSizeHint: "Used for code, diffs, and terminal output",

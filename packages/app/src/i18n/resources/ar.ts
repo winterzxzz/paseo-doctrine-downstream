@@ -2319,7 +2319,7 @@ export const ar: TranslationResources = {
         title: "الخطوط",
         systemDefault: "الافتراضي للنظام",
         interfaceFont: "خط الواجهة",
-        interfaceFontHint: "تستخدم عبر التطبيق. اتركه فارغًا للإعداد الافتراضي للنظام",
+        interfaceFontHint: "تستخدم عبر التطبيق",
         interfaceFontAccessibility: "عائلة خطوط الواجهة",
         interfaceSize: "حجم الواجهة",
         interfaceSizeHint: "يُستخدم للتنقل وعناصر التحكم والتسميات",
@@ -2328,8 +2328,7 @@ export const ar: TranslationResources = {
         contentSizeHint: "يُستخدم لنص الدردشة وملفات Markdown المعروضة",
         contentSizeAccessibility: "حجم خط المحتوى",
         codeFont: "خط الكود",
-        codeFontHint:
-          "تستخدم في الكود والاختلافات والمخرجات الطرفية. اتركه فارغًا للإعداد الافتراضي للنظام",
+        codeFontHint: "تستخدم في الكود والفروقات ومخرجات الطرفية",
         codeFontAccessibility: "عائلة خطوط الكود",
         codeSize: "حجم الكود",
         codeSizeHint: "يُستخدم للكود والفروقات ومخرجات الطرفية",

@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { TFunction } from "i18next";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
@@ -24,7 +23,6 @@ import {
   MIN_CODE_FONT_SIZE,
   MIN_CONTENT_FONT_SIZE,
   MIN_UI_BASE_FONT_SIZE,
-  parseClampedFontSize,
   parseContentMaxWidth,
   resolveContentMaxWidth,
   sanitizeFontFamily,
@@ -32,90 +30,91 @@ import {
   type AppSettings,
   DEFAULT_THEME_PREFERENCE,
 } from "@/hooks/use-settings";
-import {
-  DEFAULT_MONO_FONT_STACK,
-  DEFAULT_UI_FONT_STACK,
-  PLUGIN_THEME_PREFERENCE,
-} from "@/styles/theme";
+import { PLUGIN_THEME_PREFERENCE } from "@/styles/theme";
 import { isNative } from "@/constants/platform";
 import type { PluginThemeOption } from "@/plugins/themes";
 import { settingsStyles } from "@/styles/settings";
+import { Minus, Plus } from "lucide-react-native";
+import { inlineUnistylesStyle } from "@/styles/unistyles-inline-style";
 import { AppearancePreview } from "./appearance-preview";
+import {
+  MONO_FONT_OPTIONS,
+  UI_FONT_OPTIONS,
+  customFontLabel,
+  fontOptionFor,
+  resolveFontOptions,
+  type FontOption,
+} from "./font-options";
 import { ThemePicker, type BuiltInThemePreference } from "./theme-picker";
 
-// Platform default stacks can be the bare native tokens ("normal"/"monospace");
-// those read as a bug, so show a human label in the placeholder instead.
-const BARE_DEFAULT_STACKS: ReadonlySet<string> = new Set(["normal", "monospace"]);
+// ---------------------------------------------------------------------------
+// Fonts: a picker of installed faces and −/+ size steppers (commit immediately)
+// ---------------------------------------------------------------------------
 
-function resolveDefaultStackPlaceholder(t: TFunction, stack: string): string {
-  return BARE_DEFAULT_STACKS.has(stack) ? t("settings.appearance.fonts.systemDefault") : stack;
+interface FontMenuItemProps {
+  option: FontOption;
+  selected: boolean;
+  onSelect: (stack: string) => void;
 }
 
-// Local size string (digits only) -> preview override number. Empty/invalid
-// yields undefined so the preview falls back to the committed theme value.
-function sizeDraftToOverride(value: string): number | undefined {
-  if (value.length === 0) return undefined;
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : undefined;
+function FontMenuItem({ option, selected, onSelect }: FontMenuItemProps) {
+  const handleSelect = useCallback(() => onSelect(option.stack), [onSelect, option.stack]);
+  // Each option previews itself: "Aa" set in that face.
+  const sampleStyle = useMemo(
+    () => [styles.fontSample, inlineUnistylesStyle({ fontFamily: option.stack || undefined })],
+    [option.stack],
+  );
+  const leading = useMemo(() => <Text style={sampleStyle}>Aa</Text>, [sampleStyle]);
+  return (
+    <DropdownMenuItem selected={selected} onSelect={handleSelect} leading={leading}>
+      {option.label}
+    </DropdownMenuItem>
+  );
 }
-
-// ---------------------------------------------------------------------------
-// Fonts: family text fields + numeric size fields (commit on blur/submit)
-// ---------------------------------------------------------------------------
 
 interface FontFamilyRowProps {
   title: string;
   hint: string;
   accessibilityLabel: string;
-  placeholder: string;
+  options: readonly FontOption[];
   value: string;
-  draft: string;
   withBorder: boolean;
-  onChangeDraft: (value: string) => void;
-  onCommit: (value: string) => void;
+  onChange: (stack: string) => void;
 }
 
 function FontFamilyRow({
   title,
   hint,
   accessibilityLabel,
-  placeholder,
+  options,
   value,
-  draft,
   withBorder,
-  onChangeDraft,
-  onCommit,
+  onChange,
 }: FontFamilyRowProps) {
-  const handleCommit = useCallback(() => {
-    onCommit(draft);
-  }, [draft, onCommit]);
-
-  // Resync from the committed value when it changes elsewhere.
-  useEffect(() => {
-    onChangeDraft(value);
-    // Only resync on external value changes, not on local keystrokes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
-
+  const available = useMemo(() => resolveFontOptions(options, value), [options, value]);
+  const selected = fontOptionFor(available, value);
+  const selectedLabel = selected?.label ?? customFontLabel(value);
   return (
     <View style={withBorder ? styles.rowWithBorder : settingsStyles.row}>
       <View style={settingsStyles.rowContent}>
         <Text style={settingsStyles.rowTitle}>{title}</Text>
         <Text style={settingsStyles.rowHint}>{hint}</Text>
       </View>
-      <TextInput
-        initialValue={draft}
-        onChangeText={onChangeDraft}
-        onBlur={handleCommit}
-        onSubmitEditing={handleCommit}
-        placeholder={placeholder}
-        placeholderTextColor={styles.placeholderColor.color}
-        autoCapitalize="none"
-        autoCorrect={false}
-        spellCheck={false}
-        style={styles.fontFamilyInput}
-        accessibilityLabel={accessibilityLabel}
-      />
+      <DropdownMenu>
+        <DropdownTrigger accessibilityLabel={`${accessibilityLabel}: ${selectedLabel}`}>
+          {selectedLabel}
+        </DropdownTrigger>
+        <DropdownMenuContent side="bottom" align="end" width={240} scrollable>
+          {available.map((option) => (
+            <FontMenuItem
+              key={option.stack || "default"}
+              option={option}
+              selected={option.stack === value.trim()}
+              onSelect={onChange}
+            />
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </View>
   );
 }
@@ -124,40 +123,49 @@ interface FontSizeRowProps {
   title: string;
   hint: string;
   accessibilityLabel: string;
-  draft: string;
+  value: number;
+  min: number;
+  max: number;
   withBorder?: boolean;
-  onChangeDraft: (value: string) => void;
-  onCommit: () => void;
+  onChange: (value: number) => void;
 }
 
 function FontSizeRow({
   title,
   hint,
   accessibilityLabel,
-  draft,
+  value,
+  min,
+  max,
   withBorder = true,
-  onChangeDraft,
-  onCommit,
+  onChange,
 }: FontSizeRowProps) {
+  const decrease = useCallback(() => onChange(Math.max(min, value - 1)), [min, onChange, value]);
+  const increase = useCallback(() => onChange(Math.min(max, value + 1)), [max, onChange, value]);
   return (
     <View style={withBorder ? styles.rowWithBorder : settingsStyles.row}>
       <View style={settingsStyles.rowContent}>
         <Text style={settingsStyles.rowTitle}>{title}</Text>
         <Text style={settingsStyles.rowHint}>{hint}</Text>
       </View>
-      <View style={styles.sizeField}>
-        <TextInput
-          initialValue={draft}
-          onChangeText={onChangeDraft}
-          onBlur={onCommit}
-          onSubmitEditing={onCommit}
-          keyboardType="number-pad"
-          inputMode="numeric"
-          selectTextOnFocus
-          style={styles.sizeInput}
-          accessibilityLabel={accessibilityLabel}
+      <View style={styles.stepper} accessibilityLabel={`${accessibilityLabel}: ${value}px`}>
+        <Button
+          variant="outline"
+          size="sm"
+          onPress={decrease}
+          disabled={value <= min}
+          accessibilityLabel={`${title} −1`}
+          leftIcon={Minus}
         />
-        <Text style={styles.unit}>px</Text>
+        <Text style={styles.stepperValue}>{value}px</Text>
+        <Button
+          variant="outline"
+          size="sm"
+          onPress={increase}
+          disabled={value >= max}
+          accessibilityLabel={`${title} +1`}
+          leftIcon={Plus}
+        />
       </View>
     </View>
   );
@@ -311,25 +319,6 @@ export function AppearanceSection() {
     select: selectPluginTheme,
   } = useContributedThemes();
   const showInterfaceFontFamilyRow = !isNative;
-  const uiFontPlaceholder = resolveDefaultStackPlaceholder(t, DEFAULT_UI_FONT_STACK);
-  const monoFontPlaceholder = resolveDefaultStackPlaceholder(t, DEFAULT_MONO_FONT_STACK);
-
-  const [uiFontDraft, setUiFontDraft] = useState(settings.uiFontFamily);
-  const [monoFontDraft, setMonoFontDraft] = useState(settings.monoFontFamily);
-  const [uiBaseSizeDraft, setUiBaseSizeDraft] = useState(String(settings.uiBaseFontSize));
-  const [contentSizeDraft, setContentSizeDraft] = useState(String(settings.contentFontSize));
-  const [codeSizeDraft, setCodeSizeDraft] = useState(String(settings.codeFontSize));
-
-  // Resync numeric drafts when the committed value changes elsewhere.
-  useEffect(() => {
-    setUiBaseSizeDraft(String(settings.uiBaseFontSize));
-  }, [settings.uiBaseFontSize]);
-  useEffect(() => {
-    setContentSizeDraft(String(settings.contentFontSize));
-  }, [settings.contentFontSize]);
-  useEffect(() => {
-    setCodeSizeDraft(String(settings.codeFontSize));
-  }, [settings.codeFontSize]);
 
   // A selected contribution that is no longer installed shows the fallback the app renders.
   const builtInThemeValue =
@@ -363,94 +352,46 @@ export function AppearanceSection() {
     [updateSettings],
   );
 
-  const commitUiFontFamily = useCallback(
+  const changeUiFontFamily = useCallback(
     (value: string) => {
       const sanitized = sanitizeFontFamily(value);
-      if (sanitized === null) {
-        setUiFontDraft(settings.uiFontFamily);
-        return;
-      }
-      setUiFontDraft(sanitized);
-      if (sanitized !== settings.uiFontFamily) {
+      if (sanitized !== null && sanitized !== settings.uiFontFamily) {
         void updateSettings({ uiFontFamily: sanitized });
       }
     },
     [settings.uiFontFamily, updateSettings],
   );
 
-  const commitMonoFontFamily = useCallback(
+  const changeMonoFontFamily = useCallback(
     (value: string) => {
       const sanitized = sanitizeFontFamily(value);
-      if (sanitized === null) {
-        setMonoFontDraft(settings.monoFontFamily);
-        return;
-      }
-      setMonoFontDraft(sanitized);
-      if (sanitized !== settings.monoFontFamily) {
+      if (sanitized !== null && sanitized !== settings.monoFontFamily) {
         void updateSettings({ monoFontFamily: sanitized });
       }
     },
     [settings.monoFontFamily, updateSettings],
   );
 
-  const handleUiBaseSizeChange = useCallback((value: string) => {
-    setUiBaseSizeDraft(value.replace(/[^\d]/g, ""));
-  }, []);
+  const changeUiBaseSize = useCallback(
+    (uiBaseFontSize: number) => void updateSettings({ uiBaseFontSize }),
+    [updateSettings],
+  );
+  const changeContentSize = useCallback(
+    (contentFontSize: number) => void updateSettings({ contentFontSize }),
+    [updateSettings],
+  );
+  const changeCodeSize = useCallback(
+    (codeFontSize: number) => void updateSettings({ codeFontSize }),
+    [updateSettings],
+  );
 
-  const handleCodeSizeChange = useCallback((value: string) => {
-    setCodeSizeDraft(value.replace(/[^\d]/g, ""));
-  }, []);
-
-  const handleContentSizeChange = useCallback((value: string) => {
-    setContentSizeDraft(value.replace(/[^\d]/g, ""));
-  }, []);
-
-  const commitUiBaseSize = useCallback(() => {
-    const parsed = parseClampedFontSize(uiBaseSizeDraft, {
-      min: MIN_UI_BASE_FONT_SIZE,
-      max: MAX_UI_BASE_FONT_SIZE,
-    });
-    const next = parsed ?? settings.uiBaseFontSize;
-    setUiBaseSizeDraft(String(next));
-    if (next !== settings.uiBaseFontSize) {
-      void updateSettings({ uiBaseFontSize: next });
-    }
-  }, [settings.uiBaseFontSize, uiBaseSizeDraft, updateSettings]);
-
-  const commitCodeSize = useCallback(() => {
-    const parsed = parseClampedFontSize(codeSizeDraft, {
-      min: MIN_CODE_FONT_SIZE,
-      max: MAX_CODE_FONT_SIZE,
-    });
-    const next = parsed ?? settings.codeFontSize;
-    setCodeSizeDraft(String(next));
-    if (next !== settings.codeFontSize) {
-      void updateSettings({ codeFontSize: next });
-    }
-  }, [codeSizeDraft, settings.codeFontSize, updateSettings]);
-
-  const commitContentSize = useCallback(() => {
-    const parsed = parseClampedFontSize(contentSizeDraft, {
-      min: MIN_CONTENT_FONT_SIZE,
-      max: MAX_CONTENT_FONT_SIZE,
-    });
-    const next = parsed ?? settings.contentFontSize;
-    setContentSizeDraft(String(next));
-    if (next !== settings.contentFontSize) {
-      void updateSettings({ contentFontSize: next });
-    }
-  }, [contentSizeDraft, settings.contentFontSize, updateSettings]);
-
-  // Live-while-typing: the in-progress drafts drive the preview without
-  // committing to the global theme. Empty/invalid fields fall back to the
-  // theme value inside the preview.
   const previewOverrides = useMemo(
     () => ({
-      contentFontSize: sizeDraftToOverride(contentSizeDraft),
-      monoFontFamily: monoFontDraft,
-      codeFontSize: sizeDraftToOverride(codeSizeDraft),
+      contentFontSize: settings.contentFontSize,
+      monoFontFamily: settings.monoFontFamily,
+      codeFontSize: settings.codeFontSize,
     }),
-    [codeSizeDraft, contentSizeDraft, monoFontDraft],
+    [settings.codeFontSize, settings.contentFontSize, settings.monoFontFamily],
   );
 
   return (
@@ -473,49 +414,48 @@ export function AppearanceSection() {
               title={t("settings.appearance.fonts.interfaceFont")}
               hint={t("settings.appearance.fonts.interfaceFontHint")}
               accessibilityLabel={t("settings.appearance.fonts.interfaceFontAccessibility")}
-              placeholder={uiFontPlaceholder}
+              options={UI_FONT_OPTIONS}
               value={settings.uiFontFamily}
-              draft={uiFontDraft}
               withBorder={false}
-              onChangeDraft={setUiFontDraft}
-              onCommit={commitUiFontFamily}
+              onChange={changeUiFontFamily}
             />
           ) : null}
           <FontSizeRow
             title={t("settings.appearance.fonts.interfaceSize")}
             hint={t("settings.appearance.fonts.interfaceSizeHint")}
             accessibilityLabel={t("settings.appearance.fonts.interfaceSizeAccessibility")}
-            draft={uiBaseSizeDraft}
+            value={settings.uiBaseFontSize}
+            min={MIN_UI_BASE_FONT_SIZE}
+            max={MAX_UI_BASE_FONT_SIZE}
             withBorder={showInterfaceFontFamilyRow}
-            onChangeDraft={handleUiBaseSizeChange}
-            onCommit={commitUiBaseSize}
+            onChange={changeUiBaseSize}
           />
           <FontSizeRow
             title={t("settings.appearance.fonts.contentSize")}
             hint={t("settings.appearance.fonts.contentSizeHint")}
             accessibilityLabel={t("settings.appearance.fonts.contentSizeAccessibility")}
-            draft={contentSizeDraft}
-            onChangeDraft={handleContentSizeChange}
-            onCommit={commitContentSize}
+            value={settings.contentFontSize}
+            min={MIN_CONTENT_FONT_SIZE}
+            max={MAX_CONTENT_FONT_SIZE}
+            onChange={changeContentSize}
           />
           <FontFamilyRow
             title={t("settings.appearance.fonts.codeFont")}
             hint={t("settings.appearance.fonts.codeFontHint")}
             accessibilityLabel={t("settings.appearance.fonts.codeFontAccessibility")}
-            placeholder={monoFontPlaceholder}
+            options={MONO_FONT_OPTIONS}
             value={settings.monoFontFamily}
-            draft={monoFontDraft}
             withBorder
-            onChangeDraft={setMonoFontDraft}
-            onCommit={commitMonoFontFamily}
+            onChange={changeMonoFontFamily}
           />
           <FontSizeRow
             title={t("settings.appearance.fonts.codeSize")}
             hint={t("settings.appearance.fonts.codeSizeHint")}
             accessibilityLabel={t("settings.appearance.fonts.codeSizeAccessibility")}
-            draft={codeSizeDraft}
-            onChangeDraft={handleCodeSizeChange}
-            onCommit={commitCodeSize}
+            value={settings.codeFontSize}
+            min={MIN_CODE_FONT_SIZE}
+            max={MAX_CODE_FONT_SIZE}
+            onChange={changeCodeSize}
           />
         </View>
       </SettingsSection>
@@ -566,6 +506,23 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foreground,
     fontSize: theme.fontSize.base,
     textAlign: "left",
+  },
+  stepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+  },
+  stepperValue: {
+    minWidth: 44,
+    textAlign: "center",
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.base,
+    fontVariant: ["tabular-nums"],
+  },
+  fontSample: {
+    width: 22,
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.base,
   },
   sizeField: {
     flexDirection: "row",
