@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.11.2-paseo.98 - 2026-10-30
+
+### Added
+
+- Settings › Agents: ô Permission cho Supervisor (By authority / Bypass / Ask), áp dụng cho mọi
+  Supervisor tạo mới, kể cả do agent khác tạo.
+
+### Fixed
+
+- Đổi model, effort hay authority của Supervisor trong Settings không còn xoá mất lựa chọn
+  permission.
+
 ## 0.11.2-paseo.97 - 2026-10-30
 
 ### Changed
