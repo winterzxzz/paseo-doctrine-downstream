@@ -53,11 +53,10 @@ function preferences(
 }
 
 describe("choosePinnedUsageLayout", () => {
-  const widths = { labelsWidth: 200, percentsWidth: 120, windowCount: 2 };
+  const widths = { labelsWidth: 200, percentsWidth: 120 };
 
-  it("shows meters only when every window's meter fits beside the labels", () => {
-    expect(choosePinnedUsageLayout({ ...widths, available: 240 })).toBe("meters");
-    expect(choosePinnedUsageLayout({ ...widths, available: 239 })).toBe("labels");
+  it("keeps the short labels while they fit", () => {
+    expect(choosePinnedUsageLayout({ ...widths, available: 200 })).toBe("labels");
   });
 
   it("drops the labels before it lets the line overflow", () => {
@@ -147,6 +146,7 @@ describe("resolvePinnedUsage", () => {
           percent: 31,
           percentText: "31%",
           tone: "default",
+          period: "session",
         },
         {
           key: "claude:default/weekly",
@@ -155,6 +155,7 @@ describe("resolvePinnedUsage", () => {
           percent: 80,
           percentText: "80%",
           tone: "warning",
+          period: "weekly",
         },
       ],
     });

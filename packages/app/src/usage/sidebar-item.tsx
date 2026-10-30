@@ -21,11 +21,9 @@ import { useUsagePreferences } from "./display";
 import { useUsageHostId } from "./hosts";
 import { useUsageHostReports } from "./queries";
 import { UsageSourceIcon } from "./source-icon";
-import { UsageMeter } from "./meter";
+import { UsageRing } from "./ring";
 import {
   choosePinnedUsageLayout,
-  METER_GAP,
-  MIN_METER_WIDTH,
   resolvePinnedUsage,
   type PinnedUsageLayout,
   type PinnedUsageSource,
@@ -104,7 +102,7 @@ function layoutWidth(event: LayoutChangeEvent): number {
 }
 
 /**
- * One line: each account's icon, then per window a meter and "31% 5h". Off-screen copies measure
+ * One line: each account's icon, then per window a ring coloured by its period and "31% 5h". Off-screen copies measure
  * the line with labels and with percents alone; the richest layout that fits is shown, and what
  * it leaves out takes no space at all.
  */
@@ -133,7 +131,6 @@ function PinnedUsageTrigger({
     available,
     labelsWidth,
     percentsWidth,
-    windowCount: sources.reduce((count, source) => count + source.windows.length, 0),
   });
   return (
     <Pressable
@@ -164,10 +161,7 @@ function PinnedUsageTrigger({
   );
 }
 
-/**
- * The line's items as direct children of one row, so every meter shares the leftover width
- * equally.
- */
+/** The line's items as direct children of one row. */
 function PinnedUsageLine({
   sources,
   layout,
@@ -189,18 +183,11 @@ function PinnedUsageLine({
         const leadStyle = windowIndex === 0 ? styles.iconGap : styles.windowGap;
         return (
           <Fragment key={window.key}>
-            {layout === "meters" ? (
-              <View style={[styles.meterSlot, leadStyle]}>
-                <UsageMeter
-                  percent={window.percent}
-                  tone={window.tone}
-                  quiet
-                  style={styles.meter}
-                />
-              </View>
-            ) : null}
+            <View style={[styles.ringSlot, leadStyle]}>
+              <UsageRing percent={window.percent} period={window.period} tone={window.tone} />
+            </View>
             <Text
-              style={[styles.percent, layout === "meters" ? null : leadStyle]}
+              style={styles.percent}
               numberOfLines={1}
               testID={measuring ? undefined : "sidebar-usage-pinned-window"}
             >
@@ -260,17 +247,9 @@ const styles = StyleSheet.create((theme) => ({
   windowGap: {
     marginLeft: theme.spacing[2],
   },
-  // Every slot takes an equal share of the leftover width, so the line fills the row.
-  meterSlot: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
-    minWidth: MIN_METER_WIDTH,
-    marginRight: METER_GAP,
-  },
-  meter: {
-    height: 6,
-    borderRadius: 3,
+  ringSlot: {
+    flexShrink: 0,
+    marginRight: theme.spacing[1],
   },
   percent: {
     flexShrink: 0,

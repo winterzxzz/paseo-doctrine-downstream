@@ -1,6 +1,7 @@
 import { formatPct } from "./format";
 import { displayPercent } from "./model";
 import { effectiveUsagePins, type UsagePreferences } from "./preferences";
+import { usagePeriod, type UsagePeriod } from "./period";
 import { windowTone } from "./tone";
 import type { UsageReportEntry, UsageTone } from "./types";
 
@@ -15,6 +16,8 @@ export interface PinnedUsageWindow {
   percent: number;
   percentText: string;
   tone: UsageTone;
+  /** Which colour the window's ring takes. */
+  period: UsagePeriod;
 }
 
 /** One account's summary windows, under its source's icon. */
@@ -24,28 +27,20 @@ export interface PinnedUsageSource {
   windows: PinnedUsageWindow[];
 }
 
-/** How much of each window the one-line summary has room for. */
-export type PinnedUsageLayout = "meters" | "labels" | "percents";
-
-// A meter narrower than this is a sliver that reads as noise rather than a share.
-export const MIN_METER_WIDTH = 16;
-/** The space between a meter and its text. */
-export const METER_GAP = 4;
+/** How much of each window the one-line summary has room for; every window always shows its ring. */
+export type PinnedUsageLayout = "labels" | "percents";
 
 /**
- * The richest layout that fits on one line: every window's meter, else its short label, else its
- * percent alone. Meters are all or none; a line never mixes them. Until the widths are known it
- * shows labels, which never flashes meters that turn out not to fit.
+ * The richest layout that fits on one line: each window's ring, percent and short label, else
+ * ring and percent alone. Until the widths are known it shows labels.
  */
 export function choosePinnedUsageLayout(input: {
   available: number | null;
   labelsWidth: number | null;
   percentsWidth: number | null;
-  windowCount: number;
 }): PinnedUsageLayout {
-  const { available, labelsWidth, percentsWidth, windowCount } = input;
+  const { available, labelsWidth, percentsWidth } = input;
   if (available === null || labelsWidth === null || percentsWidth === null) return "labels";
-  if (labelsWidth + windowCount * (MIN_METER_WIDTH + METER_GAP) <= available) return "meters";
   if (labelsWidth <= available) return "labels";
   return percentsWidth < labelsWidth ? "percents" : "labels";
 }
@@ -89,6 +84,7 @@ export function resolvePinnedUsage(
           percent,
           percentText,
           tone: windowTone(window),
+          period: usagePeriod(window),
         };
       });
     if (windows.length === 0) return [];

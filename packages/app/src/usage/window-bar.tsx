@@ -7,6 +7,7 @@ import { usageCopy } from "./copy";
 import { formatDisplayPct, formatResetLabel } from "./format";
 import { UsageMeter } from "./meter";
 import { displayPercent, usageWindowRowLabel } from "./model";
+import { usagePeriod, type UsagePeriod } from "./period";
 import type { UsageDisplayAs } from "./preferences";
 import { windowTone } from "./tone";
 import type { UsageTone, UsageWindow } from "./types";
@@ -54,6 +55,7 @@ export function UsageWindowBar({
     isAtRisk,
     percent: shownPct ?? 0,
     tone,
+    period: usagePeriod(window),
     pinned,
   };
 
@@ -97,6 +99,7 @@ function WindowRowContent({
   isAtRisk,
   percent,
   tone,
+  period,
   pinnable,
   pinned,
 }: {
@@ -107,6 +110,7 @@ function WindowRowContent({
   isAtRisk: boolean;
   percent: number;
   tone: UsageTone;
+  period: UsagePeriod;
   pinnable: boolean;
   pinned: boolean;
 }) {
@@ -126,7 +130,7 @@ function WindowRowContent({
               ) : null}
             </Text>
           </View>
-          <UsageMeter percent={percent} tone={tone} />
+          <UsageMeter percent={percent} tone={tone} period={period} />
         </View>
         {pinnable ? <UsagePinGlyph pinned={pinned} /> : null}
       </View>

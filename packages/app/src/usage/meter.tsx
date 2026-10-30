@@ -1,45 +1,37 @@
-import { useMemo } from "react";
+import { useCallback } from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
-import { StyleSheet } from "react-native-unistyles";
+import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import type { Theme } from "@/styles/theme";
 import { clampPct } from "./format";
+import { usagePeriodColor, type UsagePeriod } from "./period";
 import type { UsageTone } from "./types";
 
-function fillToneStyle(tone: UsageTone) {
-  switch (tone) {
-    case "ok":
-      return styles.fillOk;
-    case "warning":
-      return styles.fillWarning;
-    case "danger":
-      return styles.fillDanger;
-    default:
-      return styles.fillDefault;
-  }
-}
+const Fill = withUnistyles(function Fill({ width, color }: { width: number; color: string }) {
+  return <View style={[styles.fill, { width: `${width}%`, backgroundColor: color }]} />;
+});
 
 /**
- * A window's share as a bar, coloured by its tone. `quiet` fills it with a surface colour instead,
- * for summaries where a row of coloured bars would be noise. The caller sizes the track.
+ * A window's share as a bar, coloured by its period (5h, week, month) like the sidebar rings,
+ * or by danger when it is nearly used up. The caller sizes the track.
  */
 export function UsageMeter({
   percent,
   tone,
-  quiet = false,
+  period,
   style,
 }: {
   percent: number;
   tone: UsageTone;
-  quiet?: boolean;
+  period: UsagePeriod;
   style?: StyleProp<ViewStyle>;
 }) {
-  const fillWidth = clampPct(percent);
-  const fillStyle = useMemo<StyleProp<ViewStyle>>(
-    () => [styles.fill, quiet ? styles.fillQuiet : fillToneStyle(tone), { width: `${fillWidth}%` }],
-    [fillWidth, quiet, tone],
+  const fillColor = useCallback(
+    (theme: Theme) => ({ color: usagePeriodColor(period, tone, theme) }),
+    [period, tone],
   );
   return (
     <View style={[styles.track, style]}>
-      <View style={fillStyle} />
+      <Fill width={clampPct(percent)} uniProps={fillColor} />
     </View>
   );
 }
@@ -55,20 +47,5 @@ const styles = StyleSheet.create((theme) => ({
   fill: {
     height: "100%",
     borderRadius: theme.borderRadius.full,
-  },
-  fillQuiet: {
-    backgroundColor: theme.colors.surface4,
-  },
-  fillDefault: {
-    backgroundColor: theme.colors.foregroundMuted,
-  },
-  fillOk: {
-    backgroundColor: theme.colors.statusSuccess,
-  },
-  fillWarning: {
-    backgroundColor: theme.colors.statusWarning,
-  },
-  fillDanger: {
-    backgroundColor: theme.colors.statusDanger,
   },
 }));
