@@ -5,7 +5,10 @@ import {
   layoutProjectTopologyPacked,
   layoutProjectTopologyXFirst,
   recenterTopologyViewport,
+  topologyCardHeight,
+  topologyTitleLines,
   topologyViewportShowsAnyBox,
+  TOPOLOGY_NODE_HEIGHT,
   TOPOLOGY_ROW_GAP,
   TOPOLOGY_SUBTREE_GAP,
   type TopologyBox,
@@ -269,6 +272,32 @@ describe("layoutProjectTopologyPacked", () => {
     expect(boxes.get("lead-1")).toMatchObject({ x: 0, y: 0 });
     expect(boxes.get("lead-2")?.y).toBe(0);
     expectNoOverlap(boxes);
+  });
+});
+
+describe("card sizing", () => {
+  it("sizes a card from its title lines and detail row", () => {
+    const smallest = topologyCardHeight({ titleLines: 1, hasDetail: false });
+    const largest = topologyCardHeight({ titleLines: 2, hasDetail: true });
+    expect(smallest).toBeLessThan(largest);
+    expect(topologyCardHeight({ titleLines: 2, hasDetail: false })).toBe(smallest + 19);
+    expect(topologyTitleLines("Short title")).toBe(1);
+    expect(topologyTitleLines("A much longer title that wraps onto two lines")).toBe(2);
+  });
+
+  it("stacks siblings by their own heights and still never overlaps", () => {
+    const boxes = layoutProjectTopologyXFirst(
+      [{ id: "lead" }, { id: "peer-1", height: 160 }, { id: "peer-2", height: 200 }],
+      [
+        { source: "lead", target: "peer-1" },
+        { source: "lead", target: "peer-2" },
+      ],
+    );
+    const first = boxes.get("peer-1") as TopologyBox;
+    const second = boxes.get("peer-2") as TopologyBox;
+    expect(first.height).toBe(160);
+    expect(second.y).toBe(first.y + 160 + TOPOLOGY_ROW_GAP);
+    expect((boxes.get("lead") as TopologyBox).height).toBe(TOPOLOGY_NODE_HEIGHT);
   });
 });
 

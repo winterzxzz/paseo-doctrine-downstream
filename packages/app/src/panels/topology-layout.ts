@@ -1,5 +1,7 @@
 interface TopologyLayoutNode {
   id: string;
+  /** Card height at zoom 1; defaults to TOPOLOGY_NODE_HEIGHT. */
+  height?: number;
 }
 
 interface TopologyLayoutEdge {
@@ -17,11 +19,42 @@ export interface TopologyBox {
 
 export const TOPOLOGY_NODE_WIDTH = 264;
 /**
- * Every card has the same fixed height (the card's rows have fixed heights in
- * CSS and overflow is clipped), so columns align and the layout never relies
- * on DOM measurement.
+ * The tallest card. Cards are sized from their content before layout (see
+ * `topologyCardHeight`) — every row has a fixed height in CSS — so the layout
+ * never relies on DOM measurement. A node without a height gets this one.
  */
 export const TOPOLOGY_NODE_HEIGHT = 196;
+// Card rows, in CSS pixels (see .tp-node in topology-graph.web.tsx).
+const CARD_PADDING = 13 + 12;
+const CARD_HEAD = 22;
+const CARD_TITLE_LINE = 19;
+const CARD_TITLE_GAP = 10;
+const CARD_META = 4 + 16;
+const CARD_TASK = 10 + 18;
+const CARD_DETAIL = 4 + 18;
+// The footer takes the leftover space (margin-top: auto); 6px is the gap it gets here.
+const CARD_FOOT = 6 + 28;
+/** A title longer than this wraps to a second line at the card's width. */
+export const TOPOLOGY_TITLE_ONE_LINE_CHARS = 30;
+
+export function topologyTitleLines(title: string): 1 | 2 {
+  return title.length > TOPOLOGY_TITLE_ONE_LINE_CHARS ? 2 : 1;
+}
+
+/** Height of a card that shows `titleLines` of title and, optionally, a detail row. */
+export function topologyCardHeight(card: { titleLines: 1 | 2; hasDetail: boolean }): number {
+  return (
+    CARD_PADDING +
+    CARD_HEAD +
+    CARD_TITLE_GAP +
+    card.titleLines * CARD_TITLE_LINE +
+    CARD_META +
+    CARD_TASK +
+    (card.hasDetail ? CARD_DETAIL : 0) +
+    CARD_FOOT
+  );
+}
+
 /** Horizontal space between relationship depths (Supervisor → Lead → Peer). */
 export const TOPOLOGY_DEPTH_GAP = 88;
 /** Horizontal space between columns of a Peer grid or the unrelated-agent grid. */
@@ -42,6 +75,7 @@ const GRID_STRIDE = TOPOLOGY_NODE_WIDTH + TOPOLOGY_GRID_COLUMN_GAP;
 interface LeafGrid {
   columns: number;
   rows: number;
+  rowHeight: number;
 }
 
 /**
@@ -57,6 +91,8 @@ export function layoutProjectTopologyXFirst(
 ): Map<string, TopologyBox> {
   const nodeIds = new Set(nodes.map((node) => node.id));
   const nodeOrder = new Map(nodes.map((node, index) => [node.id, index]));
+  const heights = new Map(nodes.map((node) => [node.id, node.height ?? TOPOLOGY_NODE_HEIGHT]));
+  const heightOf = (nodeId: string) => heights.get(nodeId) ?? TOPOLOGY_NODE_HEIGHT;
   const childrenByParent = new Map<string, string[]>();
   const childIds = new Set<string>();
 
@@ -108,7 +144,9 @@ export function layoutProjectTopologyXFirst(
     if (children.length <= LEAF_GRID_THRESHOLD) return null;
     if (children.some(hasChildren)) return null;
     const columns = Math.min(LEAF_GRID_MAX_COLUMNS, Math.ceil(children.length / LEAF_GRID_ROWS));
-    return { columns, rows: Math.ceil(children.length / columns) };
+    // Grid rows share one height (the tallest child) so columns stay aligned.
+    const rowHeight = Math.max(...children.map(heightOf));
+    return { columns, rows: Math.ceil(children.length / columns), rowHeight };
   };
 
   const bandCache = new Map<string, number>();
@@ -116,7 +154,7 @@ export function layoutProjectTopologyXFirst(
     const children = treeChildren.get(nodeId) ?? [];
     if (children.length === 0) return 0;
     const grid = leafGridOf(nodeId);
-    if (grid) return grid.rows * TOPOLOGY_NODE_HEIGHT + (grid.rows - 1) * TOPOLOGY_ROW_GAP;
+    if (grid) return grid.rows * grid.rowHeight + (grid.rows - 1) * TOPOLOGY_ROW_GAP;
     return children.reduce(
       (sum, childId, index) =>
         sum + bandOf(childId) + (index > 0 ? gapBetween(children[index - 1], childId) : 0),
@@ -126,18 +164,18 @@ export function layoutProjectTopologyXFirst(
   const bandOf = (nodeId: string): number => {
     const cached = bandCache.get(nodeId);
     if (cached !== undefined) return cached;
-    const band = Math.max(TOPOLOGY_NODE_HEIGHT, childrenBand(nodeId));
+    const band = Math.max(heightOf(nodeId), childrenBand(nodeId));
     bandCache.set(nodeId, band);
     return band;
   };
 
   const boxes = new Map<string, TopologyBox>();
   const setBox = (nodeId: string, x: number, y: number) =>
-    boxes.set(nodeId, { x, y, width: TOPOLOGY_NODE_WIDTH, height: TOPOLOGY_NODE_HEIGHT });
+    boxes.set(nodeId, { x, y, width: TOPOLOGY_NODE_WIDTH, height: heightOf(nodeId) });
   const place = (nodeId: string, depth: number, top: number) => {
     const band = bandOf(nodeId);
     const x = depth * DEPTH_STRIDE;
-    setBox(nodeId, x, top + (band - TOPOLOGY_NODE_HEIGHT) / 2);
+    setBox(nodeId, x, top + (band - heightOf(nodeId)) / 2);
     const children = treeChildren.get(nodeId) ?? [];
     if (children.length === 0) return;
     const childTop = top + (band - childrenBand(nodeId)) / 2;
@@ -149,7 +187,7 @@ export function layoutProjectTopologyXFirst(
         setBox(
           childId,
           x + DEPTH_STRIDE + column * GRID_STRIDE,
-          childTop + row * (TOPOLOGY_NODE_HEIGHT + TOPOLOGY_ROW_GAP),
+          childTop + row * (grid.rowHeight + TOPOLOGY_ROW_GAP),
         );
       });
       return;
@@ -205,10 +243,11 @@ export function layoutProjectTopologyPacked(
         x: column * GRID_STRIDE,
         y: rowTop,
         width: TOPOLOGY_NODE_WIDTH,
-        height: TOPOLOGY_NODE_HEIGHT,
+        height: node.height ?? TOPOLOGY_NODE_HEIGHT,
       });
     });
-    rowTop += TOPOLOGY_NODE_HEIGHT + TOPOLOGY_ROW_GAP;
+    rowTop +=
+      Math.max(...row.map((node) => node.height ?? TOPOLOGY_NODE_HEIGHT)) + TOPOLOGY_ROW_GAP;
   }
   return boxes;
 }

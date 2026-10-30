@@ -21,13 +21,18 @@ import {
 import {
   Bot,
   Activity,
+  ChevronRight,
   CircleCheck,
   CircleDashed,
   CircleDot,
   Compass,
   Clock,
   Crown,
+  LayoutList,
   Network,
+  PanelRightClose,
+  PanelRightOpen,
+  Waypoints,
   ShieldAlert,
   ShieldQuestion,
   TriangleAlert,
@@ -55,9 +60,10 @@ import {
   type TopologyRole,
 } from "@/panels/topology-model";
 import {
-  TOPOLOGY_NODE_HEIGHT,
   TOPOLOGY_NODE_WIDTH,
   isDeliberateViewportChange,
+  topologyCardHeight,
+  topologyTitleLines,
   layoutProjectTopologyPacked,
   layoutProjectTopologyXFirst,
   recenterTopologyViewport,
@@ -71,6 +77,20 @@ import {
   summarizeChildProgress,
   type ChildProgress,
 } from "@/panels/topology-overview";
+import {
+  AGENT_TRACK_STATES,
+  AGENT_TRACK_STATE_LABELS,
+  agentTrackStateOf,
+  buildActivityFeed,
+  countTrackStates,
+  matchesTrackFilter,
+  sortForTracking,
+  toggleTrackFilter,
+  trackStateSince,
+  type AgentTrackFilter,
+  type ActivityEntry,
+  type AgentTrackState,
+} from "@/panels/topology-tracking";
 import { useSessionStore } from "@/stores/session-store";
 import { formatCompactTimeAgo, formatCompactTimeAgoAsProse } from "@/utils/time";
 
@@ -82,6 +102,10 @@ interface FlowNodeData extends Record<string, unknown> {
   ordinal: number | null;
   /** How the agent's delegated work stands, or null for an agent with no children. */
   childProgress: ChildProgress | null;
+  /** Lines the title gets; the card height was computed from it. */
+  titleLines: 1 | 2;
+  /** Outside the active status filter: drawn faded so the matching cards stand out. */
+  dimmed: boolean;
   issues: {
     id: string;
     title: string;
@@ -94,6 +118,7 @@ interface FlowEdgeData extends Record<string, unknown> {
   kind: TopologyEdge["kind"];
   /** The child is running, so the relationship carries live work. */
   active: boolean;
+  dimmed: boolean;
 }
 type FlowEdge = Edge<FlowEdgeData, "relationship">;
 
@@ -205,7 +230,10 @@ const TOPOLOGY_CSS = `
 .tp-status[data-status="running"] { color: var(--tp-st-running); }
 .tp-status[data-status="error"] { color: var(--tp-st-danger); }
 
+.tp-node[data-dimmed="true"] { opacity: .28; filter: saturate(.3); }
+.tp-node[data-dimmed="true"]:hover { opacity: .6; }
 .tp-title { flex: none; margin-top: 10px; max-height: 38px; color: var(--tp-fg); font-size: 13.5px; font-weight: 500; line-height: 19px; letter-spacing: -.005em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+.tp-title[data-lines="1"] { max-height: 19px; -webkit-line-clamp: 1; }
 .tp-meta { flex: none; margin-top: 4px; height: 16px; line-height: 16px; font-size: 11.5px; color: var(--tp-fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tp-meta-sep { color: var(--tp-fg-faint); padding: 0 5px; }
 .tp-meta-faint { color: var(--tp-fg-faint); }
@@ -249,6 +277,7 @@ const TOPOLOGY_CSS = `
 .tp-edge { stroke: var(--tp-edge); stroke-width: 1.5; stroke-opacity: .6; fill: none; }
 .tp-edge-port { fill: var(--tp-bg); stroke: var(--tp-edge); stroke-width: 1.5; }
 .tp-edge-flow { stroke: var(--tp-edge); stroke-width: 2; stroke-opacity: .9; fill: none; stroke-linecap: round; stroke-dasharray: 1 9; animation: tp-flow 1.2s linear infinite; pointer-events: none; }
+g[data-dimmed="true"] { opacity: .2; }
 [data-kind="supervision"] { --tp-edge: var(--tp-role-supervisor); }
 [data-kind="delegation"] { --tp-edge: var(--tp-role-lead); }
 
@@ -359,12 +388,79 @@ const TOPOLOGY_CSS = `
   .tp-ov-counts { grid-column: 1 / -1; grid-row: 2; flex-wrap: wrap; }
 }
 
+.tp-body { position: relative; flex: 1; min-height: 0; display: flex; container: tp-body / inline-size; }
+.tp-main { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tp-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.tp-filter { --tp-ov: var(--tp-fg-muted); display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; border: 1px solid transparent; font: inherit; font-size: 11.5px; color: var(--tp-fg-muted); background: var(--tp-surface-hover); white-space: nowrap; font-variant-numeric: tabular-nums; cursor: pointer; transition: background-color .15s ease, border-color .15s ease, color .15s ease; }
+.tp-filter:hover { color: var(--tp-fg); }
+.tp-filter:focus-visible { outline: 2px solid color-mix(in srgb, var(--tp-ov) 60%, transparent); outline-offset: 1px; }
+.tp-filter b { color: var(--tp-fg); font-weight: 500; }
+.tp-filter[data-state] { color: var(--tp-ov); }
+.tp-filter[data-state] b { color: inherit; }
+.tp-filter[aria-pressed="true"] { background: color-mix(in srgb, var(--tp-ov) 16%, transparent); border-color: color-mix(in srgb, var(--tp-ov) 45%, transparent); }
+.tp-filter[data-state="closed"] { --tp-ov: var(--tp-fg-faint); }
+.tp-filter-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none; }
+.tp-filter[data-state="working"] .tp-filter-dot { position: relative; }
+.tp-filter[data-state="working"] .tp-filter-dot::after { content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 1px solid currentColor; animation: tp-ping 1.8s ease-out infinite; }
+.tp-filter-clear { font: inherit; font-size: 11.5px; color: var(--tp-fg-faint); background: none; border: 0; padding: 0 4px; cursor: pointer; }
+.tp-filter-clear:hover { color: var(--tp-fg); text-decoration: underline; text-underline-offset: 2px; }
+.tp-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: 8px; background: var(--tp-surface-hover); }
+.tp-seg-btn { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border: 0; border-radius: 6px; font: inherit; font-size: 11.5px; color: var(--tp-fg-muted); background: transparent; cursor: pointer; }
+.tp-seg-btn:hover { color: var(--tp-fg); }
+.tp-seg-btn[aria-pressed="true"] { color: var(--tp-fg); background: var(--tp-surface); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.tp-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border: 0; border-radius: 6px; color: var(--tp-fg-muted); background: transparent; cursor: pointer; }
+.tp-icon-btn:hover { color: var(--tp-fg); background: var(--tp-surface-hover); }
+.tp-icon-btn[aria-pressed="true"] { color: var(--tp-fg); }
+
+.tp-list { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px 24px; display: flex; flex-direction: column; gap: 18px; }
+.tp-list-group { display: flex; flex-direction: column; gap: 6px; }
+.tp-list-group-title { display: flex; align-items: center; gap: 8px; padding: 0 2px 2px; color: var(--tp-fg-muted); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.tp-list-group-title > span { color: var(--tp-fg-faint); font-weight: 500; letter-spacing: 0; }
+.tp-row { --tp-ov: var(--tp-fg-faint); position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto 16px; align-items: center; gap: 14px; padding: 10px 14px 10px 16px; border: 1px solid var(--tp-border); border-radius: 12px; background: var(--tp-surface); cursor: pointer; outline: none; overflow: hidden; transition: border-color .15s ease, background-color .15s ease; }
+.tp-row::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--tp-ov); }
+.tp-row:hover { border-color: var(--tp-border-strong); background: color-mix(in srgb, var(--tp-surface-hover) 50%, var(--tp-surface)); }
+.tp-row:focus-visible { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--tp-ov) 55%, transparent); }
+.tp-row[data-state="closed"] { opacity: .6; }
+.tp-row-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tp-row-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tp-row-name { min-width: 0; color: var(--tp-fg); font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-row-model { flex: none; font-size: 11.5px; color: var(--tp-fg-faint); white-space: nowrap; }
+.tp-row .tp-task { margin-top: 0; }
+.tp-row-time { justify-self: end; font-size: 11.5px; color: var(--tp-fg-faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tp-row-chevron { color: var(--tp-fg-faint); display: flex; }
+.tp-row:hover .tp-row-chevron { color: var(--tp-fg); }
+.tp-empty { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 32px; color: var(--tp-fg-muted); font-size: 12.5px; text-align: center; }
+
+.tp-rail { flex: none; width: 288px; min-height: 0; display: flex; flex-direction: column; border-left: 1px solid var(--tp-border); background: color-mix(in srgb, var(--tp-surface) 45%, var(--tp-bg)); }
+.tp-rail-head { flex: none; display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--tp-border); color: var(--tp-fg-muted); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.tp-rail-list { flex: 1; min-height: 0; overflow-y: auto; padding: 6px 0 16px; }
+.tp-event { --tp-ov: var(--tp-fg-faint); position: relative; display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 8px; padding: 9px 14px; cursor: pointer; outline: none; }
+.tp-event:hover { background: var(--tp-surface-hover); }
+.tp-event:focus-visible { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--tp-ov) 55%, transparent); }
+.tp-event::after { content: ""; position: absolute; left: 20px; top: 24px; bottom: -9px; width: 1px; background: var(--tp-border); }
+.tp-event:last-child::after { display: none; }
+.tp-event-dot { margin-top: 5px; width: 8px; height: 8px; border-radius: 50%; background: var(--tp-ov); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tp-ov) 18%, transparent); justify-self: center; position: relative; z-index: 1; }
+.tp-event-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 12px; line-height: 17px; color: var(--tp-fg-muted); }
+.tp-event-who { color: var(--tp-fg); font-weight: 500; }
+.tp-event-role { color: var(--tp-role); font-size: 9.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; margin-right: 6px; }
+.tp-event-detail { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--tp-fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-event-time { font-size: 11px; color: var(--tp-fg-faint); font-variant-numeric: tabular-nums; }
+.tp-row[data-state="needs-you"], .tp-event[data-state="needs-you"] { --tp-ov: var(--tp-st-danger); }
+.tp-row[data-state="working"], .tp-event[data-state="working"], .tp-filter[data-state="working"] { --tp-ov: var(--tp-st-running); }
+.tp-row[data-state="review"], .tp-event[data-state="review"], .tp-filter[data-state="review"] { --tp-ov: var(--tp-st-warning); }
+.tp-row[data-state="idle"], .tp-event[data-state="idle"], .tp-filter[data-state="idle"] { --tp-ov: var(--tp-st-success); }
+.tp-filter[data-state="needs-you"] { --tp-ov: var(--tp-st-danger); }
+.tp-rail-toggle { display: inline-flex; }
+@container tp-body (max-width: 560px) {
+  .tp-rail { display: none; }
+}
+
 @keyframes tp-enter { from { opacity: 0; } to { opacity: 1; } }
 @keyframes tp-ping { from { transform: scale(.6); opacity: .8; } to { transform: scale(2); opacity: 0; } }
 @keyframes tp-flow { to { stroke-dashoffset: -20; } }
 @keyframes tp-breathe { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) {
-  .tp-node, .tp-edge-flow, .tp-progress-seg, .tp-dot::after, .tp-ov-state-dot::after { animation: none !important; }
+  .tp-node, .tp-edge-flow, .tp-progress-seg, .tp-dot::after, .tp-ov-state-dot::after, .tp-filter-dot::after { animation: none !important; }
   .tp-node:hover { transform: none; }
 }
 `;
@@ -544,6 +640,7 @@ function AgentTopologyNode({ data, selected }: NodeProps<FlowNode>) {
       data-role={node.role}
       data-status={node.status}
       data-selected={selected ? "true" : "false"}
+      data-dimmed={data.dimmed ? "true" : undefined}
     >
       <Handle type="target" position={Position.Left} isConnectable={false} />
       <div className="tp-head">
@@ -580,7 +677,7 @@ function AgentTopologyNode({ data, selected }: NodeProps<FlowNode>) {
           {TOPOLOGY_STATUS_LABELS[node.status]}
         </span>
       </div>
-      <div className="tp-title" title={node.title}>
+      <div className="tp-title" data-lines={data.titleLines} title={node.title}>
         {node.title}
       </div>
       <div className="tp-meta" title={routeTitle}>
@@ -620,7 +717,7 @@ function RelationshipEdge({
   });
   const kind = data?.kind ?? "delegation";
   return (
-    <g data-kind={kind}>
+    <g data-kind={kind} data-dimmed={data?.dimmed ? "true" : undefined}>
       <BaseEdge path={path} className="tp-edge" />
       {data?.active ? <path d={path} className="tp-edge-flow" /> : null}
       <circle cx={sourceX} cy={sourceY} r={3} className="tp-edge-port" />
@@ -634,8 +731,26 @@ const EDGE_TYPES = { relationship: RelationshipEdge };
 const FIT_VIEW_OPTIONS = { padding: 0.14, minZoom: 0.2, maxZoom: 1.1 };
 const PACKED_COLUMNS = 4;
 
-function layoutTopology(
+interface SizedTopologyNode {
+  id: string;
+  height: number;
+  titleLines: 1 | 2;
+}
+
+/** Size each card from what it will show, so idle cards carry no empty band. */
+function sizeTopologyNodes(
   nodes: readonly TopologyNode[],
+  progress: ReadonlyMap<string, ChildProgress>,
+): SizedTopologyNode[] {
+  return nodes.map((node) => {
+    const titleLines = topologyTitleLines(node.title);
+    const hasDetail = progress.has(node.id) || node.issueIds.length > 0;
+    return { id: node.id, titleLines, height: topologyCardHeight({ titleLines, hasDetail }) };
+  });
+}
+
+function layoutTopology(
+  nodes: readonly SizedTopologyNode[],
   edges: readonly TopologyEdge[],
   packed: boolean,
 ) {
@@ -675,8 +790,14 @@ function AutoFit({
     if (!width || !height) return;
     const size = { width, height };
     const previous = lastSizeRef.current;
+    if (!initialized) return;
     lastSizeRef.current = size;
-    if (!initialized || !previous) return;
+    // The first real size after a hidden or zero-size mount: the earlier fit read
+    // stale dimensions, so fit again unless the user already moved the view.
+    if (!previous) {
+      if (!userMovedRef.current) void fitView(FIT_VIEW_OPTIONS);
+      return;
+    }
     if (previous.width === width && previous.height === height) return;
     if (!userMovedRef.current) {
       void fitView(FIT_VIEW_OPTIONS);
@@ -705,12 +826,17 @@ function toFlowNodes(
   issueById: ReadonlyMap<string, BeadsIssue>,
   packed: boolean,
   serverId: string | null,
+  filter: AgentTrackFilter,
 ): FlowNode[] {
-  const boxes = layoutTopology(nodes, edges, packed);
   const { ordinals, progress } = summarizeChildren(nodes, edges);
+  const sized = sizeTopologyNodes(nodes, progress);
+  const sizeById = new Map(sized.map((entry) => [entry.id, entry]));
+  const boxes = layoutTopology(sized, edges, packed);
   return nodes.map((node) => {
     const box = boxes.get(node.id);
-    const height = box?.height ?? TOPOLOGY_NODE_HEIGHT;
+    const size = sizeById.get(node.id);
+    const height =
+      box?.height ?? size?.height ?? topologyCardHeight({ titleLines: 2, hasDetail: true });
     const issues = node.issueIds
       .map((issueId) => {
         const issue = issueById.get(issueId);
@@ -733,6 +859,8 @@ function toFlowNodes(
         serverId,
         ordinal: ordinals.get(node.id) ?? null,
         childProgress: progress.get(node.id) ?? null,
+        titleLines: size?.titleLines ?? 2,
+        dimmed: !matchesTrackFilter(node, filter),
         issues,
       },
       draggable: false,
@@ -790,77 +918,146 @@ export interface TopologyHudProps {
   issuesUnavailable: boolean;
 }
 
-function TopologyHud({
-  projectName,
-  agentCount,
-  edgeCount,
-  roleCounts,
-  statusCounts,
-  edgeKinds,
-  warningCount,
-  grantedIssueCount,
-  issuesLoading,
-  issuesUnavailable,
-}: TopologyHudProps) {
-  const activeCount = statusCounts
-    .filter(({ status }) => isActiveStatus(status))
-    .reduce((sum, { count }) => sum + count, 0);
-  const statusTitle = statusCounts
-    .map(({ status, count }) => `${count} ${TOPOLOGY_STATUS_LABELS[status]}`)
+export type TopologyView = "graph" | "list";
+
+/** The panel's tracking controls; the embedded overview graph has none. */
+interface TopologyTracking {
+  nodes: readonly TopologyNode[];
+  ordinals: ReadonlyMap<string, number>;
+  filter: AgentTrackFilter;
+  onToggleFilter: (state: AgentTrackState) => void;
+  onClearFilter: () => void;
+  view: TopologyView;
+  onViewChange: (view: TopologyView) => void;
+  railOpen: boolean;
+  onToggleRail: () => void;
+}
+
+function TrackFilterChip({
+  state,
+  count,
+  pressed,
+  onToggle,
+}: {
+  state: AgentTrackState;
+  count: number;
+  pressed: boolean;
+  onToggle: (state: AgentTrackState) => void;
+}) {
+  const handleClick = useCallback(() => onToggle(state), [onToggle, state]);
+  const label = AGENT_TRACK_STATE_LABELS[state];
+  return (
+    <button
+      type="button"
+      className="tp-filter"
+      data-state={state}
+      aria-pressed={pressed}
+      title={pressed ? `Stop filtering by ${label}` : `Show only ${label}`}
+      onClick={handleClick}
+    >
+      <span className="tp-filter-dot" />
+      <b>{count}</b>
+      {label}
+    </button>
+  );
+}
+
+function TrackFilters({ tracking }: { tracking: TopologyTracking }) {
+  const counts = useMemo(() => countTrackStates(tracking.nodes), [tracking.nodes]);
+  const shown = AGENT_TRACK_STATES.filter((state) => counts[state] > 0);
+  return (
+    <div className="tp-filters" role="group" aria-label="Filter agents by state">
+      {shown.map((state) => (
+        <TrackFilterChip
+          key={state}
+          state={state}
+          count={counts[state]}
+          pressed={tracking.filter.has(state)}
+          onToggle={tracking.onToggleFilter}
+        />
+      ))}
+      {tracking.filter.size > 0 ? (
+        <button type="button" className="tp-filter-clear" onClick={tracking.onClearFilter}>
+          Show all
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function ViewButton({
+  view,
+  current,
+  onChange,
+  children,
+}: {
+  view: TopologyView;
+  current: TopologyView;
+  onChange: (view: TopologyView) => void;
+  children: ReactNode;
+}) {
+  const handleClick = useCallback(() => onChange(view), [onChange, view]);
+  return (
+    <button
+      type="button"
+      className="tp-seg-btn"
+      aria-pressed={current === view}
+      onClick={handleClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TopologyHud({ hud, tracking }: { hud: TopologyHudProps; tracking: TopologyTracking }) {
+  const {
+    projectName,
+    agentCount,
+    edgeCount,
+    roleCounts,
+    edgeKinds,
+    warningCount,
+    grantedIssueCount,
+    issuesLoading,
+    issuesUnavailable,
+  } = hud;
+  const roleTitle = TOPOLOGY_ROLE_ORDER.filter((role) => roleCounts[role] > 0)
+    .map(
+      (role) =>
+        `${roleCounts[role]} ${roleCounts[role] === 1 ? TOPOLOGY_ROLE_META[role].label : TOPOLOGY_ROLE_META[role].plural}`,
+    )
     .join(" · ");
   return (
     <div className="tp-hud" aria-label={`${projectName} topology summary`}>
       <div
         className="tp-hud-title"
-        title={`${pluralize(agentCount, "agent")} · ${pluralize(edgeCount, "relationship")}`}
+        title={`${pluralize(agentCount, "agent")} · ${pluralize(edgeCount, "relationship")}${
+          roleTitle ? `\n${roleTitle}` : ""
+        }`}
       >
         <Network color="currentColor" size={14} />
         <span>{projectName}</span>
       </div>
-      <div className="tp-hud-group">
-        <span
-          className="tp-hud-chip"
-          data-tone={activeCount > 0 ? "running" : undefined}
-          title={statusTitle}
-        >
-          {activeCount > 0 ? <span className="tp-hud-activity-dot" /> : null}
-          {activeCount > 0 ? (
-            <>
-              <b>{activeCount}</b> running
-            </>
-          ) : (
-            "All idle"
-          )}
+      <TrackFilters tracking={tracking} />
+      {grantedIssueCount > 0 ? (
+        <span className="tp-hud-chip">
+          <CircleDot color="currentColor" size={11} />
+          <b>{issuesLoading ? "–" : grantedIssueCount}</b>
+          {grantedIssueCount === 1 ? "issue" : "issues"}
         </span>
-        {TOPOLOGY_ROLE_ORDER.filter((role) => roleCounts[role] > 0).map((role) => (
-          <span key={role} className="tp-hud-chip" data-role={role}>
-            <span className="tp-swatch" />
-            <b>{roleCounts[role]}</b>
-            {roleCounts[role] === 1
-              ? TOPOLOGY_ROLE_META[role].label
-              : TOPOLOGY_ROLE_META[role].plural}
-          </span>
-        ))}
-        {grantedIssueCount > 0 ? (
-          <span className="tp-hud-chip">
-            <CircleDot color="currentColor" size={11} />
-            <b>{issuesLoading ? "–" : grantedIssueCount}</b>
-            {grantedIssueCount === 1 ? "issue" : "issues"}
-          </span>
-        ) : null}
-        {warningCount > 0 ? (
-          <span className="tp-hud-chip" data-tone="warning">
-            {pluralize(warningCount, "relationship")} need review
-          </span>
-        ) : null}
-        {issuesUnavailable && grantedIssueCount > 0 ? (
-          <span className="tp-hud-chip" data-tone="warning">
-            Issue details unavailable
-          </span>
-        ) : null}
-      </div>
+      ) : null}
+      {warningCount > 0 ? (
+        <span className="tp-hud-chip" data-tone="warning">
+          {pluralize(warningCount, "relationship")} need review
+        </span>
+      ) : null}
+      {issuesUnavailable && grantedIssueCount > 0 ? (
+        <span className="tp-hud-chip" data-tone="warning">
+          Issue details unavailable
+        </span>
+      ) : null}
       <span className="tp-hud-spacer" />
-      {edgeKinds.length > 0 ? (
+      {tracking.view === "graph" && edgeKinds.length > 0 ? (
         <div className="tp-hud-legend">
           {edgeKinds.map((kind) => (
             <span key={kind} className="tp-hud-legend-item" data-kind={kind}>
@@ -870,7 +1067,237 @@ function TopologyHud({
           ))}
         </div>
       ) : null}
+      <div className="tp-seg" role="group" aria-label="View">
+        <ViewButton view="graph" current={tracking.view} onChange={tracking.onViewChange}>
+          <Waypoints color="currentColor" size={12} />
+          Graph
+        </ViewButton>
+        <ViewButton view="list" current={tracking.view} onChange={tracking.onViewChange}>
+          <LayoutList color="currentColor" size={12} />
+          List
+        </ViewButton>
+      </div>
+      <button
+        type="button"
+        className="tp-icon-btn tp-rail-toggle"
+        aria-pressed={tracking.railOpen}
+        aria-label={tracking.railOpen ? "Hide activity" : "Show activity"}
+        title={tracking.railOpen ? "Hide activity" : "Show activity"}
+        onClick={tracking.onToggleRail}
+      >
+        {tracking.railOpen ? (
+          <PanelRightClose color="currentColor" size={14} />
+        ) : (
+          <PanelRightOpen color="currentColor" size={14} />
+        )}
+      </button>
     </div>
+  );
+}
+
+function roleLabelOf(node: TopologyNode, ordinals: ReadonlyMap<string, number>): string {
+  const ordinal = ordinals.get(node.id);
+  return `${TOPOLOGY_ROLE_META[node.role].label}${ordinal !== undefined ? ` ${ordinal}` : ""}`;
+}
+
+/** Click and Enter/Space handlers for a row that opens one agent. */
+function useOpenAgentHandlers(agentId: string, onOpenAgent: (agentId: string) => void) {
+  const onClick = useCallback(() => onOpenAgent(agentId), [agentId, onOpenAgent]);
+  const onKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      onOpenAgent(agentId);
+    },
+    [agentId, onOpenAgent],
+  );
+  return { onClick, onKeyDown };
+}
+
+function TopologyListRow({
+  node,
+  ordinals,
+  serverId,
+  now,
+  onOpenAgent,
+}: {
+  node: TopologyNode;
+  ordinals: ReadonlyMap<string, number>;
+  serverId: string | null;
+  now: Date;
+  onOpenAgent: (agentId: string) => void;
+}) {
+  const state = agentTrackStateOf(node);
+  const liveLabel = useLiveActivityLabel(serverId, node);
+  const task = describeCardTask(node, liveLabel, now);
+  const TaskIcon = task.icon;
+  const since = trackStateSince(node);
+  const { onClick, onKeyDown } = useOpenAgentHandlers(node.id, onOpenAgent);
+  const modelName = formatTopologyModelName(node.model) ?? "Default model";
+  return (
+    <div
+      className="tp-row"
+      role="button"
+      tabIndex={0}
+      data-state={state}
+      data-testid={`topology-row-${node.id}`}
+      aria-label={`Open ${node.title}, ${AGENT_TRACK_STATE_LABELS[state]}`}
+      onClick={onClick}
+      onKeyDown={onKeyDown}
+    >
+      <div className="tp-row-main">
+        <div className="tp-row-title" data-role={node.role}>
+          <span className="tp-ov-agent-role">{roleLabelOf(node, ordinals)}</span>
+          <span className="tp-row-name" title={node.title}>
+            {node.title}
+          </span>
+          <span className="tp-row-model">{modelName}</span>
+        </div>
+        <div className="tp-task" data-tone={task.tone} title={task.text}>
+          <span className="tp-task-icon">
+            <TaskIcon color="currentColor" size={12} />
+          </span>
+          {task.lead ? <span className="tp-task-lead">{task.lead}</span> : null}
+          <span className="tp-task-text">{task.text}</span>
+        </div>
+      </div>
+      <span className="tp-row-time">{since ? formatCompactTimeAgo(since, now) : ""}</span>
+      <span className="tp-row-chevron">
+        <ChevronRight color="currentColor" size={14} />
+      </span>
+    </div>
+  );
+}
+
+function TopologyList({
+  tracking,
+  serverId,
+  onOpenAgent,
+}: {
+  tracking: TopologyTracking;
+  serverId: string | null;
+  onOpenAgent: (agentId: string) => void;
+}) {
+  const now = useMinuteClock();
+  const groups = useMemo(() => {
+    const visible = sortForTracking(
+      tracking.nodes.filter((node) => matchesTrackFilter(node, tracking.filter)),
+    );
+    return AGENT_TRACK_STATES.map((state) => ({
+      state,
+      nodes: visible.filter((node) => agentTrackStateOf(node) === state),
+    })).filter((group) => group.nodes.length > 0);
+  }, [tracking.filter, tracking.nodes]);
+  if (groups.length === 0) {
+    return (
+      <div className="tp-list">
+        <div className="tp-empty">No agents match this filter.</div>
+      </div>
+    );
+  }
+  return (
+    <div className="tp-list" data-testid="topology-list">
+      {groups.map((group) => (
+        <section key={group.state} className="tp-list-group">
+          <div className="tp-list-group-title">
+            {AGENT_TRACK_STATE_LABELS[group.state]}
+            <span>{group.nodes.length}</span>
+          </div>
+          {group.nodes.map((node) => (
+            <TopologyListRow
+              key={node.id}
+              node={node}
+              ordinals={tracking.ordinals}
+              serverId={serverId}
+              now={now}
+              onOpenAgent={onOpenAgent}
+            />
+          ))}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function ActivityEvent({
+  entry,
+  ordinals,
+  now,
+  onOpenAgent,
+}: {
+  entry: ActivityEntry;
+  ordinals: ReadonlyMap<string, number>;
+  now: Date;
+  onOpenAgent: (agentId: string) => void;
+}) {
+  const { onClick, onKeyDown } = useOpenAgentHandlers(entry.node.id, onOpenAgent);
+  return (
+    <div
+      className="tp-event"
+      role="button"
+      tabIndex={0}
+      data-state={entry.state}
+      onClick={onClick}
+      onKeyDown={onKeyDown}
+      title={entry.node.title}
+    >
+      <span className="tp-event-dot" />
+      <div className="tp-event-body">
+        <span>
+          <span className="tp-event-role" data-role={entry.node.role}>
+            {roleLabelOf(entry.node, ordinals)}
+          </span>
+          <span className="tp-event-who">{entry.node.title}</span> {entry.verb}
+        </span>
+        {entry.detail ? <span className="tp-event-detail">{entry.detail}</span> : null}
+        <span className="tp-event-time">
+          {formatCompactTimeAgoAsProse(formatCompactTimeAgo(entry.at, now))}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function ActivityRail({
+  tracking,
+  onOpenAgent,
+}: {
+  tracking: TopologyTracking;
+  onOpenAgent: (agentId: string) => void;
+}) {
+  const now = useMinuteClock();
+  const feed = useMemo(
+    () =>
+      buildActivityFeed(tracking.nodes.filter((node) => matchesTrackFilter(node, tracking.filter))),
+    [tracking.filter, tracking.nodes],
+  );
+  return (
+    <aside className="tp-rail" aria-label="Latest activity" data-testid="topology-activity">
+      <div className="tp-rail-head">
+        Latest activity
+        <button
+          type="button"
+          className="tp-icon-btn"
+          aria-label="Hide activity"
+          title="Hide activity"
+          onClick={tracking.onToggleRail}
+        >
+          <PanelRightClose color="currentColor" size={14} />
+        </button>
+      </div>
+      <div className="tp-rail-list">
+        {feed.length === 0 ? <div className="tp-empty">No activity yet.</div> : null}
+        {feed.map((entry) => (
+          <ActivityEvent
+            key={entry.node.id}
+            entry={entry}
+            ordinals={tracking.ordinals}
+            now={now}
+            onOpenAgent={onOpenAgent}
+          />
+        ))}
+      </div>
+    </aside>
   );
 }
 
@@ -878,6 +1305,8 @@ interface TopologyCanvasProps {
   nodes: FlowNode[];
   edges: FlowEdge[];
   hud: TopologyHudProps | null;
+  tracking: TopologyTracking | null;
+  serverId: string | null;
   embedded: boolean;
   testID?: string;
   onOpenAgent: (agentId: string) => void;
@@ -886,17 +1315,17 @@ interface TopologyCanvasProps {
   dotColor?: string;
 }
 
-function TopologyCanvas({
+function TopologyFlow({
   nodes,
   edges,
-  hud,
   embedded,
-  testID,
   onOpenAgent,
-  themeVars,
   colorScheme,
   dotColor,
-}: TopologyCanvasProps) {
+}: Pick<
+  TopologyCanvasProps,
+  "nodes" | "edges" | "embedded" | "onOpenAgent" | "colorScheme" | "dotColor"
+>) {
   const userMovedRef = useRef(false);
   const handleNodeClick = useCallback(
     (_event: React.MouseEvent, node: FlowNode) => onOpenAgent(node.id),
@@ -918,43 +1347,86 @@ function TopologyCanvas({
     if (!start || isDeliberateViewportChange(start, viewport)) userMovedRef.current = true;
   }, []);
   return (
+    <div className="tp-canvas">
+      <ReactFlow<FlowNode, FlowEdge>
+        key="project-horizontal"
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={NODE_TYPES}
+        edgeTypes={EDGE_TYPES}
+        onNodeClick={handleNodeClick}
+        onMoveStart={handleMoveStart}
+        onMove={handleMove}
+        colorMode={colorScheme}
+        fitView
+        fitViewOptions={FIT_VIEW_OPTIONS}
+        minZoom={0.15}
+        maxZoom={1.5}
+        nodesDraggable={false}
+        nodesConnectable={false}
+        edgesReconnectable={false}
+        elementsSelectable
+        panOnDrag
+        zoomOnScroll={!embedded}
+        zoomOnPinch
+        preventScrolling={!embedded}
+        deleteKeyCode={null}
+      >
+        <AutoFit nodeCount={nodes.length} userMovedRef={userMovedRef} />
+        <Background variant={BackgroundVariant.Dots} gap={22} size={1.4} color={dotColor} />
+        <Controls
+          position="bottom-right"
+          showInteractive={false}
+          fitViewOptions={FIT_VIEW_OPTIONS}
+        />
+      </ReactFlow>
+    </div>
+  );
+}
+
+function TopologyCanvas({
+  nodes,
+  edges,
+  hud,
+  tracking,
+  serverId,
+  embedded,
+  testID,
+  onOpenAgent,
+  themeVars,
+  colorScheme,
+  dotColor,
+}: TopologyCanvasProps) {
+  const flow = (
+    <TopologyFlow
+      nodes={nodes}
+      edges={edges}
+      embedded={embedded}
+      onOpenAgent={onOpenAgent}
+      colorScheme={colorScheme}
+      dotColor={dotColor}
+    />
+  );
+  return (
     <div className="tp-root" style={themeVars} data-testid={testID}>
       <style>{TOPOLOGY_CSS}</style>
-      {hud ? <TopologyHud {...hud} /> : null}
-      <div className="tp-canvas">
-        <ReactFlow<FlowNode, FlowEdge>
-          key="project-horizontal"
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={NODE_TYPES}
-          edgeTypes={EDGE_TYPES}
-          onNodeClick={handleNodeClick}
-          onMoveStart={handleMoveStart}
-          onMove={handleMove}
-          colorMode={colorScheme}
-          fitView
-          fitViewOptions={FIT_VIEW_OPTIONS}
-          minZoom={0.15}
-          maxZoom={1.5}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          edgesReconnectable={false}
-          elementsSelectable
-          panOnDrag
-          zoomOnScroll={!embedded}
-          zoomOnPinch
-          preventScrolling={!embedded}
-          deleteKeyCode={null}
-        >
-          <AutoFit nodeCount={nodes.length} userMovedRef={userMovedRef} />
-          <Background variant={BackgroundVariant.Dots} gap={22} size={1.4} color={dotColor} />
-          <Controls
-            position="bottom-right"
-            showInteractive={false}
-            fitViewOptions={FIT_VIEW_OPTIONS}
-          />
-        </ReactFlow>
-      </div>
+      {hud && tracking ? <TopologyHud hud={hud} tracking={tracking} /> : null}
+      {tracking ? (
+        <div className="tp-body">
+          <div className="tp-main">
+            {tracking.view === "list" ? (
+              <TopologyList tracking={tracking} serverId={serverId} onOpenAgent={onOpenAgent} />
+            ) : (
+              flow
+            )}
+          </div>
+          {tracking.railOpen ? (
+            <ActivityRail tracking={tracking} onOpenAgent={onOpenAgent} />
+          ) : null}
+        </div>
+      ) : (
+        flow
+      )}
     </div>
   );
 }
@@ -1007,7 +1479,8 @@ export function estimateTopologyGraphSize(
 ): { width: number; height: number } {
   let width = 0;
   let height = 0;
-  for (const box of layoutTopology(nodes, edges, true).values()) {
+  const { progress } = summarizeChildren(nodes, edges);
+  for (const box of layoutTopology(sizeTopologyNodes(nodes, progress), edges, true).values()) {
     width = Math.max(width, box.x + box.width);
     height = Math.max(height, box.y + box.height);
   }
@@ -1041,26 +1514,64 @@ export function TopologyGraph({
   testID,
   onOpenAgent,
 }: TopologyGraphProps) {
+  const [filter, setFilter] = useState<AgentTrackFilter>(() => new Set());
+  const [view, setView] = useState<TopologyView>("graph");
+  const [railOpen, setRailOpen] = useState(true);
+  const toggleFilter = useCallback(
+    (state: AgentTrackState) => setFilter((current) => toggleTrackFilter(current, state)),
+    [],
+  );
+  const clearFilter = useCallback(() => setFilter(new Set()), []);
+  const toggleRail = useCallback(() => setRailOpen((open) => !open), []);
+  const ordinals = useMemo(() => summarizeChildren(nodes, edges).ordinals, [edges, nodes]);
+  // Only the panel tracks; the embedded overview graph stays a plain picture.
+  const tracking = useMemo<TopologyTracking | null>(
+    () =>
+      hud
+        ? {
+            nodes,
+            ordinals,
+            filter,
+            onToggleFilter: toggleFilter,
+            onClearFilter: clearFilter,
+            view,
+            onViewChange: setView,
+            railOpen,
+            onToggleRail: toggleRail,
+          }
+        : null,
+    [clearFilter, filter, hud, nodes, ordinals, railOpen, toggleFilter, toggleRail, view],
+  );
   const flowEdges = useMemo<FlowEdge[]>(() => {
-    const statusById = new Map(nodes.map((node) => [node.id, node.status]));
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    const dimmedOf = (id: string) => {
+      const node = byId.get(id);
+      return node ? !matchesTrackFilter(node, filter) : false;
+    };
     return edges.map((edge) => ({
       id: edge.id,
       source: edge.source,
       target: edge.target,
       type: "relationship",
-      data: { kind: edge.kind, active: isActiveStatus(statusById.get(edge.target)) },
+      data: {
+        kind: edge.kind,
+        active: isActiveStatus(byId.get(edge.target)?.status),
+        dimmed: dimmedOf(edge.source) || dimmedOf(edge.target),
+      },
       selectable: false,
     }));
-  }, [edges, nodes]);
+  }, [edges, filter, nodes]);
   const flowNodes = useMemo(
-    () => toFlowNodes(nodes, edges, issueById, embedded, serverId),
-    [edges, embedded, issueById, nodes, serverId],
+    () => toFlowNodes(nodes, edges, issueById, embedded, serverId, filter),
+    [edges, embedded, filter, issueById, nodes, serverId],
   );
   return (
     <ThemedTopologyCanvas
       nodes={flowNodes}
       edges={flowEdges}
       hud={hud}
+      tracking={tracking}
+      serverId={serverId}
       embedded={embedded}
       testID={testID}
       onOpenAgent={onOpenAgent}
