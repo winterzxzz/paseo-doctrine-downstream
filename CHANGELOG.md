@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.11.2-paseo.91 - 2026-10-30
+
+### Added
+
+- 11 theme mới trong Settings → Appearance: Catppuccin Mocha, Dracula, Nord, Tokyo Night, One Dark,
+  Gruvbox, Rosé Pine, Everforest (tối) và Catppuccin Latte, Solarized Light, GitHub Light (sáng).
+  Mỗi theme mang theo bảng màu terminal của chính nó.
+
+### Changed
+
+- Chọn theme bằng lưới thẻ thay cho dropdown: mỗi thẻ là một cửa sổ thu nhỏ vẽ bằng màu của theme
+  (sidebar, chữ, nút accent), chia nhóm Mặc định / Tối / Sáng / Plugin. Trên điện thoại thẻ xếp đều
+  hai cột.
+
 ## 0.11.2-paseo.90 - 2026-10-23
 
 ### Changed
