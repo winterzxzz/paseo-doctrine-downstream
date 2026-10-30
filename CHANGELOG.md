@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.2-paseo.93 - 2026-10-30
+
+### Changed
+
+- Ô nhập tin nhắn gọn thành một hàng: nút đính kèm, ô chữ, mic và nút gửi nằm cùng hàng, khung cao dần
+  khi soạn nhiều dòng. Các nút chọn vai trò, model, effort và quyền chuyển ra một dòng nhỏ bên dưới
+  khung.
+
 ## 0.11.2-paseo.91 - 2026-10-30
 
 ### Added
