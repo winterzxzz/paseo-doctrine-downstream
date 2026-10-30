@@ -192,7 +192,8 @@ export interface MessageInputRef {
 }
 
 const MIN_INPUT_HEIGHT_MOBILE = 30;
-const MIN_INPUT_HEIGHT_DESKTOP = 46;
+// One line of content text: the composer opens as a single row and grows with the draft.
+const MIN_INPUT_HEIGHT_DESKTOP = 22;
 const DEFAULT_MAX_INPUT_HEIGHT = 160;
 const MAX_INPUT_VIEWPORT_RATIO = 0.5;
 const MIN_INPUT_HEIGHT = isWeb ? MIN_INPUT_HEIGHT_DESKTOP : MIN_INPUT_HEIGHT_MOBILE;
@@ -656,6 +657,11 @@ interface ComposerTextSurfaceProps {
  * nothing to type. Both sit in the same bordered surface, so read-only is a
  * state of this composer rather than a second one.
  */
+function ComposerControlsRow({ children }: { children: React.ReactNode }) {
+  if (!children) return null;
+  return <View style={styles.controlsRow}>{children}</View>;
+}
+
 function ComposerTextSurface(props: ComposerTextSurfaceProps): React.ReactElement {
   if (props.readOnly) {
     return (
@@ -1806,39 +1812,9 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           pointerEvents={surfacePresentation.input.pointerEvents}
         >
           {attachmentSlot}
-          {/* Text input */}
-          <RenderProfile id="ComposerTextSurface">
-            <ComposerTextSurface
-              readOnly={readOnly}
-              testID={inputTestID}
-              value={value}
-              textInputRef={textInputRef}
-              textInputStyle={textInputStyle}
-              readOnlyTextStyle={readOnlyTextStyle}
-              placeholder={placeholder ?? t("composer.placeholders.fallback")}
-              accessibilityLabel={t(mode.accessibilityLabelKey)}
-              onChangeText={handleInputChange}
-              onFocus={handleInputFocus}
-              onBlur={handleInputBlur}
-              editable={!isDictating && !isRealtimeVoiceForCurrentAgent && !disabled}
-              scrollEnabled={isComposerScrollEnabled}
-              autoFocus={false}
-              onKeyPress={shouldHandleWebKeyPress ? handleDesktopKeyPress : undefined}
-              onSelectionChange={handleSelectionChange}
-              onPasteImages={onPasteImages}
-              onPasteError={handlePasteError}
-              focusHintVisible={isWeb && !isInputFocused && !value}
-              focusInputKeys={focusInputKeys}
-              focusHintLabel={t("composer.input.focusHint", {
-                shortcut: focusInputKeys ? formatShortcut(focusInputKeys[0], getShortcutOs()) : "",
-              })}
-            />
-          </RenderProfile>
-
-          {/* Button row */}
-          <View style={styles.buttonRow}>
-            {/* Toolbar left: attachment button + agent controls */}
-            <View style={styles.leftButtonGroup}>
+          {/* One row: attach, text, then voice and send — the agent controls sit below the box. */}
+          <View style={styles.inputRow}>
+            <View style={styles.inputRowLeading}>
               <AttachmentDropdown
                 visible={mode.showAttachments}
                 isConnected={isConnected}
@@ -1848,7 +1824,37 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
                 attachmentMenuItems={attachmentMenuItems}
                 addAttachmentLabel={t("composer.input.addAttachment")}
               />
-              {leftContent}
+            </View>
+            <View style={styles.textColumn}>
+              <RenderProfile id="ComposerTextSurface">
+                <ComposerTextSurface
+                  readOnly={readOnly}
+                  testID={inputTestID}
+                  value={value}
+                  textInputRef={textInputRef}
+                  textInputStyle={textInputStyle}
+                  readOnlyTextStyle={readOnlyTextStyle}
+                  placeholder={placeholder ?? t("composer.placeholders.fallback")}
+                  accessibilityLabel={t(mode.accessibilityLabelKey)}
+                  onChangeText={handleInputChange}
+                  onFocus={handleInputFocus}
+                  onBlur={handleInputBlur}
+                  editable={!isDictating && !isRealtimeVoiceForCurrentAgent && !disabled}
+                  scrollEnabled={isComposerScrollEnabled}
+                  autoFocus={false}
+                  onKeyPress={shouldHandleWebKeyPress ? handleDesktopKeyPress : undefined}
+                  onSelectionChange={handleSelectionChange}
+                  onPasteImages={onPasteImages}
+                  onPasteError={handlePasteError}
+                  focusHintVisible={isWeb && !isInputFocused && !value}
+                  focusInputKeys={focusInputKeys}
+                  focusHintLabel={t("composer.input.focusHint", {
+                    shortcut: focusInputKeys
+                      ? formatShortcut(focusInputKeys[0], getShortcutOs())
+                      : "",
+                  })}
+                />
+              </RenderProfile>
             </View>
 
             {/* Right: voice button, contextual button (realtime/send/cancel) */}
@@ -1888,6 +1894,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
             </View>
           </View>
         </View>
+        <ComposerControlsRow>{leftContent}</ComposerControlsRow>
 
         <View
           style={overlayContainerStyle}
@@ -1924,24 +1931,13 @@ const styles = StyleSheet.create((theme: Theme) => ({
   inputWrapper: {
     flexShrink: 1,
     flexDirection: "column",
-    gap: theme.spacing[3],
+    gap: theme.spacing[2],
     backgroundColor: theme.colors.surface1,
     borderWidth: theme.borderWidth[1],
     borderColor: theme.colors.borderAccent,
     borderRadius: theme.borderRadius["2xl"],
-    paddingTop: {
-      xs: theme.spacing[2],
-      md: theme.spacing[4],
-    },
-    // The button row bleeds 6px horizontally, so match its corner inset at the bottom.
-    paddingBottom: {
-      xs: theme.spacing[2],
-      md: theme.spacing[3],
-    },
-    paddingHorizontal: {
-      xs: theme.spacing[3],
-      md: theme.spacing[4],
-    },
+    paddingVertical: theme.spacing[2],
+    paddingHorizontal: theme.spacing[2],
     ...(isWeb
       ? {
           transitionProperty: "border-color",
@@ -1994,23 +1990,37 @@ const styles = StyleSheet.create((theme: Theme) => ({
     minHeight: MIN_INPUT_HEIGHT,
     color: theme.colors.foregroundMuted,
   },
-  buttonRow: {
-    flexShrink: 0,
+  // Buttons hold the bottom edge so a multi-line draft grows upward past them.
+  inputRow: {
+    flexShrink: 1,
     flexDirection: "row",
     alignItems: "flex-end",
-    justifyContent: "space-between",
-    marginHorizontal: -6,
+    gap: theme.spacing[2],
   },
-  leftButtonGroup: {
+  inputRowLeading: {
+    flexShrink: 0,
+    height: 32,
+    justifyContent: "center",
+  },
+  // The text sits between 32px buttons: the padding centers one line on them.
+  textColumn: {
+    flex: 1,
     minWidth: 0,
     flexShrink: 1,
-    flexGrow: 1,
+    paddingVertical: isWeb ? 5 : 1,
+  },
+  // Agent controls (mode, model, effort, permissions) live under the box as quiet chrome.
+  controlsRow: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    gap: theme.spacing[0],
+    alignItems: "center",
+    flexWrap: "wrap",
+    marginTop: theme.spacing[1],
+    paddingHorizontal: theme.spacing[1],
+    minWidth: 0,
   },
   rightButtonGroup: {
     flexShrink: 0,
+    height: 32,
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[1],
