@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.11.2-paseo.97 - 2026-10-30
+
+### Changed
+
+- Usage ở góc dưới sidebar hiện bằng vòng tròn, mỗi chu kỳ một màu: 5h xanh dương, tuần tím, tháng
+  vàng cam, loại khác xanh ngọc; vòng chuyển đỏ khi gần hết hạn mức. Thanh trong bảng Usage dùng
+  cùng màu.
+
 ## 0.11.2-paseo.96 - 2026-10-30
 
 ### Added
