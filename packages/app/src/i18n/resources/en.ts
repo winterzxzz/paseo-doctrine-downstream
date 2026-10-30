@@ -2413,6 +2413,12 @@ export const en = {
           pureBlack: "Pure black",
           auto: "System",
         },
+        groups: {
+          default: "Default",
+          dark: "Dark",
+          light: "Light",
+          plugins: "From plugins",
+        },
       },
       detailLevel: {
         title: "Detail level",

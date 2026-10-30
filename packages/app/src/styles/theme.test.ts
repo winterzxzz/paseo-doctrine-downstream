@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  darkDraculaTheme,
   darkPureBlackTheme,
   darkTheme,
   FONT_SIZE,
@@ -36,9 +37,45 @@ describe("Theme catalog", () => {
       "claude",
       "ghostty",
       "pureBlack",
+      "catppuccinMocha",
+      "dracula",
+      "nord",
+      "tokyoNight",
+      "oneDark",
+      "gruvbox",
+      "rosePine",
+      "everforest",
+      "catppuccinLatte",
+      "solarizedLight",
+      "githubLight",
     ]);
     expect(getNextThemePreference("dark")).toBe("auto");
-    expect(getNextThemePreference("pureBlack")).toBe("light");
+    expect(getNextThemePreference("pureBlack")).toBe("catppuccinMocha");
+    expect(getNextThemePreference("githubLight")).toBe("light");
+  });
+});
+
+describe("Community themes", () => {
+  it("registers each palette with the color scheme it was ported from", () => {
+    const schemes = Object.fromEntries(
+      THEME_OPTIONS.filter((option) => option.name !== "auto").map((option) => [
+        option.name,
+        option.theme.colorScheme,
+      ]),
+    );
+    expect(schemes).toMatchObject({
+      dracula: "dark",
+      nord: "dark",
+      catppuccinLatte: "light",
+      solarizedLight: "light",
+      githubLight: "light",
+    });
+  });
+
+  it("uses the palette's own terminal colors", () => {
+    expect(darkDraculaTheme.colors.terminal.background).toBe("#282a36");
+    expect(darkDraculaTheme.colors.terminal.magenta).toBe("#ff79c6");
+    expect(darkTheme.colors.terminal.magenta).toBe("#b07ad0");
   });
 });
 

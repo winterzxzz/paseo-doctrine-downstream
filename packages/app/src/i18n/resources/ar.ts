@@ -2288,6 +2288,12 @@ export const ar: TranslationResources = {
           pureBlack: "أسود خالص",
           auto: "نظام",
         },
+        groups: {
+          default: "افتراضي",
+          dark: "داكن",
+          light: "فاتح",
+          plugins: "من الإضافات",
+        },
       },
       detailLevel: {
         title: "مستوى التفاصيل",

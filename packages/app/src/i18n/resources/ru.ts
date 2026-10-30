@@ -2327,6 +2327,12 @@ export const ru: TranslationResources = {
           pureBlack: "Абсолютно чёрная",
           auto: "Системная",
         },
+        groups: {
+          default: "По умолчанию",
+          dark: "Тёмные",
+          light: "Светлые",
+          plugins: "Из плагинов",
+        },
       },
       detailLevel: {
         title: "Уровень детализации",

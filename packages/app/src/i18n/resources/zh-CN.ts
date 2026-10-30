@@ -2264,6 +2264,12 @@ export const zhCN: TranslationResources = {
           pureBlack: "纯黑",
           auto: "系统",
         },
+        groups: {
+          default: "默认",
+          dark: "深色",
+          light: "浅色",
+          plugins: "来自插件",
+        },
       },
       detailLevel: {
         title: "详细程度",

@@ -2308,6 +2308,12 @@ export const ja: TranslationResources = {
           pureBlack: "ピュアブラック",
           auto: "システム",
         },
+        groups: {
+          default: "デフォルト",
+          dark: "ダーク",
+          light: "ライト",
+          plugins: "プラグイン",
+        },
       },
       detailLevel: {
         title: "詳細レベル",

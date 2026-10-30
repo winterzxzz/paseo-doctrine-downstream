@@ -2341,6 +2341,12 @@ export const es: TranslationResources = {
           pureBlack: "Negro puro",
           auto: "Sistema",
         },
+        groups: {
+          default: "Predeterminado",
+          dark: "Oscuros",
+          light: "Claros",
+          plugins: "De plugins",
+        },
       },
       detailLevel: {
         title: "Nivel de detalle",

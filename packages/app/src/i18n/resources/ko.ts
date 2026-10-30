@@ -2300,6 +2300,12 @@ export const ko: TranslationResources = {
           pureBlack: "순수 검정",
           auto: "시스템",
         },
+        groups: {
+          default: "기본",
+          dark: "다크",
+          light: "라이트",
+          plugins: "플러그인",
+        },
       },
       detailLevel: {
         title: "세부 수준",

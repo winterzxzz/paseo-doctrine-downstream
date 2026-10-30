@@ -2337,6 +2337,12 @@ export const fr: TranslationResources = {
           pureBlack: "Noir pur",
           auto: "Système",
         },
+        groups: {
+          default: "Par défaut",
+          dark: "Sombres",
+          light: "Clairs",
+          plugins: "Depuis les plugins",
+        },
       },
       detailLevel: {
         title: "Niveau de détail",

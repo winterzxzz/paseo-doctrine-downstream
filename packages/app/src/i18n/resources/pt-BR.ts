@@ -2324,6 +2324,12 @@ export const ptBR: TranslationResources = {
           pureBlack: "Preto puro",
           auto: "Sistema",
         },
+        groups: {
+          default: "Padrão",
+          dark: "Escuros",
+          light: "Claros",
+          plugins: "De plugins",
+        },
       },
       detailLevel: {
         title: "Nível de detalhe",

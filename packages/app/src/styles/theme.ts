@@ -1,4 +1,17 @@
 import { Platform } from "react-native";
+import {
+  catppuccinLattePalette,
+  catppuccinMochaPalette,
+  draculaPalette,
+  everforestDarkPalette,
+  githubLightPalette,
+  gruvboxDarkPalette,
+  nordPalette,
+  oneDarkPalette,
+  rosePinePalette,
+  solarizedLightPalette,
+  tokyoNightPalette,
+} from "./theme-palettes";
 import { darkHighlightColors, lightHighlightColors } from "@getpaseo/highlight";
 
 export const baseColors = {
@@ -217,6 +230,25 @@ const darkStatusDotColors = {
   statusDotRunning: "#5caaf6",
 };
 
+// The 14 ANSI colors after black. A palette may bring its own; otherwise the
+// app's default set for that color scheme applies.
+export interface TerminalAnsiColors {
+  red: string;
+  green: string;
+  yellow: string;
+  blue: string;
+  magenta: string;
+  cyan: string;
+  white: string;
+  brightRed: string;
+  brightGreen: string;
+  brightYellow: string;
+  brightBlue: string;
+  brightMagenta: string;
+  brightCyan: string;
+  brightWhite: string;
+}
+
 export interface LightThemeConfig {
   surface0: string;
   surface1: string;
@@ -239,9 +271,10 @@ export interface LightThemeConfig {
   terminalBlack: string;
   terminalBrightBlack: string;
   ring: string;
+  terminalAnsi?: TerminalAnsiColors;
 }
 
-const lightTerminalAnsi = {
+const lightTerminalAnsi: TerminalAnsiColors = {
   red: "#dc2626",
   green: "#16a34a",
   yellow: "#ca8a04",
@@ -256,7 +289,7 @@ const lightTerminalAnsi = {
   brightMagenta: "#a855f7",
   brightCyan: "#06b6d4",
   brightWhite: "#fafafa",
-} as const;
+};
 
 export function buildLightSemanticColors(tint: LightThemeConfig) {
   return {
@@ -314,7 +347,7 @@ export function buildLightSemanticColors(tint: LightThemeConfig) {
       selectionBackground: "rgba(0, 0, 0, 0.15)",
       selectionForeground: tint.foreground,
       black: tint.terminalBlack,
-      ...lightTerminalAnsi,
+      ...(tint.terminalAnsi ?? lightTerminalAnsi),
       brightBlack: tint.terminalBrightBlack,
     },
   };
@@ -368,9 +401,10 @@ export interface DarkThemeConfig {
   terminalBrightBlack: string;
   foreground?: string;
   ring?: string;
+  terminalAnsi?: TerminalAnsiColors;
 }
 
-const darkTerminalAnsi = {
+const darkTerminalAnsi: TerminalAnsiColors = {
   red: "#e07070",
   green: "#5dba80",
   yellow: "#d4a44a",
@@ -385,7 +419,7 @@ const darkTerminalAnsi = {
   brightMagenta: "#c49ae0",
   brightCyan: "#6ec2cc",
   brightWhite: "#f0f0f2",
-} as const;
+};
 
 export function buildDarkSemanticColors(tint: DarkThemeConfig) {
   const foreground = tint.foreground ?? "#fafafa";
@@ -446,7 +480,7 @@ export function buildDarkSemanticColors(tint: DarkThemeConfig) {
       selectionBackground: "rgba(255, 255, 255, 0.2)",
       selectionForeground: foreground,
       black: tint.terminalBlack,
-      ...darkTerminalAnsi,
+      ...(tint.terminalAnsi ?? darkTerminalAnsi),
       brightBlack: tint.terminalBrightBlack,
     },
   };
@@ -776,6 +810,21 @@ export function buildLightTheme(semanticColors: ReturnType<typeof buildLightSema
 
 export const lightTheme = buildLightTheme(lightSemanticColors);
 
+// Community palettes — see theme-palettes.ts for sources.
+export const darkCatppuccinTheme = buildDarkTheme(buildDarkSemanticColors(catppuccinMochaPalette));
+export const darkDraculaTheme = buildDarkTheme(buildDarkSemanticColors(draculaPalette));
+export const darkNordTheme = buildDarkTheme(buildDarkSemanticColors(nordPalette));
+export const darkTokyoNightTheme = buildDarkTheme(buildDarkSemanticColors(tokyoNightPalette));
+export const darkOneDarkTheme = buildDarkTheme(buildDarkSemanticColors(oneDarkPalette));
+export const darkGruvboxTheme = buildDarkTheme(buildDarkSemanticColors(gruvboxDarkPalette));
+export const darkRosePineTheme = buildDarkTheme(buildDarkSemanticColors(rosePinePalette));
+export const darkEverforestTheme = buildDarkTheme(buildDarkSemanticColors(everforestDarkPalette));
+export const lightCatppuccinTheme = buildLightTheme(
+  buildLightSemanticColors(catppuccinLattePalette),
+);
+export const lightSolarizedTheme = buildLightTheme(buildLightSemanticColors(solarizedLightPalette));
+export const lightGithubTheme = buildLightTheme(buildLightSemanticColors(githubLightPalette));
+
 // Keep compatibility with existing code
 export const theme = darkTheme;
 
@@ -829,6 +878,94 @@ export const THEME_OPTIONS = [
     unistylesName: "darkPureBlack",
     theme: darkPureBlackTheme,
     swatch: "#000000",
+  },
+  {
+    name: "catppuccinMocha",
+    group: "community",
+    unistylesName: "darkCatppuccin",
+    theme: darkCatppuccinTheme,
+    swatch: "#cba6f7",
+    label: "Catppuccin Mocha",
+  },
+  {
+    name: "dracula",
+    group: "community",
+    unistylesName: "darkDracula",
+    theme: darkDraculaTheme,
+    swatch: "#bd93f9",
+    label: "Dracula",
+  },
+  {
+    name: "nord",
+    group: "community",
+    unistylesName: "darkNord",
+    theme: darkNordTheme,
+    swatch: "#88c0d0",
+    label: "Nord",
+  },
+  {
+    name: "tokyoNight",
+    group: "community",
+    unistylesName: "darkTokyoNight",
+    theme: darkTokyoNightTheme,
+    swatch: "#7aa2f7",
+    label: "Tokyo Night",
+  },
+  {
+    name: "oneDark",
+    group: "community",
+    unistylesName: "darkOneDark",
+    theme: darkOneDarkTheme,
+    swatch: "#61afef",
+    label: "One Dark",
+  },
+  {
+    name: "gruvbox",
+    group: "community",
+    unistylesName: "darkGruvbox",
+    theme: darkGruvboxTheme,
+    swatch: "#d79921",
+    label: "Gruvbox",
+  },
+  {
+    name: "rosePine",
+    group: "community",
+    unistylesName: "darkRosePine",
+    theme: darkRosePineTheme,
+    swatch: "#ebbcba",
+    label: "Rosé Pine",
+  },
+  {
+    name: "everforest",
+    group: "community",
+    unistylesName: "darkEverforest",
+    theme: darkEverforestTheme,
+    swatch: "#a7c080",
+    label: "Everforest",
+  },
+  {
+    name: "catppuccinLatte",
+    group: "community",
+    unistylesName: "lightCatppuccin",
+    theme: lightCatppuccinTheme,
+    swatch: "#8839ef",
+    label: "Catppuccin Latte",
+  },
+  {
+    name: "solarizedLight",
+    group: "community",
+    unistylesName: "lightSolarized",
+    theme: lightSolarizedTheme,
+    swatch: "#268bd2",
+    label: "Solarized Light",
+  },
+  {
+    name: "githubLight",
+    group: "community",
+    unistylesName: "lightGithub",
+    theme: lightGithubTheme,
+    swatch: "#0969da",
+    label: "GitHub Light",
   },
 ] as const;
 
