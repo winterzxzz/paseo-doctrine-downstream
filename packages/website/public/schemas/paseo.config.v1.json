@@ -79,6 +79,20 @@
           },
           "additionalProperties": {}
         },
+        "beadsCentral": {
+          "type": "object",
+          "properties": {
+            "endpoint": {
+              "type": "string",
+              "format": "uri"
+            },
+            "credentialRef": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,63}$"
+            }
+          },
+          "additionalProperties": {}
+        },
         "git": {
           "type": "object",
           "properties": {
@@ -98,11 +112,272 @@
         "autoArchiveAfterMerge": {
           "type": "boolean"
         },
+        "defaultFastMode": {
+          "type": "boolean"
+        },
         "enableTerminalAgentHooks": {
           "type": "boolean"
         },
         "appendSystemPrompt": {
           "type": "string"
+        },
+        "roleProfiles": {
+          "type": "object",
+          "properties": {
+            "lead": {
+              "type": "object",
+              "properties": {
+                "defaults": {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "model": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "modeId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "thinkingOptionId": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "allowedTools": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "allowedSkills": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "peer": {
+              "type": "object",
+              "properties": {
+                "defaults": {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "model": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "modeId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "thinkingOptionId": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "allowedTools": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "allowedSkills": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "additionalProperties": false
+            },
+            "supervisor": {
+              "type": "object",
+              "properties": {
+                "defaults": {
+                  "type": "object",
+                  "properties": {
+                    "provider": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "model": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "modeId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "thinkingOptionId": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "allowedTools": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "allowedSkills": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "peerDelegation": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "runMode": {
+              "default": "unattended",
+              "type": "string",
+              "enum": ["guarded", "unattended"]
+            },
+            "allowedModels": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["provider", "model"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["enabled", "allowedModels"],
+          "additionalProperties": false
+        },
+        "peerDelegationProfileIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "peerDelegationProviderPriority": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "peerDelegationDefaultSubrole": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": ["scout", "engineer", "reviewer", "architect"]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "leadRoutes": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[^/\\s]+\\/\\S+$"
+          }
+        },
+        "roleDefaults": {
+          "type": "object",
+          "properties": {
+            "defaultRole": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["lead", "peer", "supervisor"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "supervisor": {
+              "type": "object",
+              "properties": {
+                "route": {
+                  "type": "string",
+                  "pattern": "^[^/\\s]+\\/\\S+$"
+                },
+                "thinkingOptionId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "assignmentEffect": {
+                  "type": "string",
+                  "enum": ["read-only", "mutating", "delegation", "bootstrap", "recovery"]
+                },
+                "permission": {
+                  "type": "string",
+                  "enum": ["ask", "bypass"]
+                }
+              },
+              "additionalProperties": {}
+            },
+            "lead": {
+              "type": "object",
+              "properties": {
+                "route": {
+                  "type": "string",
+                  "pattern": "^[^/\\s]+\\/\\S+$"
+                },
+                "thinkingOptionId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "assignmentEffect": {
+                  "type": "string",
+                  "enum": ["read-only", "mutating", "delegation", "bootstrap", "recovery"]
+                },
+                "permission": {
+                  "type": "string",
+                  "enum": ["ask", "bypass"]
+                }
+              },
+              "additionalProperties": {}
+            }
+          },
+          "additionalProperties": {}
         },
         "terminalProfiles": {
           "type": "array",
@@ -170,6 +445,10 @@
               },
               "notes": {
                 "type": "string"
+              },
+              "peerSubrole": {
+                "type": "string",
+                "enum": ["scout", "engineer", "reviewer", "architect"]
               }
             },
             "required": ["id", "name", "provider"],
@@ -493,6 +772,12 @@
                   "enabled": {
                     "type": "boolean"
                   },
+                  "allowedTools": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
                   "disabledTools": {
                     "type": "array",
                     "items": {
@@ -501,6 +786,20 @@
                   }
                 }
               },
+              "roleBinding": {
+                "type": "object",
+                "properties": {
+                  "driver": {
+                    "type": "string",
+                    "enum": ["cursor-workspace-rule", "cursor-plugin", "antigravity-custom-agent"]
+                  }
+                },
+                "required": ["driver"]
+              },
+              "credentialRef": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,63}$"
+              },
               "enabled": {
                 "type": "boolean"
               },
@@ -508,6 +807,24 @@
                 "type": "number"
               }
             }
+          }
+        },
+        "credentials": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "OPENAI_API_KEY": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": ["OPENAI_API_KEY"],
+            "additionalProperties": false
           }
         },
         "idleRuntimeCleanup": {

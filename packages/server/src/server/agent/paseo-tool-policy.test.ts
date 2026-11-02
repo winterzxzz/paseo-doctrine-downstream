@@ -41,4 +41,9 @@ describe("Paseo tool policy", () => {
     expect(isPaseoToolEnabled(policy, "future_tool")).toBe(false);
     expect(isPaseoToolEnabled(policy, "speak")).toBe(true);
   });
+
+  test("the denylist also applies to plugin-provided tool names", () => {
+    expect(isPaseoToolEnabled({ disabledTools: ["plugin_echo"] }, "plugin_echo")).toBe(false);
+    expect(isPaseoToolEnabled({ disabledTools: ["list_agents"] }, "plugin_echo")).toBe(true);
+  });
 });

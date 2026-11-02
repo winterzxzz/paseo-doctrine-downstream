@@ -127,6 +127,7 @@ test("an empty project becomes Git without changing its identity or creating a w
     archivedAt: null,
     projectKey: expect.any(String),
     customIconRevision: null,
+    workGraphId: null,
   });
 }, 30_000);
 

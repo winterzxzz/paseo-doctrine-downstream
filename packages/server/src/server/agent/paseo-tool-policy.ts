@@ -29,9 +29,7 @@ export function isPaseoToolEnabled(
   if (policy?.allowedTools !== undefined) {
     return policy.allowedTools.includes(toolName);
   }
-  if (PASEO_TOOL_NAMES.size > 0 && !PASEO_TOOL_NAMES.has(toolName)) {
-    return true;
-  }
+  // The denylist also names plugin-provided agent tools, not just manifest tools.
   return !policy?.disabledTools?.includes(toolName);
 }
 

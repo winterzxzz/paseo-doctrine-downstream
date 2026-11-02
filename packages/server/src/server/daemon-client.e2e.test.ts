@@ -438,7 +438,8 @@ class RejectingMcpResumeClient implements AgentClient {
   }
 }
 
-test("createAgent fails when the initial turn cannot start", async () => {
+// Upstream #6379 (v0.12): creation commits at registration; a first-turn failure stays on the agent.
+test("createAgent keeps the agent when the initial turn cannot start", async () => {
   const testAgent = new StubAgentClient({
     sessionId: "start-turn-failure-session",
     supportsStreaming: false,
@@ -466,7 +467,7 @@ test("createAgent fails when the initial turn cannot start", async () => {
         model: "gpt-5.4-mini",
         initialPrompt: "Run exactly: sleep 30",
       }),
-    ).rejects.toThrow("Initial turn failed to start");
+    ).resolves.toMatchObject({ lastError: "Initial turn failed to start" });
   } finally {
     await client.close();
     await daemon.close();

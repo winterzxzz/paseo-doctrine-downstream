@@ -3092,7 +3092,9 @@ class ClaudeAgentSession implements AgentSession {
     this.sidechainTracker.clear();
     this.settledSubagentToolCalls.clear();
     this.taskProtocolSource.reset();
-    await this.awaitWithTimeout(this.query?.interrupt?.(), "close query interrupt");
+    // Ask the provider to stop while its control plane is still open, but never wait on the
+    // answer: a stalled provider would push process-tree cleanup past the close deadline.
+    this.query?.interrupt?.()?.catch(() => undefined);
     this.input?.end();
     this.query?.close?.();
     // close() already terminates the SDK query. Its control plane is no longer

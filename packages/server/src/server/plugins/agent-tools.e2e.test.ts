@@ -223,9 +223,12 @@ test("native providers get the same attached schema and execution", async () => 
     expect(catalog.getTool("plugin_echo")?.description).toBe("Echo for the chosen agent");
     const mcp = await h.mcp(a.id);
     const advertised = (await mcp.listTools()).tools.find((tool) => tool.name === "plugin_echo")!;
-    expect(serializePaseoToolInputParameters(catalog.getTool("plugin_echo")!)).toEqual(
-      advertised.inputSchema,
+    // The MCP v2 SDK advertises the 2020-12 dialect; native serialization stays draft-07.
+    const { $schema: _nativeDialect, ...nativeSchema } = serializePaseoToolInputParameters(
+      catalog.getTool("plugin_echo")!,
     );
+    const { $schema: _advertisedDialect, ...advertisedSchema } = advertised.inputSchema;
+    expect(nativeSchema).toEqual(advertisedSchema);
     const result = await catalog.executeTool("plugin_echo", { text: "native" });
     expect(JSON.parse(result.content[0].text!)).toMatchObject({
       agent: { id: a.id },
@@ -906,7 +909,8 @@ test.each([
     saved: true,
     name: "paseo",
     other: false,
-    error: /paseo.*plugin tools-test.*agent saved configuration/,
+    // Downstream reserves the saved `paseo` name before plugin collisions are checked.
+    error: /MCP server name paseo is reserved for Paseo runtime/,
   },
   {
     target: "Paseo internal server",

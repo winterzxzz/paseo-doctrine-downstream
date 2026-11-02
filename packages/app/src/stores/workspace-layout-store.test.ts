@@ -603,6 +603,8 @@ describe("workspace-layout-store version 2 migration", () => {
 
   it("keeps a closed agent tab hidden across reload", async () => {
     const store = createWorkspaceLayoutStore(createDeterministicWorkspaceLayoutIds());
+    // Validated storage drops writes made while the store is still hydrating.
+    await store.persist.rehydrate();
     store.getState().hideAgent(workspaceKey, "agent-1");
     await vi.waitFor(async () => {
       const persisted = JSON.parse((await AsyncStorage.getItem("workspace-layout-state")) ?? "{}");

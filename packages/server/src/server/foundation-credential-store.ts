@@ -170,8 +170,15 @@ export class FoundationCredentialStore {
   }
 
   private syncConfiguredCredentialFiles(): void {
-    const credentials = loadPersistedConfig(this.paseoHome).agents?.credentials ?? {};
-    for (const [credentialRef, credential] of Object.entries(credentials)) {
+    let credentials: NonNullable<ReturnType<typeof loadPersistedConfig>["agents"]>["credentials"];
+    try {
+      credentials = loadPersistedConfig(this.paseoHome).agents?.credentials;
+    } catch {
+      // Sessions construct this store. A config.json broken after startup is reported by an
+      // explicit config read or reload, never by refusing new client sessions.
+      return;
+    }
+    for (const [credentialRef, credential] of Object.entries(credentials ?? {})) {
       this.writeCredentialFile(credentialRef, credential.OPENAI_API_KEY);
     }
   }

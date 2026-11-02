@@ -737,7 +737,7 @@ describe("ClaudeAgentSession features", () => {
     ).ensureQuery();
     await session.close();
 
-    expect(operations).toEqual(["interrupt", "close", "return"]);
+    expect(operations).toEqual(["interrupt", "close"]);
   });
 
   function createQueryMock() {

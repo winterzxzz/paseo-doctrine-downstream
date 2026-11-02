@@ -65,6 +65,9 @@ const CONFIG_CONTEXT_ENV_KEYS = [
   "OPENAI_BASE_URL",
   "OPENAI_STT_API_KEY",
   "OPENAI_TTS_API_KEY",
+  // Downstream release smoke points Beads Central at an isolated endpoint.
+  "PASEO_RELEASE_SMOKE",
+  "PASEO_BEADS_CENTRAL_SMOKE_ENDPOINT",
 ] as const;
 
 export function configurationEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
