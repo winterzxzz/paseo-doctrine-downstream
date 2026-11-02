@@ -1,8 +1,9 @@
 import { useCallback, useMemo } from "react";
 import { router } from "expo-router";
 import { Network } from "lucide-react-native";
-import { Pressable, ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
+import { ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
+import { PressHighlight } from "@/components/ui/press-highlight";
 import { MenuHeader } from "@/components/headers/menu-header";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import {
@@ -40,7 +41,7 @@ function TopologyAgentCard({
     router.push(buildHostAgentDetailRoute(serverId, node.id, node.workspaceId ?? undefined));
   }, [node.id, node.workspaceId, serverId]);
   return (
-    <Pressable
+    <PressHighlight
       onPress={handlePress}
       style={agentCardStyle}
       testID={`host-topology-agent-${node.id}`}
@@ -69,7 +70,7 @@ function TopologyAgentCard({
           {edge.kind === "supervision" ? "supervised" : "delegated"} by {parent.title}
         </Text>
       ) : null}
-    </Pressable>
+    </PressHighlight>
   );
 }
 

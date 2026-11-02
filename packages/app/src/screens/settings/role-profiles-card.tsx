@@ -1,8 +1,9 @@
 import equal from "fast-deep-equal";
 import { ChevronDown, ChevronRight, LockKeyhole, RotateCcw, Save } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import { PressHighlight } from "@/components/ui/press-highlight";
 import type { PaseoRoleId } from "@getpaseo/protocol/role-binding";
 import type {
   RoleProfileDescriptor,
@@ -78,7 +79,7 @@ function CapabilityGroup({
   const handleDisclosurePress = useCallback(() => setExpanded((current) => !current), []);
   return (
     <View style={styles.capabilityGroup}>
-      <Pressable
+      <PressHighlight
         style={styles.disclosureHeader}
         onPress={handleDisclosurePress}
         accessibilityRole="button"
@@ -95,7 +96,7 @@ function CapabilityGroup({
           <Text style={styles.groupTitle}>{title}</Text>
         </View>
         <Text style={styles.groupCount}>{selected.length} enabled</Text>
-      </Pressable>
+      </PressHighlight>
       <Text style={styles.groupHint}>{hint}</Text>
       {expanded ? (
         <View style={styles.toggleList}>

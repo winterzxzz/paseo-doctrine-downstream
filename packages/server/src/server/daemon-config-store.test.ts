@@ -1,10 +1,12 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 
 import { DaemonConfigStore, applyMutableProviderConfigToOverrides } from "./daemon-config-store.js";
+import { loadConfig } from "./config.js";
 import { loadPersistedConfig } from "./persisted-config.js";
+import { readSpeechSettings } from "./speech/speech-settings.js";
 import type { PersistedConfig } from "./persisted-config.js";
 import type { MutableDaemonConfig } from "@getpaseo/protocol/messages";
 
@@ -26,6 +28,8 @@ function reloadableConfig(
     metadataGeneration: { providers: agents.metadataGeneration?.providers ?? [] },
     autoArchiveAfterMerge: daemon.autoArchiveAfterMerge ?? false,
     enableTerminalAgentHooks: daemon.enableTerminalAgentHooks ?? false,
+    // Fork default: idle runtime collection is off unless the Human opts in.
+    idleRuntimeCleanup: agents.idleRuntimeCleanup === true,
     appendSystemPrompt: daemon.appendSystemPrompt ?? "",
     terminalProfiles: daemon.terminalProfiles,
     agentProfiles: daemon.agentProfiles,
@@ -100,7 +104,7 @@ describe("DaemonConfigStore", () => {
     }
   });
 
-  test("patch persists relay state and emits its field change", () => {
+  test("patch persists relay state and emits its field change", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
     const store = new DaemonConfigStore(paseoHome, {
@@ -116,13 +120,13 @@ describe("DaemonConfigStore", () => {
     const changes: unknown[] = [];
     store.onFieldChange("relay.enabled", (value) => changes.push(value));
 
-    store.patch({ relay: { enabled: true } });
+    await store.patch({ relay: { enabled: true } });
 
     expect(changes).toEqual([true]);
     expect(loadPersistedConfig(paseoHome).daemon?.relay?.enabled).toBe(true);
   });
 
-  test("patch persists the Central endpoint and credential reference without a secret", () => {
+  test("patch persists the Central endpoint and credential reference without a secret", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-central-"));
     tempDirs.push(paseoHome);
     const store = new DaemonConfigStore(paseoHome, {
@@ -140,7 +144,7 @@ describe("DaemonConfigStore", () => {
       appendSystemPrompt: "",
     });
 
-    store.patch({
+    await store.patch({
       beadsCentral: {
         endpoint: "https://central.example.internal/paseo",
         credentialRef: "beads-production",
@@ -154,7 +158,7 @@ describe("DaemonConfigStore", () => {
     expect(JSON.stringify(store.get())).not.toContain("token");
   });
 
-  test("replaces and resets complete role profile entries", () => {
+  test("replaces and resets complete role profile entries", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-role-profile-"));
     tempDirs.push(paseoHome);
     const store = new DaemonConfigStore(paseoHome, {
@@ -169,7 +173,7 @@ describe("DaemonConfigStore", () => {
       appendSystemPrompt: "",
     });
 
-    store.patch({
+    await store.patch({
       roleProfiles: {
         peer: {
           defaults: { provider: "codex", model: "gpt-5.4" },
@@ -178,20 +182,20 @@ describe("DaemonConfigStore", () => {
         },
       },
     });
-    store.patch({ roleProfiles: { peer: { defaults: { provider: "claude" } } } });
+    await store.patch({ roleProfiles: { peer: { defaults: { provider: "claude" } } } });
 
     expect(store.get().roleProfiles.peer).toEqual({ defaults: { provider: "claude" } });
     expect(loadPersistedConfig(paseoHome).daemon?.roleProfiles?.peer).toEqual({
       defaults: { provider: "claude" },
     });
 
-    store.patch({ resetRoleProfiles: ["peer"] });
+    await store.patch({ resetRoleProfiles: ["peer"] });
 
     expect(store.get().roleProfiles.peer).toBeUndefined();
     expect(loadPersistedConfig(paseoHome).daemon?.roleProfiles?.peer).toBeUndefined();
   });
 
-  test("persists Peer Agent Profile policy and keeps the legacy model mirror synchronized", () => {
+  test("persists Peer Agent Profile policy and keeps the legacy model mirror synchronized", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-peer-policy-"));
     tempDirs.push(paseoHome);
     const store = new DaemonConfigStore(paseoHome, {
@@ -204,7 +208,7 @@ describe("DaemonConfigStore", () => {
       appendSystemPrompt: "",
     });
 
-    store.patch({
+    await store.patch({
       agentProfiles: [
         {
           id: "peer-scout",
@@ -232,7 +236,7 @@ describe("DaemonConfigStore", () => {
     );
     expect(loadPersistedConfig(paseoHome).daemon?.peerDelegationProfileIds).toEqual(["peer-scout"]);
 
-    store.patch({
+    await store.patch({
       agentProfiles: [
         {
           id: "peer-scout",
@@ -250,13 +254,13 @@ describe("DaemonConfigStore", () => {
       { provider: "codex", model: "gpt-5.6-luna" },
     ]);
 
-    store.patch({ agentProfiles: [] });
+    await store.patch({ agentProfiles: [] });
 
     expect(store.get().peerDelegationProfileIds).toEqual([]);
     expect(store.get().peerDelegation?.allowedModels).toEqual([]);
   });
 
-  test("normalizes Peer provider priority against selected profiles", () => {
+  test("normalizes Peer provider priority against selected profiles", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-peer-priority-"));
     tempDirs.push(paseoHome);
     const store = new DaemonConfigStore(paseoHome, {
@@ -292,7 +296,7 @@ describe("DaemonConfigStore", () => {
       },
     ];
 
-    store.patch({
+    await store.patch({
       agentProfiles,
       peerDelegationProfileIds: agentProfiles.map((profile) => profile.id),
       peerDelegationProviderPriority: ["cursor", "stale", "cursor", "claude"],
@@ -308,19 +312,19 @@ describe("DaemonConfigStore", () => {
     expect(store.get().peerDelegationDefaultSubrole).toBe("engineer");
     expect(loadPersistedConfig(paseoHome).daemon?.peerDelegationDefaultSubrole).toBe("engineer");
 
-    store.patch({
+    await store.patch({
       peerDelegationProfileIds: ["claude-scout", "codex-engineer"],
     });
 
     expect(store.get().peerDelegationProviderPriority).toEqual(["claude", "codex"]);
 
-    store.patch({ peerDelegationDefaultSubrole: null });
+    await store.patch({ peerDelegationDefaultSubrole: null });
 
     expect(store.get().peerDelegationDefaultSubrole).toBeNull();
     expect(loadPersistedConfig(paseoHome).daemon?.peerDelegationDefaultSubrole).toBeNull();
   });
 
-  test("persists Human Lead routes from a patch and clears them with an empty list", () => {
+  test("persists Human Lead routes from a patch and clears them with an empty list", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-lead-routes-"));
     tempDirs.push(paseoHome);
     const store = new DaemonConfigStore(paseoHome, {
@@ -334,21 +338,21 @@ describe("DaemonConfigStore", () => {
     });
     const leadRoutes = ["claude/claude-fable-5-1", "codex/gpt-6"];
 
-    store.patch({ leadRoutes });
+    await store.patch({ leadRoutes });
 
     expect(store.get().leadRoutes).toEqual(leadRoutes);
     expect(store.getLeadRoutes()).toEqual(leadRoutes);
     expect(loadPersistedConfig(paseoHome).daemon?.leadRoutes).toEqual(leadRoutes);
 
-    store.patch({ leadRoutes: [] });
+    await store.patch({ leadRoutes: [] });
 
     expect(store.get().leadRoutes).toBeUndefined();
     expect(store.getLeadRoutes()).toBeUndefined();
     expect(loadPersistedConfig(paseoHome).daemon?.leadRoutes).toBeUndefined();
-    expect(() => store.patch({ leadRoutes: ["not-a-route"] })).toThrow();
+    await expect(store.patch({ leadRoutes: ["not-a-route"] })).rejects.toThrow();
   });
 
-  test("persists default fast mode so it survives a daemon restart", () => {
+  test("persists default fast mode so it survives a daemon restart", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-fast-mode-"));
     tempDirs.push(paseoHome);
     const store = new DaemonConfigStore(paseoHome, {
@@ -361,12 +365,12 @@ describe("DaemonConfigStore", () => {
       appendSystemPrompt: "",
     });
 
-    store.patch({ defaultFastMode: true });
+    await store.patch({ defaultFastMode: true });
 
     expect(loadPersistedConfig(paseoHome).daemon?.defaultFastMode).toBe(true);
   });
 
-  test("replaces Human role defaults as a whole and clears them with an empty object", () => {
+  test("replaces Human role defaults as a whole and clears them with an empty object", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-role-defaults-"));
     tempDirs.push(paseoHome);
     const store = new DaemonConfigStore(paseoHome, {
@@ -379,14 +383,14 @@ describe("DaemonConfigStore", () => {
       appendSystemPrompt: "",
     });
 
-    store.patch({
+    await store.patch({
       roleDefaults: {
         defaultRole: "supervisor",
         supervisor: { route: "claude/claude-opus-5-5", thinkingOptionId: "high" },
         lead: { thinkingOptionId: "medium" },
       },
     });
-    store.patch({
+    await store.patch({
       roleDefaults: { defaultRole: "supervisor", supervisor: { thinkingOptionId: "max" } },
     });
 
@@ -394,14 +398,16 @@ describe("DaemonConfigStore", () => {
     expect(store.getRoleDefaults()).toEqual(expected);
     expect(loadPersistedConfig(paseoHome).daemon?.roleDefaults).toEqual(expected);
 
-    store.patch({ roleDefaults: { defaultRole: null, lead: {} } });
+    await store.patch({ roleDefaults: { defaultRole: null, lead: {} } });
 
     expect(store.getRoleDefaults()).toBeUndefined();
     expect(loadPersistedConfig(paseoHome).daemon?.roleDefaults).toBeUndefined();
-    expect(() => store.patch({ roleDefaults: { supervisor: { route: "not-a-route" } } })).toThrow();
+    await expect(
+      store.patch({ roleDefaults: { supervisor: { route: "not-a-route" } } }),
+    ).rejects.toThrow();
   });
 
-  test("materializes only a credential file path in provider runtime env", () => {
+  test("materializes only a credential file path in provider runtime env", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
     const store = new DaemonConfigStore(paseoHome, {
@@ -415,7 +421,7 @@ describe("DaemonConfigStore", () => {
       appendSystemPrompt: "",
     });
 
-    const config = store.patch({
+    const config = await store.patch({
       providers: {
         "codex-proxy": {
           extends: "codex",
@@ -444,7 +450,7 @@ describe("DaemonConfigStore", () => {
     expect(JSON.stringify(config)).not.toContain("OPENAI_API_KEY");
   });
 
-  test("materializes one shared credential file for role-specific provider aliases", () => {
+  test("materializes one shared credential file for role-specific provider aliases", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
     const store = new DaemonConfigStore(paseoHome, {
@@ -468,7 +474,36 @@ describe("DaemonConfigStore", () => {
     );
   });
 
-  test("patch round-trips agent profiles through the strictly-parsed persisted config", () => {
+  test("patch persists the relay protected security requirement independently of relay enablement", async () => {
+    const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
+    tempDirs.push(paseoHome);
+    const store = new DaemonConfigStore(
+      paseoHome,
+      {
+        relay: { enabled: true },
+        mcp: { injectIntoAgents: false },
+        browserTools: { enabled: false },
+        providers: {},
+        metadataGeneration: { providers: [] },
+        autoArchiveAfterMerge: false,
+        enableTerminalAgentHooks: false,
+        appendSystemPrompt: "",
+      },
+      undefined,
+      // A launch override owns relay.enabled; the security requirement is still editable.
+      { relayEnabledMutable: false },
+    );
+    const changes: unknown[] = [];
+    store.onFieldChange("relay.requireProtectedSecurity", (value) => changes.push(value));
+
+    await store.patch({ relay: { requireProtectedSecurity: true } });
+
+    expect(changes).toEqual([true]);
+    expect(store.get().relay).toEqual({ enabled: true, requireProtectedSecurity: true });
+    expect(loadPersistedConfig(paseoHome).daemon?.relay?.requireProtectedSecurity).toBe(true);
+  });
+
+  test("patch round-trips agent profiles through the strictly-parsed persisted config", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
     const store = new DaemonConfigStore(paseoHome, {
@@ -482,7 +517,7 @@ describe("DaemonConfigStore", () => {
       appendSystemPrompt: "",
     });
 
-    store.patch({
+    await store.patch({
       agentProfiles: [
         {
           id: "profile_ui",
@@ -514,7 +549,7 @@ describe("DaemonConfigStore", () => {
     expect(store.get().agentProfiles).toHaveLength(1);
   });
 
-  test("patch replaces the whole agent profile list rather than merging entries", () => {
+  test("patch replaces the whole agent profile list rather than merging entries", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
     const store = new DaemonConfigStore(paseoHome, {
@@ -532,13 +567,13 @@ describe("DaemonConfigStore", () => {
       ],
     });
 
-    store.patch({ agentProfiles: [{ id: "a", name: "Keep", provider: "claude" }] });
+    await store.patch({ agentProfiles: [{ id: "a", name: "Keep", provider: "claude" }] });
 
     expect(store.get().agentProfiles).toEqual([{ id: "a", name: "Keep", provider: "claude" }]);
     expect(loadPersistedConfig(paseoHome).daemon?.agentProfiles).toHaveLength(1);
   });
 
-  test("rolls back config when a field transition fails", () => {
+  test("rolls back config when a field transition fails", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
     const store = new DaemonConfigStore(paseoHome, {
@@ -557,14 +592,14 @@ describe("DaemonConfigStore", () => {
       }
     });
 
-    expect(() => store.patch({ relay: { enabled: true } })).toThrow(
+    await expect(store.patch({ relay: { enabled: true } })).rejects.toThrow(
       "Relay transport failed to start",
     );
     expect(store.get().relay?.enabled).toBe(false);
     expect(loadPersistedConfig(paseoHome).daemon?.relay?.enabled).toBe(false);
   });
 
-  test("rolls back live owners when a later transactional owner fails", () => {
+  test("rolls back live owners when a later transactional owner fails", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
     const store = new DaemonConfigStore(paseoHome, {
@@ -588,7 +623,7 @@ describe("DaemonConfigStore", () => {
       throw new Error("Provider refresh failed");
     });
 
-    expect(() => store.patch({ browserTools: { enabled: true } })).toThrow(
+    await expect(store.patch({ browserTools: { enabled: true } })).rejects.toThrow(
       "Provider refresh failed",
     );
     expect(browserToolsEnabled).toBe(false);
@@ -596,7 +631,7 @@ describe("DaemonConfigStore", () => {
     expect(loadPersistedConfig(paseoHome).daemon?.browserTools?.enabled).toBeUndefined();
   });
 
-  test("rejects relay patches when a launch override owns the setting", () => {
+  test("rejects relay patches when a launch override owns the setting", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
     const store = new DaemonConfigStore(
@@ -615,12 +650,12 @@ describe("DaemonConfigStore", () => {
       { relayEnabledMutable: false },
     );
 
-    expect(() => store.patch({ relay: { enabled: true } })).toThrow(
+    await expect(store.patch({ relay: { enabled: true } })).rejects.toThrow(
       "Relay is controlled by a daemon launch override",
     );
   });
 
-  test("unrelated patches do not persist a one-launch relay override", () => {
+  test("unrelated patches do not persist a one-launch relay override", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
     const persisted = loadPersistedConfig(paseoHome);
@@ -647,12 +682,12 @@ describe("DaemonConfigStore", () => {
       { relayEnabledMutable: false },
     );
 
-    store.patch({ browserTools: { enabled: true } });
+    await store.patch({ browserTools: { enabled: true } });
 
     expect(loadPersistedConfig(paseoHome).daemon?.relay?.enabled).toBe(false);
   });
 
-  test("unrelated patches persist only requested file intent", () => {
+  test("unrelated patches persist only requested file intent", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
     const before = loadPersistedConfig(paseoHome);
@@ -678,7 +713,7 @@ describe("DaemonConfigStore", () => {
       { relayEnabledMutable: false },
     );
 
-    store.patch({
+    await store.patch({
       appendSystemPrompt: "Only this field",
       // Reload-only runtime state is accepted as unknown wire data for forward
       // compatibility but is not part of the patch capability.
@@ -692,7 +727,7 @@ describe("DaemonConfigStore", () => {
     });
   });
 
-  test("patch persists provider enabled flags into config.json", () => {
+  test("patch persists provider enabled flags into config.json", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
 
@@ -733,7 +768,7 @@ describe("DaemonConfigStore", () => {
       undefined,
     );
 
-    store.patch({
+    await store.patch({
       providers: {
         gemini: { enabled: false },
       },
@@ -748,7 +783,7 @@ describe("DaemonConfigStore", () => {
     });
   });
 
-  test("patch persists provider Paseo-tool policy without changing availability", () => {
+  test("patch persists provider Paseo-tool policy without changing availability", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
     writeFileSync(
@@ -765,14 +800,14 @@ describe("DaemonConfigStore", () => {
       appendSystemPrompt: "",
     });
 
-    store.patch({
+    await store.patch({
       providers: {
         claude: {
           paseoTools: { enabled: true, disabledTools: ["list_agents"] },
         },
       },
     });
-    store.patch({
+    await store.patch({
       providers: {
         claude: {
           paseoTools: { disabledTools: ["create_agent"] },
@@ -790,7 +825,7 @@ describe("DaemonConfigStore", () => {
     });
   });
 
-  test("patch removes provider entries from config.json", () => {
+  test("patch removes provider entries from config.json", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
 
@@ -835,7 +870,7 @@ describe("DaemonConfigStore", () => {
       undefined,
     );
 
-    const next = store.patch({ removeProviders: ["gemini"] });
+    const next = await store.patch({ removeProviders: ["gemini"] });
 
     expect(next.providers.gemini).toBeUndefined();
     expect(next.providers.claude).toEqual({ enabled: false });
@@ -844,7 +879,7 @@ describe("DaemonConfigStore", () => {
     expect(persisted.agents?.providers?.claude).toEqual({ enabled: false });
   });
 
-  test("patch removes the providers object when the last provider is deleted", () => {
+  test("patch removes the providers object when the last provider is deleted", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
 
@@ -883,13 +918,13 @@ describe("DaemonConfigStore", () => {
       undefined,
     );
 
-    store.patch({ removeProviders: ["gemini"] });
+    await store.patch({ removeProviders: ["gemini"] });
 
     const persisted = loadPersistedConfig(paseoHome);
     expect(persisted.agents?.providers).toBeUndefined();
   });
 
-  test("patch removes deleted providers from metadata generation", () => {
+  test("patch removes deleted providers from metadata generation", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
 
@@ -945,7 +980,7 @@ describe("DaemonConfigStore", () => {
       undefined,
     );
 
-    const next = store.patch({ removeProviders: ["gemini"] });
+    const next = await store.patch({ removeProviders: ["gemini"] });
 
     expect(next.metadataGeneration.providers).toEqual([{ provider: "claude", model: "haiku" }]);
     const persisted = loadPersistedConfig(paseoHome);
@@ -954,7 +989,7 @@ describe("DaemonConfigStore", () => {
     });
   });
 
-  test("patch persists provider removal when in-memory config is already clean", () => {
+  test("patch persists provider removal when in-memory config is already clean", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
 
@@ -996,7 +1031,7 @@ describe("DaemonConfigStore", () => {
       undefined,
     );
 
-    const next = store.patch({ removeProviders: ["gemini"] });
+    const next = await store.patch({ removeProviders: ["gemini"] });
 
     expect(next.providers.gemini).toBeUndefined();
     const persisted = loadPersistedConfig(paseoHome);
@@ -1004,7 +1039,7 @@ describe("DaemonConfigStore", () => {
     expect(persisted.agents?.metadataGeneration).toEqual({ providers: [] });
   });
 
-  test("patch persists append system prompt into config.json", () => {
+  test("patch persists append system prompt into config.json", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
 
@@ -1022,7 +1057,7 @@ describe("DaemonConfigStore", () => {
       undefined,
     );
 
-    store.patch({
+    await store.patch({
       appendSystemPrompt: "Prefer terse replies.",
     });
 
@@ -1030,7 +1065,7 @@ describe("DaemonConfigStore", () => {
     expect(persisted.daemon?.appendSystemPrompt).toBe("Prefer terse replies.");
   });
 
-  test("patch persists browser tools opt-in into config.json", () => {
+  test("patch persists browser tools opt-in into config.json", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
 
@@ -1047,13 +1082,13 @@ describe("DaemonConfigStore", () => {
       undefined,
     );
 
-    store.patch({ browserTools: { enabled: true } });
+    await store.patch({ browserTools: { enabled: true } });
 
     const persisted = loadPersistedConfig(paseoHome);
     expect(persisted.daemon?.browserTools).toEqual({ enabled: true });
   });
 
-  test("patch persists provider additional models into config.json", () => {
+  test("patch persists provider additional models into config.json", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
 
@@ -1071,7 +1106,7 @@ describe("DaemonConfigStore", () => {
       undefined,
     );
 
-    store.patch({
+    await store.patch({
       providers: {
         claude: {
           additionalModels: [
@@ -1095,7 +1130,7 @@ describe("DaemonConfigStore", () => {
     });
   });
 
-  test("patch persists daemon append system prompt into config.json", () => {
+  test("patch persists daemon append system prompt into config.json", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
 
@@ -1113,7 +1148,7 @@ describe("DaemonConfigStore", () => {
       undefined,
     );
 
-    store.patch({
+    await store.patch({
       appendSystemPrompt: "Prefer terse replies.",
     });
 
@@ -1121,7 +1156,7 @@ describe("DaemonConfigStore", () => {
     expect(persisted.daemon?.appendSystemPrompt).toBe("Prefer terse replies.");
   });
 
-  test("patch persists enable terminal agent hooks into config.json", () => {
+  test("patch persists enable terminal agent hooks into config.json", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
 
@@ -1138,13 +1173,13 @@ describe("DaemonConfigStore", () => {
       undefined,
     );
 
-    store.patch({ enableTerminalAgentHooks: true });
+    await store.patch({ enableTerminalAgentHooks: true });
 
     const persisted = loadPersistedConfig(paseoHome);
     expect(persisted.daemon?.enableTerminalAgentHooks).toBe(true);
   });
 
-  test("patch persists metadata generation providers into config.json", () => {
+  test("patch persists metadata generation providers into config.json", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
 
@@ -1162,7 +1197,7 @@ describe("DaemonConfigStore", () => {
       undefined,
     );
 
-    store.patch({
+    await store.patch({
       metadataGeneration: {
         providers: [
           { provider: "claude", model: "haiku" },
@@ -1180,7 +1215,7 @@ describe("DaemonConfigStore", () => {
     });
   });
 
-  test("patch persists clearing metadata generation providers into config.json", () => {
+  test("patch persists clearing metadata generation providers into config.json", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
 
@@ -1215,13 +1250,50 @@ describe("DaemonConfigStore", () => {
       undefined,
     );
 
-    store.patch({ metadataGeneration: { providers: [] } });
+    await store.patch({ metadataGeneration: { providers: [] } });
 
     const persisted = loadPersistedConfig(paseoHome);
     expect(persisted.agents?.metadataGeneration).toEqual({ providers: [] });
   });
 
-  test("patch persists custom ACP provider overrides into config.json", () => {
+  test("patch persists the host idle runtime cleanup opt-out for the next daemon start", async () => {
+    const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
+    tempDirs.push(paseoHome);
+    writeFileSync(
+      path.join(paseoHome, "config.json"),
+      `${JSON.stringify({
+        version: 1,
+        agents: { metadataGeneration: { providers: [{ provider: "claude" }] } },
+      })}\n`,
+    );
+    const store = new DaemonConfigStore(
+      paseoHome,
+      {
+        mcp: { injectIntoAgents: false },
+        browserTools: { enabled: false },
+        providers: {},
+        autoArchiveAfterMerge: false,
+        enableTerminalAgentHooks: false,
+        idleRuntimeCleanup: true,
+        appendSystemPrompt: "",
+        metadataGeneration: { providers: [{ provider: "claude" }] },
+      },
+      undefined,
+    );
+
+    expect((await store.patch({ idleRuntimeCleanup: false })).idleRuntimeCleanup).toBe(false);
+
+    expect(loadPersistedConfig(paseoHome).agents).toEqual({
+      metadataGeneration: { providers: [{ provider: "claude" }] },
+      idleRuntimeCleanup: false,
+    });
+    expect(loadConfig(paseoHome, { env: {} }).idleRuntimeCleanup).toBe(false);
+
+    await store.patch({ idleRuntimeCleanup: true });
+    expect(loadConfig(paseoHome, { env: {} }).idleRuntimeCleanup).toBe(true);
+  });
+
+  test("patch persists custom ACP provider overrides into config.json", async () => {
     const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-store-"));
     tempDirs.push(paseoHome);
 
@@ -1239,7 +1311,7 @@ describe("DaemonConfigStore", () => {
       undefined,
     );
 
-    store.patch({
+    await store.patch({
       providers: {
         "paseo-e2e-acp": {
           extends: "acp",
@@ -1307,7 +1379,49 @@ describe("DaemonConfigStore reload", () => {
     writeFileSync(path.join(paseoHome, "config.json"), `${JSON.stringify(config, null, 2)}\n`);
   }
 
-  test("applies mutable edits and reports startup-only edits", () => {
+  test("applies overlapping plugin mutations to the latest committed sources", async () => {
+    const { store } = createReloadableStore({
+      initialPersisted: {
+        plugins: {
+          a: { source: "directory", path: "/a", enabled: false },
+          b: { source: "directory", path: "/b", enabled: true },
+        },
+      },
+    });
+    const enable = store.patch((current) => ({
+      plugins: {
+        ...current.plugins,
+        a: { ...current.plugins.a!, enabled: true },
+      },
+    }));
+    const disable = store.patch((current) => ({
+      plugins: {
+        ...current.plugins,
+        b: { ...current.plugins.b!, enabled: false },
+      },
+    }));
+    await Promise.all([enable, disable]);
+    expect(store.get().plugins).toEqual({
+      a: { source: "directory", path: "/a", enabled: true },
+      b: { source: "directory", path: "/b", enabled: false },
+    });
+  });
+
+  test("serializes overlapping patches before committing their combined state", async () => {
+    const { paseoHome, store } = createReloadableStore();
+    const first = store.patch({ appendSystemPrompt: "first" });
+    const second = store.patch({ browserTools: { enabled: true } });
+    expect(store.get().appendSystemPrompt).toBe("");
+    await Promise.all([first, second]);
+    expect(store.get().appendSystemPrompt).toBe("first");
+    expect(store.get().browserTools.enabled).toBe(true);
+    expect(loadPersistedConfig(paseoHome).daemon).toMatchObject({
+      appendSystemPrompt: "first",
+      browserTools: { enabled: true },
+    });
+  });
+
+  test("applies mutable edits and reports startup-only edits", async () => {
     const { paseoHome, store, persisted } = createReloadableStore();
     writeConfig(paseoHome, {
       ...persisted,
@@ -1319,7 +1433,7 @@ describe("DaemonConfigStore reload", () => {
       },
     });
 
-    expect(store.reload()).toEqual({
+    expect(await store.reload()).toEqual({
       appliedPaths: [
         "daemon.browserTools.enabled",
         "daemon.git.maxProcessConcurrency",
@@ -1332,14 +1446,14 @@ describe("DaemonConfigStore reload", () => {
     expect(store.get().git).toEqual({ maxProcessesPerSecond: 12, maxProcessConcurrency: 3 });
   });
 
-  test("reloads Human Lead routes without a restart", () => {
+  test("reloads Human Lead routes without a restart", async () => {
     const { paseoHome, store, persisted } = createReloadableStore();
     expect(store.getLeadRoutes()).toBeUndefined();
 
     const leadRoutes = ["claude/claude-fable-5-1", "claude/claude-opus-5-5"];
     writeConfig(paseoHome, { ...persisted, daemon: { ...persisted.daemon, leadRoutes } });
 
-    expect(store.reload()).toEqual({
+    expect(await store.reload()).toEqual({
       appliedPaths: ["daemon.leadRoutes"],
       restartRequiredPaths: [],
       overrideControlledPaths: [],
@@ -1347,7 +1461,30 @@ describe("DaemonConfigStore reload", () => {
     expect(store.getLeadRoutes()).toEqual(leadRoutes);
   });
 
-  test("applies the global plugin switch in both directions", () => {
+  test("reloads idle runtime cleanup in both directions without requiring a restart", async () => {
+    const { paseoHome, store, persisted } = createReloadableStore();
+    const changes: unknown[] = [];
+    store.onFieldChange("idleRuntimeCleanup", (value) => changes.push(value));
+    for (const enabled of [true, false]) {
+      writeConfig(paseoHome, { ...persisted, agents: { idleRuntimeCleanup: enabled } });
+      expect(await store.reload()).toEqual({
+        appliedPaths: ["agents.idleRuntimeCleanup"],
+        restartRequiredPaths: [],
+        overrideControlledPaths: [],
+      });
+      expect(store.get().idleRuntimeCleanup).toBe(enabled);
+    }
+    expect(changes).toEqual([true, false]);
+    await store.patch({ idleRuntimeCleanup: false });
+    expect(await store.reload()).toEqual({
+      appliedPaths: [],
+      restartRequiredPaths: [],
+      overrideControlledPaths: [],
+    });
+    expect(store.get().idleRuntimeCleanup).toBe(false);
+  });
+
+  test("applies the global plugin switch in both directions", async () => {
     const { paseoHome, store, persisted } = createReloadableStore({
       initialPersisted: { version: 1, pluginsEnabled: false },
     });
@@ -1355,7 +1492,7 @@ describe("DaemonConfigStore reload", () => {
     store.onFieldChange("pluginsEnabled", (value) => changes.push(value));
 
     writeConfig(paseoHome, { ...persisted, pluginsEnabled: true });
-    expect(store.reload()).toEqual({
+    expect(await store.reload()).toEqual({
       appliedPaths: ["pluginsEnabled"],
       restartRequiredPaths: [],
       overrideControlledPaths: [],
@@ -1363,7 +1500,7 @@ describe("DaemonConfigStore reload", () => {
     expect(store.get().pluginsEnabled).toBe(true);
 
     writeConfig(paseoHome, { ...persisted, pluginsEnabled: false });
-    expect(store.reload()).toEqual({
+    expect(await store.reload()).toEqual({
       appliedPaths: ["pluginsEnabled"],
       restartRequiredPaths: [],
       overrideControlledPaths: [],
@@ -1372,7 +1509,7 @@ describe("DaemonConfigStore reload", () => {
     expect(changes).toEqual([true, false]);
   });
 
-  test("classifies every leaf when a parent subtree is added", () => {
+  test("classifies every leaf when a parent subtree is added", async () => {
     const { paseoHome, store } = createReloadableStore({
       initialPersisted: { version: 1 },
     });
@@ -1387,14 +1524,14 @@ describe("DaemonConfigStore reload", () => {
       },
     });
 
-    expect(store.reload()).toEqual({
+    expect(await store.reload()).toEqual({
       appliedPaths: ["daemon.relay.enabled"],
       restartRequiredPaths: ["daemon.relay.endpoint", "daemon.relay.useTls"],
       overrideControlledPaths: [],
     });
   });
 
-  test("classifies every leaf when the daemon subtree is removed", () => {
+  test("classifies every leaf when the daemon subtree is removed", async () => {
     const { paseoHome, store } = createReloadableStore({
       initialPersisted: {
         version: 1,
@@ -1415,7 +1552,7 @@ describe("DaemonConfigStore reload", () => {
     });
     writeConfig(paseoHome, { version: 1 });
 
-    expect(store.reload()).toEqual({
+    expect(await store.reload()).toEqual({
       appliedPaths: ["daemon.browserTools.enabled"],
       restartRequiredPaths: [
         "daemon.listen",
@@ -1429,7 +1566,7 @@ describe("DaemonConfigStore reload", () => {
     expect(store.get().relay?.enabled).toBe(false);
   });
 
-  test("keeps overridden leaves separate from restart-required siblings", () => {
+  test("keeps overridden leaves separate from restart-required siblings", async () => {
     const { paseoHome, store } = createReloadableStore({
       initialPersisted: { version: 1 },
       overrideControlledPaths: ["daemon.relay.enabled"],
@@ -1441,25 +1578,25 @@ describe("DaemonConfigStore reload", () => {
       },
     });
 
-    expect(store.reload()).toEqual({
+    expect(await store.reload()).toEqual({
       appliedPaths: [],
       restartRequiredPaths: ["daemon.relay.endpoint"],
       overrideControlledPaths: ["daemon.relay.enabled"],
     });
   });
 
-  test("invalid JSON and invalid schema apply nothing", () => {
+  test("invalid JSON and invalid schema apply nothing", async () => {
     const { paseoHome, store } = createReloadableStore();
     writeFileSync(path.join(paseoHome, "config.json"), "{ nope\n");
-    expect(() => store.reload()).toThrow("Invalid JSON");
+    await expect(store.reload()).rejects.toThrow("Invalid JSON");
     expect(store.get().browserTools.enabled).toBe(false);
 
     writeConfig(paseoHome, { daemon: { browserTools: { enabled: "yes" } } });
-    expect(() => store.reload()).toThrow("Invalid config");
+    await expect(store.reload()).rejects.toThrow("Invalid config");
     expect(store.get().browserTools.enabled).toBe(false);
   });
 
-  test("removing providers and optional profiles clears live state", () => {
+  test("removing providers and optional profiles clears live state", async () => {
     const { paseoHome, store, persisted } = createReloadableStore();
     writeConfig(paseoHome, {
       ...persisted,
@@ -1474,10 +1611,10 @@ describe("DaemonConfigStore reload", () => {
         },
       },
     });
-    store.reload();
+    await store.reload();
 
     writeConfig(paseoHome, persisted);
-    const result = store.reload();
+    const result = await store.reload();
 
     expect(result.appliedPaths).toEqual([
       "agents.providers",
@@ -1489,7 +1626,7 @@ describe("DaemonConfigStore reload", () => {
     expect(store.get().agentProfiles).toBeUndefined();
   });
 
-  test("reports a launch-controlled edit without changing live state", () => {
+  test("reports a launch-controlled edit without changing live state", async () => {
     const { paseoHome, store, persisted } = createReloadableStore({
       overrideControlledPaths: ["daemon.relay.enabled"],
     });
@@ -1499,7 +1636,7 @@ describe("DaemonConfigStore reload", () => {
       daemon: { ...persisted.daemon, relay: { enabled: !initialRelay } },
     });
 
-    expect(store.reload()).toEqual({
+    expect(await store.reload()).toEqual({
       appliedPaths: [],
       restartRequiredPaths: [],
       overrideControlledPaths: ["daemon.relay.enabled"],
@@ -1507,7 +1644,7 @@ describe("DaemonConfigStore reload", () => {
     expect(store.get().relay?.enabled).toBe(initialRelay);
   });
 
-  test("an unrelated patch does not mark a manual override-owned edit as applied", () => {
+  test("an unrelated patch does not mark a manual override-owned edit as applied", async () => {
     const { paseoHome, store, persisted } = createReloadableStore({
       overrideControlledPaths: ["daemon.relay.enabled"],
     });
@@ -1515,16 +1652,16 @@ describe("DaemonConfigStore reload", () => {
       ...persisted,
       daemon: { ...persisted.daemon, relay: { enabled: true } },
     });
-    store.patch({ appendSystemPrompt: "patched elsewhere" });
+    await store.patch({ appendSystemPrompt: "patched elsewhere" });
 
-    expect(store.reload()).toEqual({
+    expect(await store.reload()).toEqual({
       appliedPaths: [],
       restartRequiredPaths: [],
       overrideControlledPaths: ["daemon.relay.enabled"],
     });
   });
 
-  test("reports startup-only launch overrides instead of restart warnings", () => {
+  test("reports startup-only launch overrides instead of restart warnings", async () => {
     const { paseoHome, store, persisted } = createReloadableStore({
       overrideControlledPaths: ["daemon.listen", "daemon.relay.endpoint"],
     });
@@ -1540,19 +1677,255 @@ describe("DaemonConfigStore reload", () => {
       },
     });
 
-    expect(store.reload()).toEqual({
+    expect(await store.reload()).toEqual({
       appliedPaths: [],
       restartRequiredPaths: [],
       overrideControlledPaths: ["daemon.listen", "daemon.relay.endpoint"],
     });
   });
 
-  test("a no-op reload returns empty path lists", () => {
+  test("a no-op reload returns empty path lists", async () => {
     const { store } = createReloadableStore();
-    expect(store.reload()).toEqual({
+    expect(await store.reload()).toEqual({
       appliedPaths: [],
       restartRequiredPaths: [],
       overrideControlledPaths: [],
     });
+  });
+});
+
+describe("DaemonConfigStore speech settings", () => {
+  const tempDirs: string[] = [];
+
+  afterEach(() => {
+    for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
+  });
+
+  function createSpeechStore(initialPersisted?: unknown, env: NodeJS.ProcessEnv = {}) {
+    const paseoHome = mkdtempSync(path.join(tmpdir(), "paseo-daemon-config-speech-"));
+    tempDirs.push(paseoHome);
+    if (initialPersisted) {
+      writeFileSync(
+        path.join(paseoHome, "config.json"),
+        `${JSON.stringify(initialPersisted, null, 2)}\n`,
+      );
+    }
+    const persisted = loadPersistedConfig(paseoHome);
+    const applied: PersistedConfig[] = [];
+    const speech = {
+      read: (next: PersistedConfig) => readSpeechSettings(next, env),
+      apply: (next: PersistedConfig) => applied.push(next),
+    };
+    const store = new DaemonConfigStore(paseoHome, reloadableConfig(persisted), undefined, {
+      speech,
+      reloadSource: {
+        resolve: (next) => ({ mutable: reloadableConfig(next), overrideControlledPaths: [] }),
+      },
+    });
+    return { paseoHome, store, applied, persisted };
+  }
+
+  test("reads, patches, and clears local STT language without losing it on other saves", async () => {
+    const { paseoHome, store } = createSpeechStore({
+      features: { dictation: { stt: { language: "fr" } } },
+    });
+    expect(store.get().features?.dictation.stt).toEqual({ provider: "local", language: "fr" });
+    await store.patch({ features: { voiceMode: { enabled: true } } });
+    expect(loadPersistedConfig(paseoHome).features?.dictation?.stt).toEqual({
+      provider: "local",
+      language: "fr",
+    });
+    const patched = await store.patch({
+      features: { dictation: { stt: { provider: "local", language: "de" } } },
+    });
+    expect(patched.features?.dictation.stt).toEqual({ provider: "local", language: "de" });
+    await store.patch({ features: { dictation: { stt: { language: null } } } });
+    expect(loadPersistedConfig(paseoHome).features?.dictation?.stt).toEqual({ provider: "local" });
+  });
+
+  test("reports language env overrides for both local STT sites", async () => {
+    const { store } = createSpeechStore(
+      {},
+      { PASEO_DICTATION_LANGUAGE: "fr", PASEO_VOICE_LANGUAGE: "de" },
+    );
+    expect(store.get().envOverrides).toMatchObject({
+      "features.dictation.stt.language": "PASEO_DICTATION_LANGUAGE",
+      "features.voiceMode.stt.language": "PASEO_VOICE_LANGUAGE",
+    });
+  });
+
+  test("keeps voice mode off until it is turned on", async () => {
+    const { paseoHome, store } = createSpeechStore();
+
+    expect(store.get().features?.dictation.enabled).toBe(true);
+    expect(store.get().features?.voiceMode.enabled).toBe(false);
+
+    const result = await store.patch({ features: { voiceMode: { enabled: true } } });
+
+    expect(result.features?.voiceMode.enabled).toBe(true);
+    expect(loadPersistedConfig(paseoHome).features?.voiceMode?.enabled).toBe(true);
+  });
+
+  test("stores the OpenAI key without ever returning it", async () => {
+    const { paseoHome, store, applied } = createSpeechStore();
+
+    const result = await store.patch({
+      features: { dictation: { stt: { provider: "openai", apiKey: " sk-test " } } },
+    });
+
+    expect(result.features?.dictation.stt).toEqual({ provider: "openai", hasApiKey: true });
+    expect(JSON.stringify(result)).not.toContain("sk-test");
+    expect(loadPersistedConfig(paseoHome).features?.dictation?.stt).toMatchObject({
+      apiKey: "sk-test",
+    });
+    expect(applied).toHaveLength(1);
+  });
+
+  test("applies a replaced key even though the visible settings do not change", async () => {
+    const { store, applied } = createSpeechStore({
+      version: 1,
+      features: { dictation: { stt: { provider: "openai", apiKey: "sk-old" } } },
+    });
+
+    await store.patch({ features: { dictation: { stt: { apiKey: "sk-new" } } } });
+
+    expect(applied.map((next) => next.features?.dictation?.stt)).toEqual([
+      { provider: "openai", apiKey: "sk-new" },
+    ]);
+  });
+
+  test("switching provider clears the previous provider's model", async () => {
+    const { paseoHome, store } = createSpeechStore({
+      version: 1,
+      features: { dictation: { stt: { provider: "local", model: "parakeet-tdt-0.6b-v3-int8" } } },
+    });
+
+    const result = await store.patch({ features: { dictation: { stt: { provider: "openai" } } } });
+
+    expect(result.features?.dictation.stt).toEqual({ provider: "openai", hasApiKey: false });
+    expect(loadPersistedConfig(paseoHome).features?.dictation?.stt).toEqual({
+      provider: "openai",
+    });
+  });
+
+  test("rejects a local model id outside the catalog without persisting it", async () => {
+    const { paseoHome, store, applied } = createSpeechStore();
+
+    await expect(
+      store.patch({ features: { voiceMode: { tts: { provider: "local", model: "nope" } } } }),
+    ).rejects.toThrow("Unknown local voice model: nope");
+    expect(loadPersistedConfig(paseoHome).features?.voiceMode).toBeUndefined();
+    expect(applied).toEqual([]);
+  });
+
+  test("reload applies hand-edited speech settings without a restart", async () => {
+    const { paseoHome, store, applied, persisted } = createSpeechStore();
+    writeFileSync(
+      path.join(paseoHome, "config.json"),
+      `${JSON.stringify({ ...persisted, features: { voiceMode: { enabled: false } } }, null, 2)}\n`,
+    );
+
+    const result = await store.reload();
+
+    expect(result.appliedPaths).toContain("features.voiceMode");
+    expect(result.restartRequiredPaths).toEqual([]);
+    expect(store.get().features?.voiceMode.enabled).toBe(false);
+    expect(applied).toHaveLength(1);
+  });
+  test("merges same-provider fields and replaces the whole variant when provider changes", async () => {
+    const { paseoHome, store } = createSpeechStore();
+    await store.patch({
+      features: {
+        voiceMode: {
+          stt: { provider: "openai", apiKey: "secret", baseUrl: "https://site/v1", model: "first" },
+        },
+      },
+    });
+    await store.patch({ features: { voiceMode: { stt: { model: "second", baseUrl: null } } } });
+    expect(loadPersistedConfig(paseoHome).features?.voiceMode?.stt).toEqual({
+      provider: "openai",
+      apiKey: "secret",
+      model: "second",
+    });
+    await store.patch({ features: { voiceMode: { stt: { provider: "openai", model: "third" } } } });
+    expect(store.get().features?.voiceMode.stt).toEqual({
+      provider: "openai",
+      model: "third",
+      hasApiKey: true,
+    });
+    await store.patch({ features: { voiceMode: { stt: { apiKey: "new-secret" } } } });
+    await store.patch({ features: { voiceMode: { stt: { provider: "local" } } } });
+    await store.patch({ features: { voiceMode: { stt: { provider: "openai" } } } });
+    expect(store.get().features?.voiceMode.stt).toEqual({ provider: "openai", hasApiKey: false });
+  });
+
+  test("keeps a saved OpenAI key when a full variant patch omits the write-only key", async () => {
+    const { paseoHome, store } = createSpeechStore({
+      features: { voiceMode: { stt: { provider: "openai", apiKey: "saved-secret" } } },
+    });
+    const result = await store.patch({
+      features: { voiceMode: { stt: { provider: "openai", model: "whisper-1" } } },
+    });
+    expect(result.features?.voiceMode.stt).toEqual({
+      provider: "openai",
+      model: "whisper-1",
+      hasApiKey: true,
+    });
+    expect(loadPersistedConfig(paseoHome).features?.voiceMode?.stt).toEqual({
+      provider: "openai",
+      apiKey: "saved-secret",
+      model: "whisper-1",
+    });
+    expect(JSON.stringify(result)).not.toContain("saved-secret");
+  });
+
+  test("loads a legacy host, redacts its key and writes the normalized config after any save", async () => {
+    const { paseoHome, store } = createSpeechStore({
+      providers: { openai: { apiKey: "legacy-secret", stt: { baseUrl: "https://old/v1" } } },
+      features: { voiceMode: { enabled: true, stt: { provider: "openai" } } },
+    });
+    expect(store.get().features?.voiceMode.stt).toEqual({
+      provider: "openai",
+      baseUrl: "https://old/v1",
+      hasApiKey: true,
+    });
+    expect(JSON.stringify(store.get())).not.toContain("legacy-secret");
+    await store.patch({ autoArchiveAfterMerge: true });
+    const disk = JSON.parse(readFileSync(path.join(paseoHome, "config.json"), "utf8"));
+    expect(disk.providers).not.toHaveProperty("openai");
+    expect(disk.features.voiceMode.stt.apiKey).toBe("legacy-secret");
+  });
+
+  test("reports env overrides and removes fallback provenance after saving a key", async () => {
+    const { store } = createSpeechStore(
+      { features: { voiceMode: { stt: { provider: "openai", model: "configured" } } } },
+      {
+        PASEO_VOICE_STT_PROVIDER: "local",
+        OPENAI_API_KEY: "env-secret",
+      },
+    );
+    expect(store.get().features?.voiceMode.stt.provider).toBe("local");
+    expect(store.get().envOverrides).toEqual({
+      "features.voiceMode.stt.provider": "PASEO_VOICE_STT_PROVIDER",
+    });
+    const other = createSpeechStore(
+      { features: { voiceMode: { stt: { provider: "openai" } } } },
+      {
+        OPENAI_API_KEY: "env-secret",
+        OPENAI_STT_BASE_URL: "https://env/v1",
+        STT_MODEL: "override",
+      },
+    ).store;
+    expect(other.get().envOverrides).toEqual({
+      "features.voiceMode.stt.apiKey": "OPENAI_API_KEY",
+      "features.voiceMode.stt.baseUrl": "OPENAI_STT_BASE_URL",
+      "features.voiceMode.stt.model": "STT_MODEL",
+    });
+    expect(other.get().features?.voiceMode.stt.hasApiKey).toBe(false);
+    await other.patch({
+      features: { voiceMode: { stt: { apiKey: "saved-secret", baseUrl: "https://saved/v1" } } },
+    });
+    expect(other.get().envOverrides).toEqual({ "features.voiceMode.stt.model": "STT_MODEL" });
+    expect(JSON.stringify(other.get())).not.toContain("secret");
   });
 });

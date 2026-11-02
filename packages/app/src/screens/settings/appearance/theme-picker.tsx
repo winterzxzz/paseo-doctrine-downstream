@@ -1,8 +1,9 @@
 import { memo, useCallback, useMemo } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import { PressHighlight } from "@/components/ui/press-highlight";
 import { Check } from "lucide-react-native";
 import {
   darkTheme,
@@ -123,7 +124,7 @@ const ThemeCard = memo(function ThemeCard({ label, theme, selected, onPress }: T
   const cardStyle = selected ? [styles.card, styles.cardSelected] : styles.card;
   const accessibilityState = useMemo(() => ({ checked: selected }), [selected]);
   return (
-    <Pressable
+    <PressHighlight
       accessibilityRole="radio"
       accessibilityState={accessibilityState}
       accessibilityLabel={label}
@@ -142,7 +143,7 @@ const ThemeCard = memo(function ThemeCard({ label, theme, selected, onPress }: T
         </Text>
         {selected ? <ThemedCheck size={ICON_SIZE.sm} uniProps={accentColorMapping} /> : null}
       </View>
-    </Pressable>
+    </PressHighlight>
   );
 });
 

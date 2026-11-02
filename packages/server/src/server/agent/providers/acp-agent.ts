@@ -88,6 +88,7 @@ import {
   type AgentStreamEvent,
   type AgentTimelineItem,
   type AgentUsage,
+  type AgentUsageSession,
   type FetchCatalogOptions,
   type ProviderRefreshContext,
   type ImportableProviderSession,
@@ -112,6 +113,7 @@ import {
 import { importSessionFromPersistence } from "../provider-session-import.js";
 import {
   checkProviderLaunchAvailable,
+  createProviderEnv,
   createProviderEnvSpec,
   resolveProviderLaunch,
   type ProviderRuntimeSettings,
@@ -456,6 +458,8 @@ export type ACPCatalogModelResolver = (
 
 interface ACPAgentClientOptions {
   provider: string;
+  // Provider id usage sources match a session against; ACP sessions without one report no usage.
+  usageProvider?: string;
   logger: Logger;
   runtimeSettings?: ProviderRuntimeSettings;
   defaultCommand: [string, ...string[]];
@@ -488,6 +492,7 @@ interface ACPAgentClientOptions {
 
 interface ACPAgentSessionOptions {
   provider: string;
+  usageProvider?: string;
   logger: Logger;
   runtimeSettings?: ProviderRuntimeSettings;
   defaultCommand: [string, ...string[]];
@@ -667,6 +672,7 @@ interface TerminalExit {
 }
 
 interface TerminalEntry {
+  running: boolean;
   id: string;
   child: ChildProcess;
   output: string;
@@ -933,6 +939,7 @@ function isACPCreateConfigUnattended(input: AgentCreateConfigUnattendedInput): b
 
 export class ACPAgentClient implements AgentClient {
   readonly provider: string;
+  private readonly usageProvider?: string;
   readonly capabilities: AgentCapabilityFlags;
   readonly resolveCreateConfig = resolveACPCreateConfig;
   readonly isCreateConfigUnattended = isACPCreateConfigUnattended;
@@ -974,6 +981,7 @@ export class ACPAgentClient implements AgentClient {
 
   constructor(options: ACPAgentClientOptions) {
     this.provider = options.provider;
+    this.usageProvider = options.usageProvider;
     this.terminateProcess = options.terminateProcess ?? terminateWithTreeKill;
     this.capabilities = options.capabilities ?? DEFAULT_ACP_CAPABILITIES;
     this.logger = options.logger.child({
@@ -1043,6 +1051,7 @@ export class ACPAgentClient implements AgentClient {
       { ...preparedConfig, provider: this.provider },
       {
         provider: this.provider,
+        usageProvider: this.usageProvider,
         logger: this.logger,
         runtimeSettings: this.runtimeSettings,
         defaultCommand: sessionLaunch?.command ?? this.defaultCommand,
@@ -1106,6 +1115,7 @@ export class ACPAgentClient implements AgentClient {
     );
     const session = new ACPAgentSession(preparedConfig, {
       provider: this.provider,
+      usageProvider: this.usageProvider,
       logger: this.logger,
       runtimeSettings: this.runtimeSettings,
       defaultCommand: sessionLaunch?.command ?? this.defaultCommand,
@@ -1782,6 +1792,9 @@ export class ACPAgentSession implements AgentSession, ACPClient {
   private readonly forwardMcpServers: boolean;
   private readonly resolveMcpToolIdentity?: ACPSessionLaunchPreparation["resolveMcpToolIdentity"];
   private readonly sessionCleanup?: () => Promise<void> | void;
+  private readonly usageProvider?: string;
+  private readonly usageSessionKey = randomUUID();
+  private readonly harnessEnvironment: Record<string, string>;
   private readonly subscribers = new Set<(event: AgentStreamEvent) => void>();
   private readonly pendingPermissions = new Map<string, PendingPermission>();
   private pendingUserMessage: PendingUserMessage | null = null;
@@ -1821,6 +1834,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
   private fallbackAssistantMessageId: string | null = null;
   private closed = false;
   private historyPending = false;
+  private historyRuntimeReleased = false;
   private replayingHistory = false;
   private bootstrapThreadEventPending = false;
   private readonly terminateProcess: ProcessTerminator;
@@ -1851,6 +1865,11 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     this.forwardMcpServers = options.forwardMcpServers ?? true;
     this.resolveMcpToolIdentity = options.resolveMcpToolIdentity;
     this.sessionCleanup = options.sessionCleanup;
+    this.usageProvider = options.usageProvider;
+    this.harnessEnvironment = createProviderEnv({
+      runtimeSettings: options.runtimeSettings,
+      overlays: [options.launchEnv],
+    });
     this.initialHandle = options.handle;
     this.resumePurpose = options.resumePurpose ?? "interactive";
     this.config = { ...config, provider: options.provider };
@@ -1865,6 +1884,16 @@ export class ACPAgentSession implements AgentSession, ACPClient {
 
   get id(): string | null {
     return this.sessionId;
+  }
+
+  usageSession(): AgentUsageSession | null {
+    if (this.closed || !this.usageProvider) return null;
+    return {
+      provider: this.usageProvider,
+      model: this.currentModel ?? undefined,
+      env: this.harnessEnvironment,
+      sessionKey: this.usageSessionKey,
+    };
   }
 
   async initializeNewSession(): Promise<void> {
@@ -1916,6 +1945,10 @@ export class ACPAgentSession implements AgentSession, ACPClient {
       await this.attachExistingSession(handle.sessionId);
       this.historyPending = this.persistedHistory.length > 0;
       await this.applyConfiguredOverrides();
+
+      if (this.resumePurpose === "history") {
+        await this.releaseHistoryRuntime();
+      }
     } catch (error) {
       await this.closeAfterInitializationFailure(error);
     }
@@ -1975,6 +2008,29 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     await this.attachExistingSession(sessionId);
     this.persistedHistory.length = historyLength;
     await this.applyConfiguredOverrides();
+  }
+
+  // History resumes exist to replay persisted events into the canonical
+  // timeline; the provider process is released once replay finishes so
+  // archived agents hold no resident runtime. Interactive work goes through
+  // reloadAgentSession, which spawns a fresh process.
+  private async releaseHistoryRuntime(): Promise<void> {
+    const child = this.child;
+    if (child) {
+      const result = await this.terminateProcess(child, {
+        gracefulTimeoutMs: 2_000,
+        forceTimeoutMs: 2_000,
+      });
+      if (result === "kill-timeout") {
+        // Keep the child registered so close() can retry the shutdown.
+        this.logger.warn("ACP history resume could not release the provider process");
+        return;
+      }
+    }
+    this.historyRuntimeReleased = true;
+    this.connection = null;
+    this.child = null;
+    this.settleCommandsReady();
   }
 
   private async closeAfterInitializationFailure(error: unknown): Promise<never> {
@@ -2666,6 +2722,15 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     return true;
   }
 
+  async canStopRuntime(): Promise<boolean> {
+    return (
+      this.activeForegroundTurnId === null &&
+      this.pendingPermissions.size === 0 &&
+      this.pendingUserMessage === null &&
+      !Array.from(this.terminalEntries.values()).some((terminal) => terminal.running)
+    );
+  }
+
   async close(): Promise<void> {
     if (this.closed) {
       return;
@@ -2702,12 +2767,14 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     }
 
     try {
-      const terminalTerminations = Array.from(this.terminalEntries.values(), (terminal) =>
-        this.terminateProcess(terminal.child, {
-          gracefulTimeoutMs: 2_000,
-          forceTimeoutMs: 2_000,
-        }),
-      );
+      const terminalTerminations = Array.from(this.terminalEntries.values())
+        .filter((terminal) => terminal.running)
+        .map((terminal) =>
+          this.terminateProcess(terminal.child, {
+            gracefulTimeoutMs: 2_000,
+            forceTimeoutMs: 2_000,
+          }),
+        );
       await Promise.all(terminalTerminations);
       this.terminalEntries.clear();
 
@@ -2935,6 +3002,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     waitForExit.catch(() => undefined);
 
     const entry: TerminalEntry = {
+      running: true,
       id: terminalId,
       child,
       output: "",
@@ -2955,10 +3023,13 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     child.once("error", (error) => {
       const spawnError = error instanceof Error ? error : new Error(String(error));
       appendTerminalOutput(entry, `${spawnError.message}\n`);
+      // A failed spawn has no exit event. Other process errors do not prove exit.
+      if (child.pid === undefined) entry.running = false;
       rejectExit(spawnError);
     });
     child.once("exit", (code, signal) => {
       const exit = { exitCode: code, signal };
+      entry.running = false;
       entry.exit = exit;
       resolveExit(exit);
     });
@@ -2983,7 +3054,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
 
   async releaseTerminal(params: { sessionId: string; terminalId: string }): Promise<void> {
     const entry = this.getTerminalEntry(params.terminalId);
-    if (!entry.exit) {
+    if (entry.running) {
       await this.terminateProcess(entry.child, { gracefulTimeoutMs: 2_000, forceTimeoutMs: 2_000 });
     }
     this.terminalEntries.delete(params.terminalId);
@@ -2991,7 +3062,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
 
   async killTerminal(params: KillTerminalRequest): Promise<Record<string, never>> {
     const entry = this.getTerminalEntry(params.terminalId);
-    if (!entry.exit) {
+    if (entry.running) {
       await this.terminateProcess(entry.child, { gracefulTimeoutMs: 2_000, forceTimeoutMs: 2_000 });
     }
     return {};
@@ -3035,7 +3106,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
     });
     const spawnError = rejectOnSpawnError(child, stderrChunks);
     child.once("exit", (code, signal) => {
-      if (this.closed || this.child !== child) {
+      if (this.closed || this.historyRuntimeReleased || this.child !== child) {
         return;
       }
       if (this.activeForegroundTurnId) {
@@ -3265,7 +3336,7 @@ export class ACPAgentSession implements AgentSession, ACPClient {
         this.cachedCommands = update.availableCommands.map((command) => ({
           name: command.name,
           description: command.description,
-          argumentHint: "",
+          argumentHint: command.input?.hint ?? "",
           kind: "command",
         }));
         this.settleCommandsReady();
@@ -4225,10 +4296,16 @@ function appendTerminalOutput(entry: TerminalEntry, chunk: string): void {
   if (!limit) {
     return;
   }
-  while (Buffer.byteLength(entry.output, "utf8") > limit && entry.output.length > 0) {
-    entry.output = entry.output.slice(1);
-    entry.truncated = true;
+  const output = Buffer.from(entry.output, "utf8");
+  if (output.length <= limit) {
+    return;
   }
+  let start = output.length - limit;
+  while (start < output.length && (output[start] & 0xc0) === 0x80) {
+    start += 1;
+  }
+  entry.output = output.subarray(start).toString("utf8");
+  entry.truncated = true;
 }
 
 function readRecord(value: unknown): Record<string, unknown> | null {

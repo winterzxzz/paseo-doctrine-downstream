@@ -1,7 +1,8 @@
 import { Network } from "lucide-react-native";
 import { useCallback } from "react";
-import { Pressable, ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
+import { ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import { PressHighlight } from "@/components/ui/press-highlight";
 import type { BeadsIssue } from "@getpaseo/protocol/beads/rpc-schemas";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { definePanel } from "@/panels/panel-registry";
@@ -47,7 +48,7 @@ function TopologyNodeRow({
   const assignmentLabel = formatTopologyAssignment(node);
   const handleOpen = useCallback(() => openAgent(node.id), [node.id, openAgent]);
   return (
-    <Pressable
+    <PressHighlight
       accessibilityRole="button"
       accessibilityLabel={`Open ${node.title}, ${node.role}, ${node.status}`}
       onPress={handleOpen}
@@ -94,7 +95,7 @@ function TopologyNodeRow({
           ) : null}
         </View>
       ) : null}
-    </Pressable>
+    </PressHighlight>
   );
 }
 

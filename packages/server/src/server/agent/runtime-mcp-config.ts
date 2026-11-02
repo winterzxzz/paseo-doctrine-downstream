@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { access, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 
@@ -37,7 +36,7 @@ export async function resolveTrustedSembleRuntime(input: {
   const proxyPath =
     input.proxyPath ??
     fileURLToPath(new URL("../../../scripts/trusted-semble-proxy.mjs", import.meta.url));
-  if (!existsSync(proxyPath)) return null;
+  if (!(await pathExists(proxyPath))) return null;
   const uvxPath = await (input.resolveExecutable ?? findExecutable)("uvx");
   if (!uvxPath) return null;
   const runtime = {
@@ -47,6 +46,15 @@ export async function resolveTrustedSembleRuntime(input: {
   };
   const prepared = await (input.prepareRuntime ?? prepareTrustedSembleRuntime)(runtime);
   return prepared ? runtime : null;
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function trustedSembleSharedEnvironment(

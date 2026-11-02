@@ -157,7 +157,7 @@ function ShapePrimitive({ primitive, color }: { primitive: ProjectIconPrimitive;
 
 const styles = StyleSheet.create({
   labelLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
   },

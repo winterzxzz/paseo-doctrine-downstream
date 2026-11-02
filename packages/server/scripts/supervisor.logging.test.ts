@@ -31,6 +31,7 @@ async function runSupervisorFixture(options: {
   blockLogPath?: boolean;
   /** Close the reading end of the supervisor's stdout and stderr as soon as it starts. */
   closeOutput?: boolean;
+  env?: NodeJS.ProcessEnv;
 }): Promise<{
   code: number | null;
   signal: NodeJS.Signals | null;
@@ -87,7 +88,9 @@ async function runSupervisorFixture(options: {
         ];
   const child = spawn(command, args, {
     cwd: repoRoot,
-    env: { ...process.env },
+    // A Node color-conflict warning can hit closed stderr before runSupervisor installs
+    // its pipe-error handlers. This fixture exercises the supervisor's own output.
+    env: { ...process.env, ...options.env, NO_COLOR: undefined, FORCE_COLOR: undefined },
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -212,10 +215,16 @@ describe("supervisor durable logging", () => {
     expect(result.stderr).toContain('"worker-json-stderr"');
   });
 
-  test("keeps supervising the worker when nobody reads its stdout or stderr", async () => {
-    const result = await runSupervisorFixture({
-      closeOutput: true,
-      workerSource: `
+  test.each([
+    { colors: "inherited", env: {} },
+    { colors: "conflicting", env: { NO_COLOR: "1", FORCE_COLOR: "1" } },
+  ])(
+    "keeps supervising the worker when nobody reads its stdout or stderr with $colors colors",
+    async ({ env }) => {
+      const result = await runSupervisorFixture({
+        closeOutput: true,
+        env,
+        workerSource: `
         process.on("message", (message) => {
           if (message?.type === "paseo:graceful-shutdown") process.exit(0);
         });
@@ -227,14 +236,15 @@ describe("supervisor durable logging", () => {
         }, 500);
         setInterval(() => {}, 1000);
       `,
-    });
+      });
 
-    expect(result.code).toBe(0);
-    expect(result.signal).toBeNull();
-    expect(result.log).toContain("first stderr line\n");
-    expect(result.log).toContain("later stdout line\n");
-    expect(result.log).toContain('"reason":"closed_output_probe"');
-  });
+      expect(result.code).toBe(0);
+      expect(result.signal).toBeNull();
+      expect(result.log).toContain("first stderr line\n");
+      expect(result.log).toContain("later stdout line\n");
+      expect(result.log).toContain('"reason":"closed_output_probe"');
+    },
+  );
 
   test("preserves raw non-JSON stdout and stderr lines", async () => {
     const result = await runSupervisorFixture({

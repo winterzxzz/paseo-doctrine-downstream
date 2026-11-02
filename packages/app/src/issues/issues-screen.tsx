@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { router } from "expo-router";
 import { ListChecks, Plus, RotateCw, ShieldCheck, X } from "lucide-react-native";
-import { Pressable, ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
+import { ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import { PressHighlight } from "@/components/ui/press-highlight";
 import type {
   BeadsIssue,
   BeadsIssueStatus,
@@ -400,14 +401,14 @@ function FilterButton({
     [selected],
   );
   return (
-    <Pressable
+    <PressHighlight
       onPress={handlePress}
       style={style}
       accessibilityRole="button"
       accessibilityState={accessibilityState}
     >
       <Text style={[styles.filterText, selected && styles.filterTextSelected]}>{label}</Text>
-    </Pressable>
+    </PressHighlight>
   );
 }
 
@@ -435,7 +436,7 @@ function IssueRow({
   );
 
   return (
-    <Pressable
+    <PressHighlight
       onPress={handlePress}
       style={style}
       accessibilityRole="button"
@@ -464,7 +465,7 @@ function IssueRow({
           </>
         ) : null}
       </View>
-    </Pressable>
+    </PressHighlight>
   );
 }
 
@@ -986,14 +987,14 @@ function OptionButton<TValue extends string | number>({
     [selected],
   );
   return (
-    <Pressable
+    <PressHighlight
       style={style}
       onPress={handlePress}
       accessibilityRole="radio"
       accessibilityState={accessibilityState}
     >
       <Text style={[styles.optionText, selected && styles.optionTextSelected]}>{label}</Text>
-    </Pressable>
+    </PressHighlight>
   );
 }
 

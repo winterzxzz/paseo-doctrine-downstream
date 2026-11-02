@@ -1,3 +1,4 @@
+import { createWorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
 import { SessionDelivery } from "./session/owned-subscriptions/index.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { Server as HTTPServer } from "http";
@@ -73,6 +74,18 @@ const sessionMock = vi.hoisted(() => {
     wantsSourceEvent = (source: object) => !this.delivery.isModern(source);
     getSessionId = vi.fn(() => "mock-session-id");
     getPermissions = vi.fn(() => this.args.permissions as string[]);
+    setPermissions = (permissions: string[]) => {
+      this.args.permissions = permissions;
+    };
+    private routed = false;
+    setRouted = (routed: boolean) => {
+      this.routed = routed;
+    };
+    isRouted = () => this.routed;
+    setHostSource = (sourceId: string) => {
+      this.args.sourceId = sourceId;
+    };
+    getHostSourceId = () => this.args.sourceId as string;
     allowsInbound = vi.fn(() => true);
     allowsPermission = vi.fn(() => true);
     publish = vi.fn((message: unknown) => {
@@ -275,6 +288,7 @@ function createServer(options?: {
     null,
     { allowedOrigins: new Set(), startPaused: options?.startPaused },
     createWorkspaceAutoNameStub(),
+    createWorkspaceRuntimeStore(),
     options?.auth,
     speechReadiness
       ? {
@@ -475,16 +489,12 @@ function holdNextSessionMessage(session: (typeof sessionMock.instances)[number])
 function holdSessionCleanup(session: (typeof sessionMock.instances)[number]): {
   finish: () => void;
 } {
-  let finish = () => {};
-  session.cleanup.mockImplementationOnce(
-    () =>
-      new Promise<void>((resolve) => {
-        finish = resolve;
-      }),
-  );
-  return {
-    finish: () => finish(),
-  };
+  let finish!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  session.cleanup.mockImplementationOnce(() => pending);
+  return { finish };
 }
 
 describe("relay external socket reconnect behavior", () => {
@@ -533,7 +543,7 @@ describe("relay external socket reconnect behavior", () => {
       await server.close();
     }
   });
-  test("admits a hello password and an old relay hello, but rejects a wrong password", async () => {
+  test("admits a relay hello password, but rejects a wrong or missing password", async () => {
     const server = createServer({
       auth: {
         password: "$2b$12$OLxyuuP9uLK30Uzc4wQX0O6liuU/Q1t5P2b0Ebf36mULvpVK3DRZW",
@@ -555,7 +565,8 @@ describe("relay external socket reconnect behavior", () => {
       const legacySocket = new MockSocket();
       await server.attachExternalSocket(legacySocket, { transport: "relay" });
       legacySocket.emit("message", JSON.stringify(createHelloMessage("relay-legacy")));
-      await vi.waitFor(() => expect(sentServerInfoEnvelopes(legacySocket)).toHaveLength(1));
+      await vi.waitFor(() => expect(legacySocket.readyState).toBe(3));
+      expect(sentServerInfoEnvelopes(legacySocket)).toHaveLength(0);
 
       const wrongSocket = new MockSocket();
       await server.attachExternalSocket(wrongSocket, { transport: "relay" });
@@ -1176,6 +1187,7 @@ describe("relay external socket reconnect behavior", () => {
     expect(serverInfo.features?.stableProjectIdentity).toBe(true);
     expect(serverInfo.features?.canonicalSubmittedPrompts).toBe(true);
     expect(serverInfo.features?.providersSnapshotCwd).toBe(true);
+    expect(serverInfo.features?.hopliteProvider).toBe(false);
     expect(serverInfo.features?.pluginLogs).toBe(true);
     expect(serverInfo.features?.workspaceMarkUnread).toBe(true);
     expect(serverInfo.features?.["terminal-input-mode-replay"]).toBe(true);

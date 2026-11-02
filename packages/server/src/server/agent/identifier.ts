@@ -19,6 +19,13 @@ export async function resolveAgentIdentifier(
     return { ok: false, notFound: false, error: "Agent identifier cannot be empty" };
   }
 
+  // An internal agent, live or recently archived, is addressable by its exact
+  // id and nothing else: the caller that created it holds the id, and no
+  // listing ever includes it.
+  if (input.agentManager.getAgent(trimmed) || input.agentManager.getRetiredInternalAgent(trimmed)) {
+    return { ok: true, agentId: trimmed };
+  }
+
   const stored = await input.agentStorage.list();
   const storedRecords = stored.filter((record) => !record.internal);
   const knownIds = new Set(storedRecords.map((record) => record.id));

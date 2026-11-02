@@ -117,6 +117,8 @@ const workspace: WorkspaceDescriptor = {
   archivingAt: null,
   diffStat: null,
   scripts: [],
+  createdAt: new Date(0),
+  lastUserMessageAt: null,
 };
 
 function summarizeCouncilWorkspace(council: CouncilCase) {

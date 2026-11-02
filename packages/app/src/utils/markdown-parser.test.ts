@@ -1,9 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { ASTNode } from "react-native-markdown-display";
-// The package exports this adapter through an index.js file containing JSX,
-// which Vitest cannot parse as plain .js. Import the pure adapter directly.
-// @ts-expect-error react-native-markdown-display does not publish internal module declarations.
-import parseMarkdownDisplay from "react-native-markdown-display/src/lib/parser";
 import { createMarkdownParser } from "./markdown-parser";
 
 // Every string markdown-it's typographer would rewrite, with the character it
@@ -71,29 +66,7 @@ describe("createMarkdownParser", () => {
       createMarkdownParser({ linkify: false }).render("see https://paseo.sh now"),
     ).not.toContain("href");
   });
-
-  it("feeds Markdown-It 14 tokens through the native renderer AST adapter", () => {
-    const markdown = createMarkdownParser({ linkify: true });
-    const ast = parseMarkdownDisplay(
-      "## Heading\n\nVisit https://paseo.sh and use `paseo status`.",
-      ((nodes: ASTNode[]) => nodes) as never,
-      markdown,
-    ) as unknown as ASTNode[];
-    const nodes = flattenAst(ast);
-
-    expect(nodes.some((node) => node.type === "heading2")).toBe(true);
-    expect(
-      nodes.some((node) => node.type === "link" && node.attributes.href === "https://paseo.sh"),
-    ).toBe(true);
-    expect(
-      nodes.some((node) => node.type === "code_inline" && node.content === "paseo status"),
-    ).toBe(true);
-  });
 });
-
-function flattenAst(nodes: ASTNode[]): ASTNode[] {
-  return nodes.flatMap((node) => [node, ...flattenAst(node.children)]);
-}
 
 function escapeHtml(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");

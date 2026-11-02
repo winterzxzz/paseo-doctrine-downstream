@@ -10,8 +10,9 @@ import {
   ShieldAlert,
   UsersRound,
 } from "lucide-react-native";
-import { Pressable, ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
+import { ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import { PressHighlight } from "@/components/ui/press-highlight";
 import { BackHeader } from "@/components/headers/back-header";
 import { MenuHeader } from "@/components/headers/menu-header";
 import { ScreenHeader } from "@/components/headers/screen-header";
@@ -283,7 +284,7 @@ function CouncilRow({ council, selected }: { council: CouncilCase; selected: boo
   );
 
   return (
-    <Pressable
+    <PressHighlight
       onPress={handlePress}
       style={rowStyle}
       accessibilityRole="button"
@@ -319,7 +320,7 @@ function CouncilRow({ council, selected }: { council: CouncilCase; selected: boo
         </Text>
         <Text style={styles.councilRowCountLabel}>ready</Text>
       </View>
-    </Pressable>
+    </PressHighlight>
   );
 }
 
@@ -663,7 +664,7 @@ function CouncilSeatFooter({ seat, roleLabel }: { seat: CouncilSeat; roleLabel: 
     );
   }
   return (
-    <Pressable
+    <PressHighlight
       onPress={handleOpenAgent}
       style={footerStyle}
       accessibilityRole="button"
@@ -672,7 +673,7 @@ function CouncilSeatFooter({ seat, roleLabel }: { seat: CouncilSeat; roleLabel: 
     >
       <Text style={styles.seatFooterText}>Open agent</Text>
       <ThemedChevronRight size={18} uniProps={foregroundMutedMapping} />
-    </Pressable>
+    </PressHighlight>
   );
 }
 
@@ -804,7 +805,7 @@ function CouncilDecisionSummary({ council, compact }: { council: CouncilCase; co
         <Text style={styles.summaryTitle}>{verdictCopy.title}</Text>
         <Text style={styles.summaryText}>{verdictCopy.text}</Text>
         {caseOwnerAgentId ? (
-          <Pressable
+          <PressHighlight
             onPress={handleOpenLead}
             style={leadFooterStyle}
             accessibilityRole="button"
@@ -815,7 +816,7 @@ function CouncilDecisionSummary({ council, compact }: { council: CouncilCase; co
               {verdictLeadLinked ? "Open Lead" : "Open case owner"}
             </Text>
             <ThemedChevronRight size={18} uniProps={foregroundMutedMapping} />
-          </Pressable>
+          </PressHighlight>
         ) : (
           <Text style={styles.leadUnavailable}>
             Lead link is unavailable for this historical case.

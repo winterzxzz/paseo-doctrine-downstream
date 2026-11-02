@@ -12,6 +12,7 @@ export const builtinPlugins = [
   "cursor-usage-source",
   "factory-droid-usage-source",
   "grok-usage-source",
+  "hoplite-provider",
   "kimi-usage-source",
   "minimax-usage-source",
   "opencode-go-usage-source",

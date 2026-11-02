@@ -17,6 +17,12 @@ describe("ACP provider catalog", () => {
     expect(getAcpProviderCatalog().map((entry) => entry.id)).not.toContain("fast-agent");
     expect(getAcpProviderCatalog().map((entry) => entry.id)).not.toContain("hermes");
   });
+  it.each(["devin", "hermes", "kiro"])(
+    "#7087: %s supplies its provider mark to the catalog picker",
+    (provider) => {
+      expect(findProvider(provider).iconSvg).toContain("<svg");
+    },
+  );
 
   it("vendors provider entries with unique ids and concrete commands", () => {
     const ids = new Set<string>();
@@ -55,6 +61,7 @@ describe("ACP provider catalog", () => {
     expect(findProvider("codewhale").command).toEqual(["codewhale", "serve", "--acp"]);
     expect(findProvider("devin").command).toEqual(["devin", "acp"]);
     expect(findProvider("goose").command).toEqual(["goose", "acp"]);
+    expect(findProvider("hoplite").command).toEqual(["hoplite", "acp"]);
     expect(findProvider("junie").command).toEqual(["junie", "--acp", "true"]);
     expect(findProvider("kiro").command).toEqual(["kiro-cli", "acp"]);
     expect(findProvider("poolside").command).toEqual(["pool", "acp"]);
@@ -64,8 +71,8 @@ describe("ACP provider catalog", () => {
   it("retains MiniMax Code as raw upstream metadata without product qualification", () => {
     expect(findProvider("minimax-code")).toMatchObject({
       title: "MiniMax Code",
-      version: "0.1.2",
-      command: ["npx", "-y", "@minimax-ai/code@0.1.2", "acp"],
+      version: "0.6.13",
+      command: ["npx", "-y", "@minimax-ai/code@0.6.13", "acp"],
     });
     expect(findProvider("minimax-code").iconSvg).toContain("<svg");
   });
@@ -73,11 +80,38 @@ describe("ACP provider catalog", () => {
   it("retains stable fast-agent metadata with the exact uvx invocation", () => {
     expect(findProvider("fast-agent")).toMatchObject({
       title: "fast-agent",
-      version: "0.9.22",
-      command: ["uvx", "--from", "fast-agent-acp==0.9.22", "fast-agent-acp", "-x"],
+      version: "0.10.47",
+      command: ["uvx", "--from", "fast-agent-acp==0.10.47", "fast-agent-acp", "-x"],
     });
     expect(findProvider("fast-agent").iconSvg).toContain("<svg");
   });
+
+  it("offers Hoplite through its local ACP bridge with the Hoplite mark", () => {
+    expect(findProvider("hoplite")).toMatchObject({
+      title: "Hoplite",
+      command: ["hoplite", "acp"],
+      installLink: "https://hoplite.sh/docs/cli#install",
+    });
+    expect(buildAcpProviderConfigPatch(findProvider("hoplite"), true)).toEqual({
+      providers: {
+        hoplite: { enabled: true },
+      },
+    });
+    expect(getAcpProviderCatalog().map((entry) => entry.id)).not.toContain("hoplite");
+    const ids = ACP_PROVIDER_CATALOG.map((entry) => entry.id);
+    expect(ids.indexOf("hermes")).toBeLessThan(ids.indexOf("hoplite"));
+    expect(ids.indexOf("hoplite")).toBeLessThan(ids.indexOf("junie"));
+    expect(findProvider("hoplite").iconSvg).toContain('fill="currentColor"');
+  });
+
+  it.each([undefined, false])(
+    "rejects unsupported bundled Hoplite before producing a patch (%s)",
+    (supported) => {
+      expect(() => buildAcpProviderConfigPatch(findProvider("hoplite"), supported)).toThrow(
+        "Update the host to add Hoplite.",
+      );
+    },
+  );
 
   it("maps a catalog entry to the daemon provider config patch", () => {
     expect(buildAcpProviderConfigPatch(findProvider("amp-acp"))).toEqual({

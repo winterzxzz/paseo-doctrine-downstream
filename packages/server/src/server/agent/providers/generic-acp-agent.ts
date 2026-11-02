@@ -24,6 +24,7 @@ interface GenericACPAgentClientOptions {
   env?: Record<string, string>;
   providerId?: string;
   label?: string;
+  usageProvider?: string;
   waitForInitialCommands?: boolean;
   initialCommandsWaitTimeoutMs?: number;
   diagnosticPhaseTimeoutMs?: number;
@@ -45,6 +46,7 @@ export class GenericACPAgentClient extends ACPAgentClient {
   constructor(options: GenericACPAgentClientOptions) {
     super({
       provider: "acp",
+      usageProvider: options.usageProvider,
       logger: options.logger,
       runtimeSettings: {
         env: options.env,

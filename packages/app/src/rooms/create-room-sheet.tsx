@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { ChatRoomDetail } from "@getpaseo/protocol/chat/types";
-import { Pressable, Text, View, type PressableStateCallbackType } from "react-native";
+import { Text, View, type PressableStateCallbackType } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
+import { PressHighlight } from "@/components/ui/press-highlight";
 import { AdaptiveModalSheet, AdaptiveTextInput } from "@/components/adaptive-modal-sheet";
 import { Button } from "@/components/ui/button";
 import { useHostFeature } from "@/runtime/host-features";
@@ -293,7 +294,7 @@ function WorkspaceOptionRow({
   }
 
   return (
-    <Pressable
+    <PressHighlight
       onPress={handlePress}
       style={rowStyle}
       accessibilityRole="radio"
@@ -306,7 +307,7 @@ function WorkspaceOptionRow({
       <Text style={styles.workspaceOptionName} numberOfLines={1}>
         {workspaceName}
       </Text>
-    </Pressable>
+    </PressHighlight>
   );
 }
 

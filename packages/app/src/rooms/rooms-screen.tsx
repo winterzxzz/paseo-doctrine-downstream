@@ -12,8 +12,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ChatMessage, ChatRoomDetail } from "@getpaseo/protocol/chat/types";
 import { router } from "expo-router";
 import { MessageSquare, Plus, Reply, Trash2, UserRound, X } from "lucide-react-native";
-import { Pressable, ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
+import { ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import { PressHighlight } from "@/components/ui/press-highlight";
 import { BackHeader } from "@/components/headers/back-header";
 import { MenuHeader } from "@/components/headers/menu-header";
 import { ScreenHeader } from "@/components/headers/screen-header";
@@ -29,6 +30,7 @@ import {
 } from "@/composer/input/input";
 import type { MessagePayload } from "@/composer/types";
 import type { ComposerAttachment } from "@/attachments/types";
+import { useAppSettings } from "@/hooks/use-settings";
 import { useAggregatedAgents, type AggregatedAgent } from "@/hooks/use-aggregated-agents";
 import { useWorkspace } from "@/stores/session-store-hooks";
 import type { Theme } from "@/styles/theme";
@@ -314,7 +316,7 @@ function RoomRow({
   );
 
   return (
-    <Pressable
+    <PressHighlight
       onPress={handlePress}
       style={rowStyle}
       accessibilityRole="button"
@@ -338,7 +340,7 @@ function RoomRow({
         </Text>
       </View>
       <Text style={styles.roomCount}>{room.messageCount}</Text>
-    </Pressable>
+    </PressHighlight>
   );
 }
 
@@ -605,9 +607,9 @@ function RoomMessageRow({
       ) : (
         <>
           <View style={styles.messageHeader}>
-            <Pressable onPress={handleAuthorPress} accessibilityRole="button">
+            <PressHighlight onPress={handleAuthorPress} accessibilityRole="button">
               <Text style={styles.messageAuthor}>{authorLabel}</Text>
-            </Pressable>
+            </PressHighlight>
             <Text style={styles.messageTime}>{formatMessageTime(message.createdAt)}</Text>
           </View>
           <Text selectable style={styles.messageBody}>
@@ -666,8 +668,9 @@ function RoomComposer({
     () => new Map(eligibleAgents.map((agent) => [agent.id, agent])),
     [eligibleAgents],
   );
+  const { settings: appSettings } = useAppSettings();
   const textReplacement = useMemo(
-    () => ({ key: String(state.inputRevision), text: state.text }),
+    () => ({ kind: "replace" as const, key: String(state.inputRevision), text: state.text }),
     [state.inputRevision, state.text],
   );
 
@@ -788,6 +791,7 @@ function RoomComposer({
           isAgentRunning={false}
           inputMode="room"
           textReplacement={textReplacement}
+          sendShortcut={appSettings.sendShortcut}
           submitButtonTestID="room-send"
           inputTestID="room-composer-input"
         />
@@ -833,7 +837,7 @@ function MentionOptionRow({
     [],
   );
   return (
-    <Pressable
+    <PressHighlight
       onPress={handlePress}
       style={rowStyle}
       accessibilityRole="button"
@@ -844,7 +848,7 @@ function MentionOptionRow({
         <Text style={styles.mentionTitle}>{option.title}</Text>
         <Text style={styles.mentionId}>@{option.id}</Text>
       </View>
-    </Pressable>
+    </PressHighlight>
   );
 }
 

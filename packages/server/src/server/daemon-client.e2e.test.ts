@@ -193,9 +193,10 @@ test("DaemonClient uploads file bytes to daemon temp storage", async () => {
       chunkSize: 5,
     });
 
-    // Upload IDs are daemon-generated since 0.9.2 (#5317), not derived from the request ID.
     const uploadId = result.file?.id ?? "";
-    expect(uploadId).toMatch(/^upload_[0-9a-f-]{36}$/);
+    expect(uploadId).toMatch(
+      /^upload_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
     expect(result).toEqual({
       requestId: "req-upload-e2e",
       file: {
@@ -1353,9 +1354,9 @@ test("emits disabled voice capability reasons on fresh daemon startup", async ()
     expect(voice).toBeTruthy();
 
     expect(voice?.dictation.enabled).toBe(false);
-    expect(voice?.dictation.reason).toBe("Dictation is disabled in daemon config.");
+    expect(voice?.dictation.reason).toBe("Dictation is off. Turn it on in Settings > Voice.");
     expect(voice?.voice.enabled).toBe(false);
-    expect(voice?.voice.reason).toBe("Realtime voice is disabled in daemon config.");
+    expect(voice?.voice.reason).toBe("Voice mode is off. Turn it on in Settings > Voice.");
   } finally {
     await client.close().catch(() => undefined);
     await isolatedCtx.cleanup();

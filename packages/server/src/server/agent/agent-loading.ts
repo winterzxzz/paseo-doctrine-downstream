@@ -14,6 +14,13 @@ import {
   toAgentPersistenceHandle,
 } from "../persistence-hooks.js";
 
+export class AgentNotFoundError extends Error {
+  constructor(agentId: string) {
+    super(`Agent not found: ${agentId}`);
+    this.name = "AgentNotFoundError";
+  }
+}
+
 interface PendingAgentInitialization {
   promise: Promise<ManagedAgent>;
   options: { broadcastTimeline: boolean };
@@ -105,7 +112,7 @@ async function reserveAgentInitialization(
     if (existing) {
       return { kind: "load", promise: Promise.resolve(existing) };
     }
-    throw new Error(`Agent not found: ${agentId}`);
+    throw new AgentNotFoundError(agentId);
   }
 
   const inflight = pendingAgentInitializations.get(agentId);
