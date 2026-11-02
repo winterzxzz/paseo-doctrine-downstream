@@ -71,6 +71,8 @@ interface Watch {
   decision: Promise<boolean>;
   decide(accepted: boolean): void;
   pending: boolean;
+  /** Recovered from the store at startup rather than registered by this daemon. */
+  restored: boolean;
   task?: Promise<void>;
 }
 /** Outcomes a persistent role watch reports and then keeps observing. */
@@ -95,12 +97,19 @@ export function createFinishSubscriptions(deps: Dependencies): FinishSubscriptio
     );
     return result;
   }
-  function attach(records: FinishSubscription[], pending: boolean): Watch {
+  function attach(records: FinishSubscription[], pending: boolean, restored = false): Watch {
     let decide!: Watch["decide"];
     const decision = new Promise<boolean>((resolve) => {
       decide = resolve;
     });
-    const watch: Watch = { records, controller: new AbortController(), pending, decision, decide };
+    const watch: Watch = {
+      records,
+      controller: new AbortController(),
+      pending,
+      restored,
+      decision,
+      decide,
+    };
     const group = watches.get(key(records[0]!)) ?? new Set<Watch>();
     group.add(watch);
     watches.set(key(records[0]!), group);
@@ -247,6 +256,14 @@ export function createFinishSubscriptions(deps: Dependencies): FinishSubscriptio
   function waitsForChildren(record: FinishSubscription, persistent: boolean): boolean {
     return persistent && deps.hasWorkingChildren?.(record.childAgentId) === true;
   }
+  // A role watch skips the settle it reported before restart and idles while its children run.
+  function skipsRoleSettle(
+    record: FinishSubscription,
+    persistent: boolean,
+    restoredSettle: boolean,
+  ): boolean {
+    return persistent && (restoredSettle || waitsForChildren(record, persistent));
+  }
   async function run(watch: Watch, group: Set<Watch>): Promise<void> {
     const signal = watch.controller.signal;
     if (!(await watch.decision) || signal.aborted) return;
@@ -263,6 +280,8 @@ export function createFinishSubscriptions(deps: Dependencies): FinishSubscriptio
     let remoteFailures = 0;
     let retries = 0;
     let warned = false;
+    // A restored role watch already reported its child's last settle before the restart.
+    let skipRestoredSettle = watch.restored;
     async function observeNext(): Promise<FinishObservationResult | undefined> {
       try {
         observation ??= await deps.open(record, signal);
@@ -300,7 +319,9 @@ export function createFinishSubscriptions(deps: Dependencies): FinishSubscriptio
           if (signal.aborted) return;
           if (await endIfSuppressed(watch, group, record, pending)) return;
           const persistent = await isPersistentRoleOutcome(record, pending);
-          if (!acknowledged && waitsForChildren(record, persistent)) {
+          const restoredSettle = skipRestoredSettle;
+          skipRestoredSettle = false;
+          if (!acknowledged && skipsRoleSettle(record, persistent, restoredSettle)) {
             pending = undefined;
             continue;
           }
@@ -357,7 +378,7 @@ export function createFinishSubscriptions(deps: Dependencies): FinishSubscriptio
           records.push(record);
           groups.set(key(record), records);
         }
-        for (const records of groups.values()) attach(records, false);
+        for (const records of groups.values()) attach(records, false, true);
         recovering = false;
       }),
     register: (input, pendingDispatch = false) => {

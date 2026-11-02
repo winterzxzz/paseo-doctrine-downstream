@@ -3229,11 +3229,28 @@ export class AgentManager {
     };
   }
 
+  /**
+   * Waits out an idle-runtime collection and resumes the agent. Runs before the authority
+   * lock: ensureAgentLoaded takes the same lock, which is not re-entrant.
+   */
+  private async reloadCollectedRuntime(agentId: string): Promise<void> {
+    if (!this.collectingRuntimes.has(agentId) && (this.agents.has(agentId) || !this.registry)) {
+      return;
+    }
+    await this.waitForAgentClose(agentId);
+    await ensureAgentLoaded(agentId, {
+      agentManager: this,
+      agentStorage: this.requireRegistry(),
+      logger: this.logger,
+    });
+  }
+
   async startAuthorizedAgentStream(
     agentId: string,
     prompt: AgentPromptInput,
     options?: AgentRunOptions,
   ): Promise<AsyncGenerator<AgentStreamEvent>> {
+    await this.reloadCollectedRuntime(agentId);
     return withAgentAuthorityLock(agentId, async () => {
       const agent = this.requireAgent(agentId);
       const record = this.registry?.getCached(agentId) ?? null;
@@ -3250,6 +3267,7 @@ export class AgentManager {
     prompt: AgentPromptInput,
     options?: AgentRunOptions,
   ): Promise<boolean> {
+    await this.reloadCollectedRuntime(agentId);
     return withAgentAuthorityLock(agentId, async () => {
       const agent = this.requireAgent(agentId);
       const record = this.registry?.getCached(agentId) ?? null;
@@ -3273,14 +3291,8 @@ export class AgentManager {
     prompt: AgentPromptInput,
     options?: AgentRunOptions,
   ): Promise<boolean> {
-    if (this.collectingRuntimes.has(agentId) || !this.agents.has(agentId)) {
-      await this.waitForAgentClose(agentId);
-      await ensureAgentLoaded(agentId, {
-        agentManager: this,
-        agentStorage: this.requireRegistry(),
-        logger: this.logger,
-      });
-    }
+    // Callers hold the agent authority lock, which ensureAgentLoaded also takes and is not
+    // re-entrant; the *Authorized wrapper reloads a collected runtime before locking.
     const agent = this.requireSessionAgent(agentId);
     // Providers parse slash commands from the raw text, so a command another agent sent
     // must reach them without its sender envelope.
@@ -3741,6 +3753,7 @@ export class AgentManager {
     prompt: AgentPromptInput,
     options?: AgentSteerOptions,
   ): Promise<ActiveTurnSteerDispatchResult> {
+    await this.reloadCollectedRuntime(agentId);
     return withAgentAuthorityLock(agentId, async () => {
       const agent = this.requireAgent(agentId);
       const record = this.registry?.getCached(agentId) ?? null;

@@ -176,7 +176,8 @@ A plain child reports `finished` once, on its first idle after running. A role c
 under its Supervisor, a Peer under its Lead) keeps reporting every completion for as long as it
 lives, and an idle while any of its own children is still running or waiting on permission is not
 reported: that is a Lead waiting for its Peers, not a finished Lead. Errors and close still end
-the watch.
+the watch. A role watch keeps its durable record and survives restart; the first settle it
+observes after restart is the one it already reported, so it is skipped.
 
 Permission requests are notification checkpoints, not the end of that subscription. The caller is notified again after a permission response when the child finishes, errors, or requests another permission.
 The permission notification includes the normalized request plus the child and request IDs, so the caller can inspect it and respond without fetching agent status.

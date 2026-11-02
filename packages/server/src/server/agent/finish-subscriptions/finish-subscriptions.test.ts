@@ -576,3 +576,37 @@ test("a plain child still notifies its caller only once", async () => {
   await expect.poll(async () => (await state.store.list()).length).toBe(0);
   expect(state.observation.waits).toHaveLength(1);
 });
+
+test("a restored role watch does not re-report the settle it reported before restart", async () => {
+  const state = await roleScenario(true);
+  await state.service.register(intent);
+  await until(() => state.observation.waits.length === 1);
+  state.observation.waits[0]!.result.resolve(outcome("idle"));
+  await until(() => state.delivery.prompts.length === 1);
+  state.delivery.acknowledgments[0]!.resolve("steered");
+  await until(() => state.observation.waits.length === 2);
+  await state.service.close();
+
+  const observation = new Observation();
+  const delivery = new Delivery();
+  const restored = createFinishSubscriptions({
+    store: state.store,
+    messages: () => delivery,
+    open: observation.open.bind(observation),
+    isPersistentRoleChild: async () => true,
+    hasWorkingChildren: () => false,
+    callerIsActive: async () => true,
+    serverId: "origin",
+    logger: createTestLogger(),
+    retryDelayMs: 1,
+  });
+  services.push(restored);
+  await restored.start();
+  await until(() => observation.waits.length === 1);
+  observation.waits[0]!.result.resolve(outcome("idle"));
+  await until(() => observation.waits.length === 2);
+  expect(delivery.prompts).toHaveLength(0);
+  observation.waits[1]!.result.resolve(outcome("idle"));
+  await until(() => delivery.prompts.length === 1);
+  expect(delivery.prompts[0]).toContain("finished");
+});
