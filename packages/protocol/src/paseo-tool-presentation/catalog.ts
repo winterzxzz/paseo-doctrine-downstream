@@ -374,6 +374,46 @@ export const PASEO_TOOL_CATALOG = {
     detail: { inputOrder: ["provider", "cwd", "settings"] },
   },
 
+  // Coordination (downstream)
+  prepare_lead_handoff: {
+    label: "Prepare Lead handoff",
+    completedLabel: "Prepared Lead handoff",
+    context: field("objective"),
+  },
+  transition_lead_handoff: {
+    label: "Transition Lead handoff",
+    completedLabel: "Transitioned Lead handoff",
+    context: field("handoffId"),
+  },
+  ask_attention_question: {
+    label: "Ask attention question",
+    completedLabel: "Asked attention question",
+    context: field("question"),
+  },
+  signal_agent: {
+    label: "Signal agent",
+    completedLabel: "Signaled agent",
+    context: field("reason"),
+  },
+  resolve_agent_signal: {
+    label: "Resolve agent signal",
+    completedLabel: "Resolved agent signal",
+    context: field("signalId"),
+  },
+  create_room: { label: "Create room", completedLabel: "Created room", context: field("name") },
+  post_room: { label: "Post to room", completedLabel: "Posted to room", context: field("body") },
+  read_room: { label: "Read room", completedLabel: "Read room", context: field("room") },
+  start_council: {
+    label: "Start council",
+    completedLabel: "Started council",
+    context: field("title", "question"),
+  },
+  record_council_seat: {
+    label: "Record council seat",
+    completedLabel: "Recorded council seat",
+    context: field("disposition"),
+  },
+
   // Browser
   browser_list_tabs: browser("List browser tabs", "Listed browser tabs"),
   browser_new_tab: browser("Open browser tab", "Opened browser tab", field("url")),

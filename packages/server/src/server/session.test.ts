@@ -573,6 +573,7 @@ describe("Human attention question requests", () => {
         isAgentCloseInFlight: vi.fn(() => false),
         hasInFlightRun: vi.fn(() => running),
         tryRunOutOfBandAuthorized: vi.fn(async () => false),
+        reloadStalePluginSession: vi.fn(async () => undefined),
         startAuthorizedAgentStream,
         notifyAgentState: vi.fn(),
         subscribe: vi.fn(() => () => {}),

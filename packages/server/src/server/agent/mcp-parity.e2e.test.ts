@@ -1,6 +1,7 @@
 import os from "node:os";
 import path from "node:path";
-import { mkdtemp, rm } from "node:fs/promises";
+import { execSync } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { experimental_createMCPClient } from "ai";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -54,6 +55,15 @@ function strArrOptional(val: unknown): string[] | undefined {
 
 function formatHostForHttpUrl(host: string): string {
   return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+}
+
+function buildExpectedAgentMcpUrl(params: { host: string; port: number; agentId: string }): string {
+  const baseUrl = new URL(
+    "/mcp/agents",
+    `http://${formatHostForHttpUrl(params.host)}:${params.port}`,
+  );
+  baseUrl.searchParams.set("callerAgentId", params.agentId);
+  return baseUrl.toString();
 }
 
 function getStructuredContent(result: McpToolResult): StructuredContent | null {
@@ -135,6 +145,7 @@ let topLevelClient: McpClient;
 let agentScopedClient: McpClient;
 let parentAgentId: string;
 let parentAgentCwd: string;
+let worktreeRepoCwd: string;
 let launchConfigsByProvider: Record<AgentProvider, AgentSessionConfig[]>;
 
 const seededAgentProfile = {
@@ -260,6 +271,7 @@ async function killTerminalIfPresent(terminalId: string | null | undefined): Pro
 beforeAll(async () => {
   tempRoot = await mkdtemp(path.join(os.tmpdir(), "mcp-parity-e2e-"));
   parentAgentCwd = await makeCwd("parent-agent-cwd");
+  worktreeRepoCwd = await makeCwd("worktree-repo");
 
   daemonHandle = await createTestPaseoDaemon({
     agentClients: createRecordingAgentClients(),
@@ -280,6 +292,16 @@ beforeAll(async () => {
   agentScopedClient = await createMcpClient(
     `http://127.0.0.1:${daemonHandle.port}/mcp/agents?callerAgentId=${parentAgentId}`,
   );
+
+  execSync("git init -b main", { cwd: worktreeRepoCwd, stdio: "pipe" });
+  execSync("git config user.email 'test@example.com'", { cwd: worktreeRepoCwd, stdio: "pipe" });
+  execSync("git config user.name 'Test User'", { cwd: worktreeRepoCwd, stdio: "pipe" });
+  await writeFile(path.join(worktreeRepoCwd, "README.md"), "# repo\n", "utf8");
+  execSync("git add README.md", { cwd: worktreeRepoCwd, stdio: "pipe" });
+  execSync("git -c commit.gpgsign=false commit -m 'init'", {
+    cwd: worktreeRepoCwd,
+    stdio: "pipe",
+  });
 }, 30_000);
 
 afterAll(async () => {
@@ -381,6 +403,7 @@ describe("Suite A: Core Fixes", () => {
           });
           expect(parseAgentMessage(callerPrompts[0]).source).toEqual({
             kind: "agent-notification",
+            serverId: expect.any(String),
             agentId: childId,
             title: "Notification child",
             event: "finished",
@@ -494,6 +517,7 @@ describe("Suite A: Core Fixes", () => {
         expect(terminalEvents).toEqual(["turn_canceled"]);
         expect(notification.source).toEqual({
           kind: "agent-notification",
+          serverId: expect.any(String),
           agentId: childId,
           title: "Watched child",
           event: "errored",
@@ -557,7 +581,7 @@ describe("Suite A: Core Fixes", () => {
             type: "tool_call",
             agentMessage: {
               event: outcome,
-              sender: { id: childId, title: "Follow-up child" },
+              sender: { id: childId, serverId: expect.any(String), title: "Follow-up child" },
               text: expect.stringContaining(`(Follow-up child) ${outcome}.`),
             },
           }),

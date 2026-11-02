@@ -13576,7 +13576,10 @@ test("preapproves the exact Paseo role-tool ceiling and trusted Semble tools", a
 
     override async createSession(config: AgentSessionConfig): Promise<AgentSession> {
       this.launchConfigs.push(config);
-      return new TestAgentSession(config);
+      const session = new TestAgentSession(config);
+      // Upstream checks the opened session, not the client, before attaching external MCP servers.
+      Reflect.set(session, "capabilities", { ...TEST_CAPABILITIES, supportsMcpServers: true });
+      return session;
     }
   }
 

@@ -3229,14 +3229,15 @@ export class AgentManager {
     };
   }
 
+  private needsRuntimeReload(agentId: string): boolean {
+    return this.collectingRuntimes.has(agentId) || (!this.agents.has(agentId) && !!this.registry);
+  }
+
   /**
    * Waits out an idle-runtime collection and resumes the agent. Runs before the authority
    * lock: ensureAgentLoaded takes the same lock, which is not re-entrant.
    */
   private async reloadCollectedRuntime(agentId: string): Promise<void> {
-    if (!this.collectingRuntimes.has(agentId) && (this.agents.has(agentId) || !this.registry)) {
-      return;
-    }
     await this.waitForAgentClose(agentId);
     await ensureAgentLoaded(agentId, {
       agentManager: this,
@@ -3250,7 +3251,7 @@ export class AgentManager {
     prompt: AgentPromptInput,
     options?: AgentRunOptions,
   ): Promise<AsyncGenerator<AgentStreamEvent>> {
-    await this.reloadCollectedRuntime(agentId);
+    if (this.needsRuntimeReload(agentId)) await this.reloadCollectedRuntime(agentId);
     return withAgentAuthorityLock(agentId, async () => {
       const agent = this.requireAgent(agentId);
       const record = this.registry?.getCached(agentId) ?? null;
@@ -3267,7 +3268,7 @@ export class AgentManager {
     prompt: AgentPromptInput,
     options?: AgentRunOptions,
   ): Promise<boolean> {
-    await this.reloadCollectedRuntime(agentId);
+    if (this.needsRuntimeReload(agentId)) await this.reloadCollectedRuntime(agentId);
     return withAgentAuthorityLock(agentId, async () => {
       const agent = this.requireAgent(agentId);
       const record = this.registry?.getCached(agentId) ?? null;
@@ -3753,7 +3754,7 @@ export class AgentManager {
     prompt: AgentPromptInput,
     options?: AgentSteerOptions,
   ): Promise<ActiveTurnSteerDispatchResult> {
-    await this.reloadCollectedRuntime(agentId);
+    if (this.needsRuntimeReload(agentId)) await this.reloadCollectedRuntime(agentId);
     return withAgentAuthorityLock(agentId, async () => {
       const agent = this.requireAgent(agentId);
       const record = this.registry?.getCached(agentId) ?? null;

@@ -2244,10 +2244,11 @@ describe("create_agent MCP tool", () => {
     ).rejects.toThrow("cannot satisfy requested subrole 'reviewer'");
 
     expect(ensureWorkspace).toHaveBeenCalledTimes(1);
-    expect(ensureWorkspace).toHaveBeenCalledWith(existingCwd, {
-      title: "Reviewer Peer",
-      prompt: "Review the bounded candidate",
-    });
+    expect(ensureWorkspace).toHaveBeenCalledWith(
+      existingCwd,
+      { title: "Reviewer Peer", prompt: "Review the bounded candidate" },
+      { callerWorkspaceId: "wks_lead" },
+    );
     expect(rollbackWorkspace).toHaveBeenCalledWith("wks_rejected_reviewer");
     expect(spies.agentManager.createAgent).not.toHaveBeenCalled();
   });
@@ -2590,10 +2591,11 @@ describe("create_agent MCP tool", () => {
       initialPrompt: "Own the bounded project",
     });
 
-    expect(ensureWorkspace).toHaveBeenCalledWith(projectCwd, {
-      title: "Project Lead",
-      prompt: "Own the bounded project",
-    });
+    expect(ensureWorkspace).toHaveBeenCalledWith(
+      projectCwd,
+      { title: "Project Lead", prompt: "Own the bounded project" },
+      expect.objectContaining({ callerWorkspaceId: expect.any(String) }),
+    );
     expect(spies.agentManager.createAgent).toHaveBeenCalledWith(
       expect.objectContaining({ provider: "claude", model: "claude-haiku-4-5" }),
       undefined,
@@ -5629,8 +5631,8 @@ describe("send_agent_prompt MCP tool", () => {
 
     expect(spies.agentManager.streamAgent).toHaveBeenCalledWith(
       child.id,
-      "Continue bounded work",
-      undefined,
+      expect.stringContaining("Continue bounded work"),
+      expect.objectContaining({ clientMessageId: expect.any(String) }),
     );
     expect(spies.agentManager.subscribe).toHaveBeenCalledTimes(1);
   });
@@ -5649,6 +5651,11 @@ describe("send_agent_prompt MCP tool", () => {
       workspaceId: "wks_project",
       labels: { [PARENT_AGENT_ID_LABEL]: caller.id },
       roleBinding: createTestRoleBinding("lead"),
+    });
+    spies.agentManager.getAgent.mockImplementation((agentId: string) => {
+      if (agentId === caller.id) return caller;
+      if (agentId === child.id) return child;
+      return null;
     });
     mockStoredAgentRecords(spies.agentStorage.get, [
       createActiveStoredRecord({
@@ -5680,8 +5687,8 @@ describe("send_agent_prompt MCP tool", () => {
 
     expect(spies.agentManager.streamAgent).toHaveBeenCalledWith(
       child.id,
-      "Report project status and blockers",
-      undefined,
+      expect.stringContaining("Report project status and blockers"),
+      expect.objectContaining({ clientMessageId: expect.any(String) }),
     );
   });
 
@@ -5793,8 +5800,8 @@ describe("send_agent_prompt MCP tool", () => {
 
     expect(spies.agentManager.streamAgent).toHaveBeenCalledWith(
       target.id,
-      "Legacy follow-up",
-      undefined,
+      expect.stringContaining("Legacy follow-up"),
+      expect.objectContaining({ clientMessageId: expect.any(String) }),
     );
   });
 
