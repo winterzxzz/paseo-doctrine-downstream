@@ -8,7 +8,7 @@ import GithubSlugger from "github-slugger";
  */
 const GUIDE_PATH = join(process.cwd(), "..", "docs", "slp-guide.md");
 
-export const REPO_URL = "https://github.com/winterzxzz/paseo-doctrine-downstream";
+export const REPO_URL = "https://github.com/winterzxzz/Winterx-paseo";
 const DOCS_BLOB_BASE = `${REPO_URL}/blob/main/docs/`;
 
 export interface Page {

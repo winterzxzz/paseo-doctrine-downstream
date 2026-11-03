@@ -56,7 +56,7 @@ export function SiteFooter() {
       <div className="mx-auto flex max-w-[1080px] flex-wrap justify-between gap-4 border-t border-line px-6 py-6 text-xs text-subtle">
         <span>Supervisor · Lead · Peer</span>
         <a className="hover:text-fg" href={REPO_URL} target="_blank" rel="noopener noreferrer">
-          winterzxzz/paseo-doctrine-downstream
+          winterzxzz/Winterx-paseo
         </a>
       </div>
     </footer>

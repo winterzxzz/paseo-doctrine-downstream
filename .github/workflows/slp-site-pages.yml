@@ -22,7 +22,7 @@ concurrency:
 jobs:
   build:
     # Forks should not try to publish this site to their own Pages.
-    if: github.repository == 'winterzxzz/paseo-doctrine-downstream'
+    if: github.repository == 'winterzxzz/Winterx-paseo'
     runs-on: ubuntu-latest
     defaults:
       run:
