@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.14.0-paseo.99 - 2026-11-03
+
+### Changed
+
+- Nhận upstream Paseo v0.14.0 (gồm 0.12.0, 0.13.0–0.13.2): Expo 57 / React Native 0.86 / React 19.2,
+  renderer Markdown mới, layout điện thoại mới, connected hosts, plugin cấp tool và MCP server cho
+  từng agent, cài đặt giọng nói và model local, gộp turn đã xong. Chi tiết ở các mục `Upstream` bên dưới.
+- Tin nhắn agent gửi agent đi qua hàng đợi và mặc định steer turn đang chạy (theo upstream), vẫn
+  qua kiểm tra role topology và write lease.
+- Finish notification của role child (Lead/Peer) được lưu bền, sống qua restart daemon.
+
+### Fork
+
+- Thu hồi runtime idle (`agents.idleRuntimeCleanup`) mặc định tắt; agent có role không bao giờ bị thu hồi.
+- Agent có role không được giao việc sang connected host khác.
+- `disabledTools` giờ chặn cả tool do plugin cấp.
+- Room composer theo cài đặt phím gửi của app.
+
+### Fixed
+
+- Prompt đến đúng lúc runtime bị thu hồi không còn treo agent.
+- Supervisor/Lead không nhận thông báo "finished" giả sau restart daemon.
+- Claude: đóng session không còn chờ `interrupt()`, nên dọn process kịp hạn shutdown.
+
 ## 0.11.2-paseo.98 - 2026-10-30
 
 ### Added
