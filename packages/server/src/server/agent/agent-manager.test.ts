@@ -13645,6 +13645,82 @@ test("preapproves the exact Paseo role-tool ceiling and trusted Semble tools", a
   }
 });
 
+test("trusted Semble does not block a role launch when the opened session lacks MCP support", async () => {
+  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-semble-no-mcp-session-"));
+  writeFileSync(
+    join(workdir, "WORKSPACE_PROTOCOL.md"),
+    buildWorkspaceProtocolTemplate(workdir),
+    "utf8",
+  );
+  const storage = new AgentStorage(join(workdir, "agents"), logger);
+
+  // ACP providers advertise MCP support on the client, but provider config
+  // (for example factory-droid supportsMcpServers: false) narrows the session.
+  class ConfigNarrowedMcpClient extends TestAgentClient {
+    override readonly capabilities = {
+      ...TEST_CAPABILITIES,
+      supportsMcpServers: true,
+      supportsNativePaseoTools: false,
+    };
+    launchConfigs: AgentSessionConfig[] = [];
+
+    async materializeProviderLaunchBinding(input: { config: AgentSessionConfig }) {
+      if (!input.config.model) throw new Error("missing test model");
+      return {
+        providerId: "codex",
+        providerFamily: "codex",
+        model: input.config.model,
+        credentialConfigured: true as const,
+        routeKind: "codex-subscription" as const,
+        modelProviderId: "openai" as const,
+        authMethod: "codex-native" as const,
+      };
+    }
+
+    override async createSession(config: AgentSessionConfig): Promise<AgentSession> {
+      this.launchConfigs.push(config);
+      const session = new TestAgentSession(config);
+      Reflect.set(session, "capabilities", { ...TEST_CAPABILITIES, supportsMcpServers: false });
+      return session;
+    }
+  }
+
+  const client = new ConfigNarrowedMcpClient("codex");
+  const manager = new AgentManager({
+    clients: { codex: client },
+    providerDefinitions: {
+      codex: { enabled: true, supportsExactMcpPreapproval: true },
+    },
+    registry: storage,
+    logger,
+    idFactory: () => "00000000-0000-4000-8000-000000000119",
+    mcpBaseUrl: "http://127.0.0.1:6767/mcp/agents",
+    trustedSembleRuntime: {
+      uvxPath: "/opt/homebrew/bin/uvx",
+      proxyPath: "/opt/paseo/trusted-semble-proxy.mjs",
+      paseoHome: join(workdir, "paseo-home"),
+    },
+  });
+
+  try {
+    const created = await manager.createAgent(
+      { provider: "codex", model: "gpt-5.4", cwd: workdir },
+      undefined,
+      {
+        workspaceId: "workspace-semble-no-mcp-session",
+        roleId: "lead",
+        assignment: leadAssignment(),
+      },
+    );
+
+    expect(client.launchConfigs[0]?.mcpServers?.semble).toMatchObject({ type: "stdio" });
+    expect(manager.getAgent(created.id)).not.toBeNull();
+  } finally {
+    await Promise.all(manager.listAgents().map((agent) => manager.closeAgent(agent.id)));
+    rmSync(workdir, { recursive: true, force: true });
+  }
+});
+
 test("role-bound create rejects caller systemPrompt before provider launch", async () => {
   const workdir = mkdtempSync(join(tmpdir(), "agent-manager-role-system-prompt-"));
   const client = new TestAgentClient("codex");

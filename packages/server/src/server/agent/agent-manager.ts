@@ -312,6 +312,13 @@ function buildStoredAgentConfig(record: StoredAgentRecord): AgentSessionConfig {
   return stripInternalPaseoMcpServer(config);
 }
 
+// Daemon-owned servers (Paseo MCP, trusted semble) are optional for the session:
+// a session without MCP support drops them, so only caller-supplied servers block launch.
+function hasExternalMcpServers(config: AgentSessionConfig): boolean {
+  const external = stripInternalTrustedSembleMcpServer(stripInternalPaseoMcpServer(config));
+  return Object.keys(external.mcpServers ?? {}).length > 0;
+}
+
 export { AGENT_LIFECYCLE_STATUSES, type AgentLifecycleStatus };
 export type {
   AgentTimelineCursor,
@@ -2237,7 +2244,7 @@ export class AgentManager {
     );
     const providerLaunchConfig = this.resolveProviderLaunchConfig(launchConfig, launchContext);
     if (
-      Object.keys(stripInternalPaseoMcpServer(providerLaunchConfig).mcpServers ?? {}).length > 0 &&
+      hasExternalMcpServers(providerLaunchConfig) &&
       existing.session.capabilities.supportsMcpServers !== true
     ) {
       throw this.unsupportedMcpError(providerLaunchConfig, launchContext);
@@ -4602,10 +4609,7 @@ export class AgentManager {
     launchConfig: AgentSessionConfig,
     launchContext: AgentLaunchContext,
   ): Promise<void> {
-    if (
-      Object.keys(stripInternalPaseoMcpServer(launchConfig).mcpServers ?? {}).length === 0 ||
-      session.capabilities.supportsMcpServers === true
-    ) {
+    if (!hasExternalMcpServers(launchConfig) || session.capabilities.supportsMcpServers === true) {
       return;
     }
     await this.closeUnregisteredSession(session);
