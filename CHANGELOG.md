@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.15.0-paseo.102 - 2026-11-04
+
+### Added
+
+- Antigravity tạo được ảnh: profile role cấp thêm `generate_image`, và ảnh hiện ngay trong timeline.
+  Peer · Image chạy trên `gemini-antigravity` không còn bị chặn vì thiếu tool tạo ảnh.
+
 ## 0.15.0-paseo.101 - 2026-11-04
 
 ### Changed
