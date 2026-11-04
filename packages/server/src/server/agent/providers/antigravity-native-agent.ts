@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { createInterface } from "node:readline";
@@ -30,6 +30,10 @@ import type {
   ToolCallDetail,
 } from "../agent-sdk-types.js";
 import { appendOrReplaceGrowingAssistantMessage, runProviderTurn } from "./provider-runner.js";
+import {
+  materializeProviderImage,
+  renderProviderImageOutputAsAssistantMarkdown,
+} from "./provider-image-output.js";
 import {
   startAntigravityPaseoGateway,
   type AntigravityPaseoGateway,
@@ -66,6 +70,8 @@ interface AntigravityNativeAgentClientOptions {
   profileRoot?: string;
   temporaryRoot?: string;
   resolveExecutable?: (name: string) => Promise<string | null>;
+  /** Where agy keeps each conversation's artifacts, generated images included. */
+  brainRoot?: string;
 }
 
 interface MaterializedAntigravityProfile {
@@ -163,6 +169,36 @@ function fileDetail(
   return null;
 }
 
+const GENERATED_IMAGE_TYPES: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+};
+
+async function findGeneratedImage(
+  directory: string,
+  imageName: string,
+): Promise<{ path: string; mimeType: string } | null> {
+  let entries: string[];
+  try {
+    entries = await readdir(directory);
+  } catch {
+    return null;
+  }
+  const matches = entries
+    .map((entry) => /^(.*)_(\d+)\.([a-z]+)$/iu.exec(entry))
+    .filter((match): match is RegExpExecArray => match !== null)
+    .filter((match) => match[1] === imageName && GENERATED_IMAGE_TYPES[match[3].toLowerCase()])
+    .sort((left, right) => Number(right[2]) - Number(left[2]));
+  const newest = matches[0];
+  if (!newest) return null;
+  return {
+    path: join(directory, newest[0]),
+    mimeType: GENERATED_IMAGE_TYPES[newest[3].toLowerCase()],
+  };
+}
+
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -217,7 +253,7 @@ function buildRoleProfile(
 ): string {
   const binding = launchContext.roleBinding;
   if (!binding) throw new Error("Native Antigravity requires an immutable role binding");
-  return `---\nname: ${name}\ndescription: Immutable Paseo ${binding.roleId} role binding\nmainAgent: true\nsubagent: false\ninheritMcp: false\ntools:\n  - run_command\n---\n\n${binding.instructions}\n\n${gatewayInstructions}\n`;
+  return `---\nname: ${name}\ndescription: Immutable Paseo ${binding.roleId} role binding\nmainAgent: true\nsubagent: false\ninheritMcp: false\ntools:\n  - run_command\n  - generate_image\n---\n\n${binding.instructions}\n\n${gatewayInstructions}\n`;
 }
 
 async function writeExclusiveOrVerify(path: string, content: string): Promise<void> {
@@ -298,6 +334,8 @@ class AntigravityNativeAgentSession implements AgentSession {
   // Fallback step identity when agy omits step_index: bumped when a new step starts.
   private fallbackStepIndex = 0;
   private lastStepKey: string | null = null;
+  // Stream lines are handled one at a time so an image read keeps its place in the timeline.
+  private streamChain: Promise<void> = Promise.resolve();
 
   constructor(
     readonly provider: AgentProvider,
@@ -307,7 +345,8 @@ class AntigravityNativeAgentSession implements AgentSession {
     private readonly profile: MaterializedAntigravityProfile,
     private readonly gateway: AntigravityPaseoGateway,
     private readonly logger: Logger,
-    conversationId?: string | null,
+    conversationId: string | null | undefined,
+    private readonly brainRoot: string,
   ) {
     this.conversationId = conversationId ?? null;
     this.currentModeId = config.modeId ?? FULL_ACCESS_MODE;
@@ -372,50 +411,22 @@ class AntigravityNativeAgentSession implements AgentSession {
       stderr += chunk.toString();
     });
     const lines = createInterface({ input: child.stdout });
-    lines.on("line", (line) => this.handleStreamLine(line, turnId));
+    lines.on("line", (line) => {
+      this.streamChain = this.streamChain
+        .then(() => this.handleStreamLine(line, turnId))
+        .catch((error: unknown) => {
+          this.logger.warn({ error }, "Failed to handle Antigravity stream event");
+        });
+    });
     child.once("error", (error) => {
       spawnError = error;
     });
     child.once("close", (code, signal) => {
       lines.close();
       if (this.activeProcess === child) this.activeProcess = null;
-      const pendingOutcome = this.pendingOutcome?.turnId === turnId ? this.pendingOutcome : null;
-      this.pendingOutcome = null;
-      if (spawnError || code !== 0) {
-        const diagnostic =
-          stderr.trim() ||
-          [
-            "Native AGY exited without writing stderr.",
-            `Executable: ${this.executable}`,
-            `Exit: ${signal ? `signal ${signal}` : `code ${code ?? "unknown"}`}`,
-            `Model: ${this.config.model ?? "provider default"}`,
-            `Mode: ${this.currentModeId}`,
-            "Check `agy models`, local authentication, and the selected model route.",
-          ].join("\n");
-        this.emit({
-          type: "turn_failed",
-          provider: this.provider,
-          error:
-            spawnError?.message ??
-            `Antigravity exited with ${signal ? `signal ${signal}` : `code ${code}`}`,
-          diagnostic,
-          turnId,
-        });
-      } else if (pendingOutcome?.type === "completed") {
-        this.emit({
-          type: "turn_completed",
-          provider: this.provider,
-          usage: pendingOutcome.usage,
-          turnId,
-        });
-      } else {
-        this.emit({
-          type: "turn_failed",
-          provider: this.provider,
-          error: pendingOutcome?.error ?? "Antigravity stream ended without a result event",
-          turnId,
-        });
-      }
+      void this.streamChain.then(() =>
+        this.finishTurn(turnId, { code, signal, stderr, spawnError }),
+      );
     });
     this.emit({ type: "turn_started", provider: this.provider, turnId });
     // agy never echoes the prompt. The manager records it only for prompts with a
@@ -433,7 +444,56 @@ class AntigravityNativeAgentSession implements AgentSession {
     return { turnId };
   }
 
-  private handleStreamLine(line: string, turnId: string): void {
+  private finishTurn(
+    turnId: string,
+    exit: {
+      code: number | null;
+      signal: NodeJS.Signals | null;
+      stderr: string;
+      spawnError: Error | null;
+    },
+  ): void {
+    const { code, signal, stderr, spawnError } = exit;
+    const pendingOutcome = this.pendingOutcome?.turnId === turnId ? this.pendingOutcome : null;
+    this.pendingOutcome = null;
+    if (spawnError || code !== 0) {
+      const diagnostic =
+        stderr.trim() ||
+        [
+          "Native AGY exited without writing stderr.",
+          `Executable: ${this.executable}`,
+          `Exit: ${signal ? `signal ${signal}` : `code ${code ?? "unknown"}`}`,
+          `Model: ${this.config.model ?? "provider default"}`,
+          `Mode: ${this.currentModeId}`,
+          "Check `agy models`, local authentication, and the selected model route.",
+        ].join("\n");
+      this.emit({
+        type: "turn_failed",
+        provider: this.provider,
+        error:
+          spawnError?.message ??
+          `Antigravity exited with ${signal ? `signal ${signal}` : `code ${code}`}`,
+        diagnostic,
+        turnId,
+      });
+    } else if (pendingOutcome?.type === "completed") {
+      this.emit({
+        type: "turn_completed",
+        provider: this.provider,
+        usage: pendingOutcome.usage,
+        turnId,
+      });
+    } else {
+      this.emit({
+        type: "turn_failed",
+        provider: this.provider,
+        error: pendingOutcome?.error ?? "Antigravity stream ended without a result event",
+        turnId,
+      });
+    }
+  }
+
+  private async handleStreamLine(line: string, turnId: string): Promise<void> {
     let event: AntigravityStreamEvent;
     try {
       event = JSON.parse(line) as AntigravityStreamEvent;
@@ -449,6 +509,7 @@ class AntigravityNativeAgentSession implements AgentSession {
     }
     if (event.event === "step_update" && event.step_update) {
       this.handleStep(event.step_update, turnId);
+      await this.emitGeneratedImage(event.step_update, turnId);
     }
     if (event.event === "result") {
       if (event.result?.status === "SUCCESS") {
@@ -520,6 +581,34 @@ class AntigravityNativeAgentSession implements AgentSession {
         });
       }
     }
+  }
+
+  // generate_image reports only its parameters; agy writes the file under the conversation's brain
+  // directory as `<ImageName>_<timestamp>.<ext>`. Copy it into Paseo's attachment store so the
+  // timeline shows the image itself.
+  private async emitGeneratedImage(step: AntigravityStreamStep, turnId: string): Promise<void> {
+    if (step.step_type !== "tool" || step.state !== "DONE") return;
+    if ((step.tool_name ?? step.tool_info?.name) !== "generate_image") return;
+    const imageName = step.tool_info?.parameters?.ImageName;
+    if (!this.conversationId || typeof imageName !== "string" || !imageName) return;
+    const file = await findGeneratedImage(join(this.brainRoot, this.conversationId), imageName);
+    if (!file) {
+      this.logger.warn(
+        { imageName, conversationId: this.conversationId },
+        "Antigravity image file not found",
+      );
+      return;
+    }
+    const prompt = step.tool_info?.parameters?.Prompt;
+    const item = await renderProviderImageOutputAsAssistantMarkdown(
+      {
+        data: (await readFile(file.path)).toString("base64"),
+        mimeType: file.mimeType,
+        altText: typeof prompt === "string" ? prompt : imageName,
+      },
+      { materialize: materializeProviderImage },
+    );
+    if (item) this.emit({ type: "timeline", provider: this.provider, turnId, item });
   }
 
   subscribe(callback: (event: AgentStreamEvent) => void): () => void {
@@ -672,6 +761,7 @@ export class AntigravityNativeAgentClient implements AgentClient {
         gateway,
         this.options.logger,
         conversationId,
+        this.options.brainRoot ?? join(homedir(), ".gemini", "antigravity-cli", "brain"),
       );
     } catch (error) {
       await gateway.close();

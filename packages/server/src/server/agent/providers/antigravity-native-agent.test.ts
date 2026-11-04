@@ -117,7 +117,7 @@ describe("native Antigravity provider", () => {
         const profileNames = await import("node:fs/promises").then((fs) => fs.readdir(profileRoot));
         const profile = await readFile(join(profileRoot, profileNames[0], "agent.md"), "utf8");
         expect(profile).toContain("inheritMcp: false");
-        expect(profile).toContain("tools:\n  - run_command");
+        expect(profile).toContain("tools:\n  - run_command\n  - generate_image\n---");
         expect(profile).toContain("Immutable Peer instructions");
         expect(profile).toContain("paseo-agent-tool <tool_name>");
       } finally {
@@ -305,6 +305,87 @@ describe("native Antigravity provider", () => {
         expect(
           items.filter((item) => item.type === "assistant_message").map((item) => item.text),
         ).toEqual(["Working", "Done"]);
+      } finally {
+        unsubscribe();
+        await session.close();
+      }
+    },
+  );
+
+  test.skipIf(process.platform === "win32")(
+    "shows a generated image in the timeline after its tool row",
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), "agy-native-image-test-"));
+      const brainRoot = join(root, "brain");
+      const imageDir = join(brainRoot, "test-conversation");
+      await mkdir(imageDir, { recursive: true });
+      const png = Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "base64",
+      );
+      await writeFile(join(imageDir, "blue_bird_100.png"), Buffer.from("older"));
+      await writeFile(join(imageDir, "blue_bird_200.png"), png);
+      const image = {
+        name: "generate_image",
+        parameters: { ImageName: "blue_bird", Prompt: "A blue bird" },
+      };
+      const { binary, argvLog } = await createFakeAgy(root, {
+        response: "Saved",
+        steps: [
+          {
+            step_index: 1,
+            state: "ACTIVE",
+            step_type: "tool",
+            tool_name: "generate_image",
+            tool_info: image,
+          },
+          {
+            step_index: 1,
+            state: "DONE",
+            step_type: "tool",
+            tool_name: "generate_image",
+            tool_info: image,
+          },
+          { step_index: 2, state: "DONE", step_type: "agent_response", text_delta: "Saved" },
+        ],
+      });
+      const client = new AntigravityNativeAgentClient({
+        logger: createTestLogger(),
+        command: [binary],
+        env: { PASEO_TEST_AGY_ARGV: argvLog },
+        profileRoot: join(root, "profiles"),
+        temporaryRoot: root,
+        brainRoot,
+        resolveExecutable: async () => binary,
+      });
+      const session = await client.createSession(
+        { provider: "gemini-antigravity", cwd: root, modeId: "full-access" },
+        {
+          agentId: "agent-native",
+          roleBinding: { roleId: "peer", instructions: "Immutable Peer instructions" },
+          paseoTools: catalog(),
+        },
+      );
+      const items: Array<{ type: string; status?: string; text?: string }> = [];
+      const unsubscribe = session.subscribe((event) => {
+        if (event.type === "timeline") items.push(event.item);
+      });
+      try {
+        await session.run("Draw a blue bird");
+        expect(items.map((item) => item.status ?? item.type)).toEqual([
+          "user_message",
+          "running",
+          "completed",
+          "assistant_message",
+          "assistant_message",
+        ]);
+        const imageMarkdown = items[3].text ?? "";
+        expect(imageMarkdown).toMatch(/!\[A blue bird\]\(file:\/\/.*paseo-attachments.*\.png\)/u);
+        const imagePath = decodeURIComponent(
+          /\(file:\/\/([^)]+)\)/u.exec(imageMarkdown)?.[1] ?? "",
+        );
+        expect(await readFile(imagePath)).toEqual(png);
+        expect(items[4].text).toBe("Saved");
       } finally {
         unsubscribe();
         await session.close();

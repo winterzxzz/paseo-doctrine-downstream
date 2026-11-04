@@ -638,8 +638,10 @@ ignore local plugins; remove it from existing config.
 
 Với Antigravity, command canonical là official `agy` executable. Paseo gọi trực tiếp print-mode
 `stream-json`, persist native `conversation_id`, và resume bằng `--conversation`.
-Mỗi role-bound Peer nhận một exact custom-agent profile chỉ có `run_command`, không inherit MCP và không
-được spawn subagent. Paseo đồng thời tạo một private loopback command gateway với bearer ngẫu nhiên và
+Mỗi role-bound Peer nhận một exact custom-agent profile chỉ có `run_command` và `generate_image`, không
+inherit MCP và không được spawn subagent. `generate_image` không trả đường dẫn; `agy` ghi file vào
+`~/.gemini/antigravity-cli/brain/<conversation_id>/<ImageName>_<timestamp>.<ext>`, và adapter chép file
+mới nhất vào attachment store của Paseo để timeline hiện ảnh. Paseo đồng thời tạo một private loopback command gateway với bearer ngẫu nhiên và
 caller-scoped tool catalog; model gọi `paseo-agent-tool`, còn gateway enforce đúng policy/RoleBinding rồi
 mới forward vào Paseo. Token Beads Central không được đưa vào process model.
 
