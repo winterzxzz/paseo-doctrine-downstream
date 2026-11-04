@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.15.0-paseo.101 - 2026-11-04
+
+### Changed
+
+- Nhận upstream Paseo v0.15.0: chương trình trong terminal tiếp tục chạy qua restart daemon, tùy chọn
+  resume agent bị ngắt sau restart (mặc định tắt), terminal native trên điện thoại, usage chỉ tải khi
+  hiển thị và có thể tắt hẳn, `.worktreeinclude`, hỗ trợ `HTTP_PROXY`. Chi tiết ở mục `Upstream 0.15.0`.
+
+### Fork
+
+- Sidebar vẫn hiện usage dạng ring tô màu theo period; Usage modal dùng layout mới của upstream.
+
+### Fixed
+
+- Antigravity: timeline hiện prompt, từng tool call (đang chạy → xong/lỗi) và từng đoạn trả lời
+  ngay khi agent làm, thay vì chỉ hiện câu trả lời cuối.
+
 ## 0.14.0-paseo.99 - 2026-11-03
 
 ### Changed
