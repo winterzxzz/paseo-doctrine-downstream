@@ -2689,7 +2689,9 @@ describe("Codex app-server provider", () => {
     );
 
     // A history session is a read-only snapshot; unarchive resumes a fresh interactive one.
+    // History is read in pages: thread metadata first, then its turns.
     expect(threadRequests).toEqual([
+      { method: "thread/read", params: { threadId: "archived-thread-id", includeTurns: false } },
       { method: "thread/read", params: { threadId: "archived-thread-id", includeTurns: true } },
     ]);
     await session.close();
@@ -3461,9 +3463,9 @@ describe("Codex app-server provider", () => {
       PASEO_PROVIDER_CREDENTIAL_FILE: "/private/credentials/codex-command-auth.json",
     });
     expect(capturedThreadStartConfig(capturedRequests)).toEqual({
-      model_provider: "codex-command-auth",
+      model_provider: "paseo:codex-command-auth",
       model_providers: {
-        "codex-command-auth": {
+        "paseo:codex-command-auth": {
           name: "Custom Codex",
           base_url: "https://custom-relay.example.com/v1",
           auth: {

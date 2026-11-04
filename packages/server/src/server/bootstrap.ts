@@ -2355,6 +2355,7 @@ export async function createPaseoDaemon(
       }
     });
     if (shutdownErrors.length > 0) {
+      if (terminalShutdownError) shutdownErrors.push(terminalShutdownError);
       throw new AggregateError(shutdownErrors, "Paseo shutdown completed with errors");
     }
     if (terminalShutdownError) {

@@ -4560,6 +4560,7 @@ export class AgentManager {
         session,
         config,
         now,
+        durableHistoryComplete,
         options,
       });
 
@@ -4705,6 +4706,7 @@ export class AgentManager {
     session: AgentSession;
     config: AgentSessionConfig;
     now: Date;
+    durableHistoryComplete: boolean;
     options:
       | {
           createdAt?: Date;
@@ -4725,7 +4727,7 @@ export class AgentManager {
         }
       | undefined;
   }): ActiveManagedAgent {
-    const { resolvedAgentId, session, config, now, options } = params;
+    const { resolvedAgentId, session, config, now, durableHistoryComplete, options } = params;
     const registration = options ?? {};
     return {
       id: resolvedAgentId,
@@ -4760,7 +4762,8 @@ export class AgentManager {
         registration.persistence ?? session.describePersistence(),
         config,
       ),
-      historyPrimed: registration.historyPrimed ?? false,
+      // A reopened agent whose durable timeline holds its complete history skips the provider read.
+      historyPrimed: registration.historyPrimed ?? durableHistoryComplete,
       lastUserMessageAt: registration.lastUserMessageAt ?? null,
       lastUsage: registration.lastUsage,
       lastError: registration.lastError,

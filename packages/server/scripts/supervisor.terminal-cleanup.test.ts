@@ -35,6 +35,8 @@ async function runSupervisorWith(workerScript: string, timeoutMs = 8_000) {
     import { runSupervisor } from ${JSON.stringify(supervisor)};
     runSupervisor({
       name: "TerminalCleanupTest", startupMessage: "starting", restartOnCrash: true,
+      // The downstream default grace (25s) outlasts this suite's deadline; hang tests need the kill.
+      workerTerminationGraceMs: 2_000,
       resolveWorkerEntry: () => ${JSON.stringify(workerPath)}, workerArgs: [], workerExecArgv: [],
       cleanupTerminals: async () => {
         appendFileSync(${JSON.stringify(eventsPath)}, JSON.stringify("cleanup") + "\\n");
