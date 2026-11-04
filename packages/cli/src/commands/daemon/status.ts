@@ -117,7 +117,11 @@ async function probeDaemonStatus(
         throw { ...failure, message: note, details: { ...local, ...live, connectedDaemon } };
       }
     } else {
-      live = { ...live, ...liveStatusReadback(status) };
+      live = {
+        ...live,
+        ...liveStatusReadback(status),
+        ...(status.terminalsUnavailable ? { terminals: status.terminalsUnavailable } : {}),
+      };
     }
   } finally {
     await client.close();

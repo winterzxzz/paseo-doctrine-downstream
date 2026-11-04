@@ -17,18 +17,13 @@ OUT_DIR="${UPSTREAM_INTEGRATION_OUT:-$ROOT/.dev/upstream-integration}"
 say() { printf '%s\n' "$*"; }
 fail() { printf 'upstream-integration: %s\n' "$*" >&2; exit 1; }
 
-ensure_remote() {
-  git -C "$ROOT" remote get-url upstream >/dev/null 2>&1 ||
-    git -C "$ROOT" remote add upstream "$UPSTREAM_URL"
-}
-
 survey() {
   local tag="${1:-}"
   [ -n "$tag" ] || fail "usage: survey <upstream-tag>, for example v0.9.0"
   local local_tag="upstream-$tag"
-  ensure_remote
+  # Fetch by URL: a remote named "upstream" may point at another downstream fork.
   # Upstream tags live under upstream-<tag> so they never collide with paseo-v* downstream tags.
-  git -C "$ROOT" fetch --no-tags upstream "refs/tags/$tag:refs/tags/$local_tag"
+  git -C "$ROOT" fetch --no-tags "$UPSTREAM_URL" "refs/tags/$tag:refs/tags/$local_tag"
   local target base
   target="$(git -C "$ROOT" rev-parse "$local_tag^{commit}")"
   base="$(git -C "$ROOT" merge-base HEAD "$target")"

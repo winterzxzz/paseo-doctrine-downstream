@@ -1,3 +1,4 @@
+import { createRestartRecovery } from "./agent/restart-recovery/index.js";
 import { createIdleRuntimeCleanup } from "./agent/idle-runtime-cleanup/index.js";
 import {
   createFinishSubscriptions,
@@ -215,7 +216,7 @@ import {
 import { setupAutoArchiveOnMerge } from "./auto-archive-on-merge/index.js";
 import { wrapSessionMessage, type SessionOutboundMessage } from "./messages.js";
 import type { TerminalManager } from "../terminal/terminal-manager.js";
-import { createConfiguredTerminalManager } from "../terminal/terminal-manager-factory.js";
+import { startWorkerTerminalManager } from "../terminal/worker-terminal-manager.js";
 import { applyTerminalAgentHookSetting } from "../terminal/agent-hooks/terminal-agent-hook-setting.js";
 import { loadOrCreateDaemonKeyPair } from "./daemon-keypair.js";
 import { createRelayRuntime, type RelayRuntime } from "./relay-runtime.js";
@@ -436,12 +437,14 @@ export type DaemonLifecycleIntent =
       clientId: string;
       requestId: string;
       reason: string;
+      keepTerminals: boolean;
     }
   | {
       type: "restart";
       clientId: string;
       requestId: string;
       reason: string;
+      keepTerminals: boolean;
     };
 
 export interface PaseoDaemonConfig {
@@ -456,6 +459,7 @@ export interface PaseoDaemonConfig {
   trustedProxies?: true | string[];
   mcpEnabled?: boolean;
   mcpInjectIntoAgents?: boolean;
+  usageEnabled?: boolean;
   browserToolsEnabled?: boolean;
   beadsCentral?: {
     endpoint: string;
@@ -514,6 +518,8 @@ export interface PaseoDaemonConfig {
   downloadTokenTtlMs?: number;
   agentProviderSettings?: AgentProviderRuntimeSettingsMap;
   idleRuntimeCleanup?: boolean;
+  resumeOnStartup?: boolean;
+  resumePrompt?: string;
   providerCatalogRefreshTimeoutMs?: number;
   metadataGeneration?: {
     providers?: Array<{
@@ -545,7 +551,8 @@ export interface PaseoDaemon {
   scriptRuntimeStore: WorkspaceScriptRuntimeStore;
   browserToolsBroker: BrowserToolsBroker;
   start(): Promise<void>;
-  stop(): Promise<void>;
+  /** Stops the daemon. Terminals keep running for the next daemon only with keepTerminals. */
+  stop(options?: { keepTerminals?: boolean }): Promise<void>;
   getListenTarget(): ListenTarget | null;
   getServerId(): string;
 }
@@ -676,6 +683,17 @@ function resolveReloadEnv(config: PaseoDaemonConfig): NodeJS.ProcessEnv {
   return config.configReload?.env ?? process.env;
 }
 
+function createInitialAgentLifecycleConfig(
+  config: ResolvedDaemonSettings,
+): Pick<MutableDaemonConfig, "idleRuntimeCleanup" | "resumeOnStartup" | "resumePrompt"> {
+  return {
+    // Fork: idle agents stay resident unless the Human opts in (docs/agent-lifecycle.md).
+    idleRuntimeCleanup: config.idleRuntimeCleanup === true,
+    resumeOnStartup: config.resumeOnStartup === true,
+    resumePrompt: config.resumePrompt ?? "Resume working.",
+  };
+}
+
 function createInitialMutableDaemonConfig(config: ResolvedDaemonSettings): MutableDaemonConfig {
   const providers: MutableDaemonConfig["providers"] = Object.fromEntries(
     Object.entries(config.providerOverrides ?? {}).map(([providerId, override]) => [
@@ -695,6 +713,10 @@ function createInitialMutableDaemonConfig(config: ResolvedDaemonSettings): Mutab
     trustedProxies: config.trustedProxies ?? ["loopback"],
     git: config.git ?? resolveGitProcessPolicy({ env: process.env }),
     app: { baseUrl: config.appBaseUrl ?? "https://app.paseo.sh" },
+    ...(config.providerCatalogRefreshTimeoutMs !== undefined
+      ? { catalogRefreshTimeoutMs: config.providerCatalogRefreshTimeoutMs }
+      : {}),
+    usage: { enabled: config.usageEnabled !== false },
     browserTools: { enabled: config.browserToolsEnabled ?? false },
     beadsCentral: config.beadsCentral ?? {
       endpoint: "http://127.0.0.1:6769",
@@ -709,8 +731,7 @@ function createInitialMutableDaemonConfig(config: ResolvedDaemonSettings): Mutab
     autoArchiveAfterMerge: config.autoArchiveAfterMerge ?? false,
     defaultFastMode: config.defaultFastMode ?? false,
     enableTerminalAgentHooks: config.enableTerminalAgentHooks ?? false,
-    // Fork: idle agents stay resident unless the Human opts in (docs/agent-lifecycle.md).
-    idleRuntimeCleanup: config.idleRuntimeCleanup === true,
+    ...createInitialAgentLifecycleConfig(config),
     appendSystemPrompt: config.appendSystemPrompt ?? "",
     pluginsEnabled: config.pluginsEnabled ?? false,
     plugins: config.plugins ?? {},
@@ -822,7 +843,10 @@ export async function createPaseoDaemon(
   let boundListenTarget: ListenTarget | null = null;
   let workspaceRegistry: FileBackedWorkspaceRegistry | null = null;
   let beadsService: BeadsCentralService | null = null;
-  const terminalManager = createConfiguredTerminalManager({
+  const terminalManager = await startWorkerTerminalManager({
+    paseoHome: config.paseoHome,
+    paseoVersion: daemonVersion,
+    logger,
     getTerminalActivityUrl: () => createTerminalActivityUrl(boundListenTarget),
   });
   applyTerminalAgentHookSetting({ store: daemonConfigStore, logger });
@@ -1132,7 +1156,7 @@ export async function createPaseoDaemon(
       if (!hasActiveWorkspace) workspaceRuntimeStore.remove(cwd);
     }
     if (mutation.kind === "archive" && mutation.workspace) {
-      pluginRuntime.emit("workspace.archived", {
+      pluginRuntime.emit("workspace.archive.after", {
         workspace: describeHookWorkspace(mutation.workspace),
       });
     }
@@ -1223,7 +1247,19 @@ export async function createPaseoDaemon(
     agentStorage,
   );
   await agentStorage.initialize();
-  await closeStaleAgentRecords(agentStorage);
+  const restartRecovery = createRestartRecovery({
+    storage: agentStorage,
+    settings: () => ({
+      enabled: daemonConfigStore.get().resumeOnStartup === true,
+      prompt: daemonConfigStore.get().resumePrompt ?? "Resume working.",
+    }),
+    eligible: async (record) =>
+      !record.workspaceId || !(await workspaceRegistry?.get(record.workspaceId))?.archivedAt,
+    dispatch: (agentId, prompt) =>
+      sendPromptToAgent({ agentId, prompt, agentManager, agentStorage, logger, unarchive: false }),
+    report: (agentId, err) => logger.error({ agentId, err }, "Agent restart recovery failed"),
+  });
+  await restartRecovery.prepareStartup();
   logger.info({ elapsed: elapsed() }, "Agent storage initialized");
   await bootstrapWorkspaceRegistries({
     serverId,
@@ -1403,6 +1439,7 @@ export async function createPaseoDaemon(
         worktreesRoot: config.worktreesRoot,
         createPaseoWorktree: async (workflowInput, workflowOptions) => {
           return createRegisteredPaseoWorktree(workflowInput, {
+            lifecycle: pluginRuntime,
             github,
             ...(workflowOptions?.resolveDefaultBranch
               ? {
@@ -1736,6 +1773,7 @@ export async function createPaseoDaemon(
     ...createFinishObservation({
       agentManager,
       agentStorage,
+      waitForResume: restartRecovery.waitForResume,
       serverId,
       logger,
       messages: () => {
@@ -2154,6 +2192,7 @@ export async function createPaseoDaemon(
             pluginRuntime.bindPaseoSessionHost(wsServer);
             await pluginRuntime.start();
             providerSnapshotManager.settlePluginProviders();
+            restartRecovery.resumePending();
             await finishSubscriptions.start();
             wsServer.beginAcceptingConnections();
             const relaySecurityLogger = logger.child({ module: "relay-security" });
@@ -2227,7 +2266,9 @@ export async function createPaseoDaemon(
     }
   };
 
-  const stop = async () => {
+  const stop = async (options?: { keepTerminals?: boolean }) => {
+    const keepTerminals = options?.keepTerminals === true;
+    let terminalShutdownError: unknown = null;
     const shutdownErrors: unknown[] = [];
     const attempt = async (step: string, action: () => void | Promise<void>): Promise<void> => {
       try {
@@ -2237,7 +2278,6 @@ export async function createPaseoDaemon(
         logger.error({ err: error, shutdownStep: step }, "Paseo shutdown step failed");
       }
     };
-
     localCredential = null;
     await attempt("local-credential", () => deleteLocalCredential(config.paseoHome));
     // Stop tracking plugin provider registrations before anything tears plugins
@@ -2260,6 +2300,7 @@ export async function createPaseoDaemon(
     await attempt("finish-subscriptions", () => finishSubscriptions.close());
     await attempt("agent-messages", () => wsServer?.agentMessages.close());
     await attempt("agent-registration-ingress", () => agentManager.prepareForShutdown());
+    await attempt("restart-recovery-capture", () => restartRecovery.captureRunningAgents());
     await attempt("agent-runtime-close", () => closeAllAgents(logger, agentManager));
     await attempt("plugin-lifecycle-events", () =>
       withTimeout({
@@ -2273,7 +2314,19 @@ export async function createPaseoDaemon(
     await attempt("agent-storage-flush", () => agentStorage.flush());
     await attempt("agent-provider-runtime", () => agentProviderRuntime.shutdown());
     await attempt("plugins", () => pluginRuntime.stopAllPlugins());
-    await attempt("terminals", () => terminalManager.killAll());
+    try {
+      if (keepTerminals) {
+        await terminalManager.detach();
+        logger.info("Terminals left running for the next daemon");
+      } else {
+        await terminalManager.closeTerminals();
+      }
+    } catch (error) {
+      // Finish the rest of the shutdown, then report it: the supervisor and `daemon stop`
+      // retry the cleanup from the record the reaper kept.
+      terminalShutdownError = error;
+      logger.error({ err: error }, "Terminal shutdown failed");
+    }
     await attempt("speech", () => speechService.stop());
     await attempt("schedules", () => scheduleService.stop());
     await attempt("relay", () => relayRuntime?.stop());
@@ -2304,6 +2357,9 @@ export async function createPaseoDaemon(
     if (shutdownErrors.length > 0) {
       throw new AggregateError(shutdownErrors, "Paseo shutdown completed with errors");
     }
+    if (terminalShutdownError) {
+      throw terminalShutdownError;
+    }
   };
 
   return {
@@ -2319,16 +2375,6 @@ export async function createPaseoDaemon(
     getListenTarget: () => boundListenTarget,
     getServerId: () => serverId,
   };
-}
-
-async function closeStaleAgentRecords(agentStorage: AgentStorage): Promise<void> {
-  // No provider runtimes are loaded at startup. Repair interrupted
-  // shutdowns before any status consumer sees the persisted active states.
-  for (const record of await agentStorage.list()) {
-    if (record.lastStatus === "running" || record.lastStatus === "initializing") {
-      await agentStorage.upsert({ ...record, lastStatus: "closed" });
-    }
-  }
 }
 
 /**

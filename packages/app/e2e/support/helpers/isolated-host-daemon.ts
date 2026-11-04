@@ -1,4 +1,11 @@
-import { spawn, execFileSync, type ChildProcess, type SpawnOptions } from "node:child_process";
+import { promisify } from "node:util";
+import {
+  spawn,
+  execFile,
+  execFileSync,
+  type ChildProcess,
+  type SpawnOptions,
+} from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
 import { tmpdir } from "node:os";
@@ -12,6 +19,7 @@ const REMOVE_TREE_OPTIONS = {
   maxRetries: 10,
   retryDelay: 100,
 } as const;
+const execFileAsync = promisify(execFile);
 
 export interface IsolatedHostDaemon {
   serverId: string;
@@ -179,6 +187,24 @@ export async function startIsolatedHostDaemon(
   const serverDir = publishedPackageRoot
     ? path.join(publishedPackageRoot, "node_modules", "@getpaseo", "server")
     : path.resolve(__dirname, "../../../../server");
+  let child: ChildProcess | null = null;
+  const stopDaemon = async (): Promise<void> => {
+    // The CLI owns graceful shutdown, forced cleanup and detached terminal
+    // reaping. Keep its ESM graph out of Playwright's transforming loader.
+    await execFileAsync(
+      process.execPath,
+      [
+        path.resolve(__dirname, "../../../../cli/dist/index.js"),
+        "daemon",
+        "stop",
+        "--home",
+        paseoHome,
+        "--force",
+      ],
+      { timeout: 30_000 },
+    );
+    await killProcessTree(child);
+  };
   const spawnDaemon = async (): Promise<ChildProcess> => {
     const spawnOptions: SpawnOptions = {
       cwd: serverDir,
@@ -200,21 +226,21 @@ export async function startIsolatedHostDaemon(
       stdio: ["ignore", "ignore", "pipe"],
       detached: false,
     };
-    const child = publishedPackageRoot
+    const spawned = publishedPackageRoot
       ? spawn(process.execPath, ["dist/scripts/supervisor-entrypoint.js"], spawnOptions)
       : spawnTsx("scripts/supervisor-entrypoint.ts", ["--dev"], spawnOptions);
 
+    child = spawned;
     let stderr = "";
-    child.stderr?.on("data", (chunk: Buffer) => {
+    spawned.stderr?.on("data", (chunk: Buffer) => {
       stderr += chunk.toString("utf8");
       stderr = stderr.split("\n").slice(-40).join("\n");
     });
 
     try {
-      await waitForServer(port, child);
-      return child;
+      await waitForServer(port, spawned);
+      return spawned;
     } catch (error) {
-      await killProcessTree(child);
       throw new Error(
         `${error instanceof Error ? error.message : String(error)}\nDaemon stderr:\n${stderr}`,
         { cause: error },
@@ -222,10 +248,10 @@ export async function startIsolatedHostDaemon(
     }
   };
 
-  let child: ChildProcess;
   try {
-    child = await spawnDaemon();
+    await spawnDaemon();
   } catch (error) {
+    await stopDaemon();
     if (!options.preserveHome) {
       await rm(paseoHome, REMOVE_TREE_OPTIONS);
     }
@@ -240,22 +266,22 @@ export async function startIsolatedHostDaemon(
     serverId,
     port,
     paseoHome,
-    getPid: () => child.pid,
+    getPid: () => child?.pid,
     restart: async () => {
       if (closed) throw new Error(`Cannot restart closed isolated daemon ${serverId}`);
-      await killProcessTree(child);
-      child = await spawnDaemon();
+      await stopDaemon();
+      await spawnDaemon();
     },
     close: async () => {
       if (closed) return;
-      closed = true;
-      await killProcessTree(child);
+      await stopDaemon();
       if (!options.preserveHome) {
         await rm(paseoHome, REMOVE_TREE_OPTIONS);
       }
       if (publishedPackageRoot) {
         await rm(publishedPackageRoot, REMOVE_TREE_OPTIONS);
       }
+      closed = true;
     },
   };
 }

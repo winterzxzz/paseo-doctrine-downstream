@@ -279,6 +279,7 @@ export const PersistedConfigSchema = z
           })
           .passthrough()
           .optional(),
+        usage: z.object({ enabled: z.boolean().optional() }).optional(),
         browserTools: z
           .object({
             enabled: z.boolean().optional(),
@@ -407,6 +408,8 @@ export const PersistedConfigSchema = z
         providers: z.preprocess(normalizeAgentProviders, ProviderOverridesSchema).optional(),
         credentials: AgentCredentialsSchema.optional(),
         idleRuntimeCleanup: z.boolean().optional(),
+        resumeOnStartup: z.boolean().optional(),
+        resumePrompt: z.string().optional(),
         catalogRefreshTimeoutMs: z.number().int().positive().max(2_147_483_647).optional(),
         metadataGeneration: AgentMetadataGenerationSchema.optional(),
         skills: z.object({ selection: AgentSkillSelectionSchema.optional() }).strict().optional(),

@@ -24,9 +24,14 @@ export async function createAgentProviderRuntime(
   options: CreateAgentProviderRuntimeOptions,
 ): Promise<AgentProviderRuntime> {
   const openCodeOverride = options.snapshotManager.providerOverrides?.opencode;
+  const configuredPort =
+    options.snapshotManager.runtimeSettings?.opencode?.env?.PASEO_OPENCODE_BRIDGE_PORT;
+  const port = configuredPort === undefined ? undefined : Number(configuredPort);
+  if (port !== undefined && (!Number.isInteger(port) || port < 1 || port > 65535))
+    throw new Error("PASEO_OPENCODE_BRIDGE_PORT must be an integer between 1 and 65535");
   const bridge =
     openCodeOverride?.enabled === true && isPaseoSupportedProvider("opencode", openCodeOverride)
-      ? new OpenCodeBridge({ paseoHome: options.paseoHome, logger: options.logger })
+      ? new OpenCodeBridge({ paseoHome: options.paseoHome, logger: options.logger, port })
       : null;
   try {
     await bridge?.start();

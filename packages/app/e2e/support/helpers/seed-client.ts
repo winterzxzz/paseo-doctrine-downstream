@@ -31,6 +31,10 @@ interface SeedProjectDescriptor {
  * prefer those wrappers over reaching for this client directly.
  */
 export interface SeedDaemonClient {
+  patchDaemonConfig(
+    config: import("@getpaseo/protocol/messages").MutableDaemonConfigPatch,
+  ): Promise<{ config: import("@getpaseo/protocol/messages").MutableDaemonConfig }>;
+  getDaemonConfig(): Promise<{ config: import("@getpaseo/protocol/messages").MutableDaemonConfig }>;
   connect(): Promise<void>;
   close(): Promise<void>;
   getDaemonConfig(): Promise<{ requestId: string; config: MutableDaemonConfig }>;

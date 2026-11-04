@@ -171,6 +171,7 @@ async function reserveAgentInitialization(
         roleBinding: record.launchContract ? undefined : record.roleBinding,
         launchContract: record.launchContract,
         launchProfile: record.launchProfile,
+        env: record.launchEnv,
       });
       deps.logger.info({ agentId, provider: record.provider }, "Agent created from stored config");
     }

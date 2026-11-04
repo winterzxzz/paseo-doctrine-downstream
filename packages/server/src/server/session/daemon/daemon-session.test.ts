@@ -217,6 +217,7 @@ describe("DaemonSession", () => {
             { provider: "claude", available: true, error: null },
             { provider: "codex", available: false, error: "boom" },
           ],
+          terminalCleanupUnconfirmed: [],
         },
       },
     ]);
@@ -252,6 +253,7 @@ describe("DaemonSession", () => {
           listen: null,
           relay: null,
           providers: [],
+          terminalCleanupUnconfirmed: [],
         },
       },
     ]);

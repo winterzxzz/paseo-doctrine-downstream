@@ -26,6 +26,7 @@ type ProviderOverride = import("./agent/provider-launch-config.js").ProviderOver
 interface SupportedMutableConfigPatch {
   relay?: { enabled?: boolean; requireProtectedSecurity?: boolean };
   mcp?: { injectIntoAgents?: boolean };
+  usage?: { enabled: boolean };
   browserTools?: { enabled?: boolean };
   beadsCentral?: MutableDaemonConfigPatch["beadsCentral"];
   providers?: MutableDaemonConfig["providers"];
@@ -35,6 +36,8 @@ interface SupportedMutableConfigPatch {
   defaultFastMode?: boolean;
   enableTerminalAgentHooks?: boolean;
   idleRuntimeCleanup?: boolean;
+  resumeOnStartup?: boolean;
+  resumePrompt?: string;
   appendSystemPrompt?: string;
   roleProfiles?: MutableDaemonConfigPatch["roleProfiles"];
   resetRoleProfiles?: MutableDaemonConfigPatch["resetRoleProfiles"];
@@ -218,6 +221,7 @@ const RELOADABLE_PATHS = [
   "daemon.relay.requireProtectedSecurity",
   "daemon.mcp.enabled",
   "daemon.mcp.injectIntoAgents",
+  "daemon.usage.enabled",
   "daemon.browserTools.enabled",
   "daemon.beadsCentral",
   "daemon.hostnames",
@@ -240,6 +244,8 @@ const RELOADABLE_PATHS = [
   "daemon.agentProfiles",
   "app.baseUrl",
   "agents.idleRuntimeCleanup",
+  "agents.resumeOnStartup",
+  "agents.resumePrompt",
   "agents.providers",
   "agents.catalogRefreshTimeoutMs",
   "agents.metadataGeneration",
@@ -252,6 +258,7 @@ const PERSISTED_TO_MUTABLE_PATH = new Map<string, string>([
   ["daemon.relay.requireProtectedSecurity", "relay.requireProtectedSecurity"],
   ["daemon.mcp.enabled", "mcp.enabled"],
   ["daemon.mcp.injectIntoAgents", "mcp.injectIntoAgents"],
+  ["daemon.usage.enabled", "usage.enabled"],
   ["daemon.browserTools.enabled", "browserTools.enabled"],
   ["daemon.beadsCentral", "beadsCentral"],
   ["daemon.hostnames", "hostnames"],
@@ -274,6 +281,8 @@ const PERSISTED_TO_MUTABLE_PATH = new Map<string, string>([
   ["daemon.agentProfiles", "agentProfiles"],
   ["app.baseUrl", "app.baseUrl"],
   ["agents.idleRuntimeCleanup", "idleRuntimeCleanup"],
+  ["agents.resumeOnStartup", "resumeOnStartup"],
+  ["agents.resumePrompt", "resumePrompt"],
   ["agents.providers", "providers"],
   ["agents.catalogRefreshTimeoutMs", "catalogRefreshTimeoutMs"],
   ["agents.metadataGeneration", "metadataGeneration"],
@@ -419,10 +428,23 @@ function pickRelayPatch(
   return Object.keys(picked).length > 0 ? { relay: picked } : {};
 }
 
+function pickAgentLifecyclePatchFields(
+  patch: MutableDaemonConfigPatch,
+): Pick<SupportedMutableConfigPatch, "resumeOnStartup" | "resumePrompt" | "idleRuntimeCleanup"> {
+  return {
+    ...(patch.resumeOnStartup !== undefined ? { resumeOnStartup: patch.resumeOnStartup } : {}),
+    ...(patch.resumePrompt !== undefined ? { resumePrompt: patch.resumePrompt } : {}),
+    ...(patch.idleRuntimeCleanup !== undefined
+      ? { idleRuntimeCleanup: patch.idleRuntimeCleanup }
+      : {}),
+  };
+}
+
 function pickSupportedPatchFields(patch: MutableDaemonConfigPatch): SupportedMutableConfigPatch {
   return {
     ...pickFoundationPatchFields(patch),
     ...pickRelayPatch(patch.relay),
+    usage: patch.usage,
     ...(patch.mcp?.injectIntoAgents !== undefined
       ? { mcp: { injectIntoAgents: patch.mcp.injectIntoAgents } }
       : {}),
@@ -441,9 +463,7 @@ function pickSupportedPatchFields(patch: MutableDaemonConfigPatch): SupportedMut
     ...(patch.enableTerminalAgentHooks !== undefined
       ? { enableTerminalAgentHooks: patch.enableTerminalAgentHooks }
       : {}),
-    ...(patch.idleRuntimeCleanup !== undefined
-      ? { idleRuntimeCleanup: patch.idleRuntimeCleanup }
-      : {}),
+    ...pickAgentLifecyclePatchFields(patch),
     ...(patch.appendSystemPrompt !== undefined
       ? { appendSystemPrompt: patch.appendSystemPrompt }
       : {}),
@@ -884,6 +904,7 @@ function mergeMutableAgentPatch(
     patch.providers === undefined &&
     patch.metadataGeneration === undefined &&
     patch.skills === undefined &&
+    !hasRestartRecoveryPatch(patch) &&
     patch.idleRuntimeCleanup === undefined &&
     removeProviders.length === 0
   ) {
@@ -917,6 +938,7 @@ function mergeMutableAgentPatch(
     next["skills"] = { selection: patch.skills.selection };
   }
 
+  Object.assign(next, restartRecoveryPatch(patch));
   if (patch.idleRuntimeCleanup !== undefined) {
     next["idleRuntimeCleanup"] = patch.idleRuntimeCleanup;
   }
@@ -1025,6 +1047,7 @@ function mergeMutableDaemonPatch(
   if (patch.mcp?.injectIntoAgents !== undefined) {
     next.mcp = { ...next.mcp, injectIntoAgents: patch.mcp.injectIntoAgents };
   }
+  if (patch.usage) next.usage = patch.usage;
   if (patch.browserTools?.enabled !== undefined) {
     next.browserTools = { ...next.browserTools, enabled: patch.browserTools.enabled };
   }
@@ -1062,5 +1085,15 @@ function mergePeerDelegationPatch(
       runMode: current?.runMode ?? "unattended",
       ...patch,
     },
+  };
+}
+
+function hasRestartRecoveryPatch(patch: SupportedMutableConfigPatch) {
+  return patch.resumeOnStartup !== undefined || patch.resumePrompt !== undefined;
+}
+function restartRecoveryPatch(patch: SupportedMutableConfigPatch) {
+  return {
+    ...(patch.resumeOnStartup !== undefined ? { resumeOnStartup: patch.resumeOnStartup } : {}),
+    ...(patch.resumePrompt !== undefined ? { resumePrompt: patch.resumePrompt } : {}),
   };
 }

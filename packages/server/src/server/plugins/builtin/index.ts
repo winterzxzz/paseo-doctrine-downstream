@@ -16,6 +16,7 @@ export const builtinPlugins = [
   "kimi-usage-source",
   "minimax-usage-source",
   "opencode-go-usage-source",
+  "worktree-include",
   "zai-usage-source",
 ] as const;
 
