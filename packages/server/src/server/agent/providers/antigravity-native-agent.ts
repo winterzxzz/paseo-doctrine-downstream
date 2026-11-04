@@ -113,14 +113,15 @@ interface AntigravityStreamEvent {
 function toolTimelineItem(step: AntigravityStreamStep, callId: string): AgentTimelineItem {
   const name = step.tool_name || step.tool_info?.name || "Antigravity tool";
   const base = { type: "tool_call" as const, callId, name, detail: toolDetail(step) };
-  if (step.state === "ERROR") {
+  if (step.state === "ERROR" || step.state === "CANCELED" || step.state === "CANCELLED") {
     return {
       ...base,
       status: "failed",
-      error: step.tool_info?.error?.message ?? "Antigravity tool failed",
+      error: step.tool_info?.error?.message ?? `Antigravity tool ${step.state.toLowerCase()}`,
     };
   }
-  return { ...base, status: step.state === "ACTIVE" ? "running" : "completed", error: null };
+  // Only DONE is terminal; any other state (ACTIVE, pending, awaiting approval) is still running.
+  return { ...base, status: step.state === "DONE" ? "completed" : "running", error: null };
 }
 
 function toolDetail(step: AntigravityStreamStep): ToolCallDetail {
@@ -294,6 +295,9 @@ class AntigravityNativeAgentSession implements AgentSession {
   private currentModeId: string;
   private assistantText = "";
   private responseStepIndex: number | null = null;
+  // Fallback step identity when agy omits step_index: bumped when a new step starts.
+  private fallbackStepIndex = 0;
+  private lastStepKey: string | null = null;
 
   constructor(
     readonly provider: AgentProvider,
@@ -334,6 +338,8 @@ class AntigravityNativeAgentSession implements AgentSession {
     this.pendingOutcome = null;
     this.assistantText = "";
     this.responseStepIndex = null;
+    this.fallbackStepIndex = 0;
+    this.lastStepKey = null;
     const promptText = promptToText(prompt);
     const args = [
       "--agent",
@@ -471,18 +477,32 @@ class AntigravityNativeAgentSession implements AgentSession {
     }
   }
 
+  // agy numbers steps with step_index. Without it, a step is the run of frames that share a
+  // type and tool and has not reached a terminal state.
+  private stepIndexOf(step: AntigravityStreamStep): number {
+    if (step.step_index !== undefined) return step.step_index;
+    const key = `${step.step_type ?? ""}:${step.tool_name ?? ""}`;
+    if (key !== this.lastStepKey) {
+      this.fallbackStepIndex += 1;
+      this.lastStepKey = key;
+    }
+    const index = -this.fallbackStepIndex;
+    if (step.state && step.state !== "ACTIVE") this.lastStepKey = null;
+    return index;
+  }
+
   private handleStep(step: AntigravityStreamStep, turnId: string): void {
+    const stepIndex = this.stepIndexOf(step);
     if (step.step_type === "tool") {
       this.emit({
         type: "timeline",
         provider: this.provider,
         turnId,
-        item: toolTimelineItem(step, `${turnId}:${step.step_index ?? "tool"}`),
+        item: toolTimelineItem(step, `${turnId}:${stepIndex}`),
       });
     }
     if (step.step_type === "agent_response") {
       // Each response step is its own message; the result repeats only the last one.
-      const stepIndex = step.step_index ?? null;
       if (stepIndex !== this.responseStepIndex) {
         this.responseStepIndex = stepIndex;
         this.assistantText = "";

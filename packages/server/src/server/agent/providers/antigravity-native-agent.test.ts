@@ -255,6 +255,63 @@ describe("native Antigravity provider", () => {
     },
   );
 
+  test.skipIf(process.platform === "win32")(
+    "keeps tool rows and response text apart when agy omits step_index",
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), "agy-native-noindex-test-"));
+      const first = { name: "run_command", parameters: { CommandLine: "echo one" } };
+      const second = { name: "run_command", parameters: { CommandLine: "echo two" } };
+      const { binary, argvLog } = await createFakeAgy(root, {
+        response: "Done",
+        steps: [
+          { state: "ACTIVE", step_type: "agent_response", text_delta: "Working" },
+          { state: "DONE", step_type: "agent_response" },
+          { state: "ACTIVE", step_type: "tool", tool_name: "run_command", tool_info: first },
+          { state: "DONE", step_type: "tool", tool_name: "run_command", tool_info: first },
+          { state: "ACTIVE", step_type: "tool", tool_name: "run_command", tool_info: second },
+          { state: "DONE", step_type: "tool", tool_name: "run_command", tool_info: second },
+          { state: "DONE", step_type: "agent_response", text_delta: "Done" },
+        ],
+      });
+      const client = new AntigravityNativeAgentClient({
+        logger: createTestLogger(),
+        command: [binary],
+        env: { PASEO_TEST_AGY_ARGV: argvLog },
+        profileRoot: join(root, "profiles"),
+        temporaryRoot: root,
+        resolveExecutable: async () => binary,
+      });
+      const session = await client.createSession(
+        { provider: "gemini-antigravity", cwd: root, modeId: "full-access" },
+        {
+          agentId: "agent-native",
+          roleBinding: { roleId: "peer", instructions: "Immutable Peer instructions" },
+          paseoTools: catalog(),
+        },
+      );
+      const items: Array<{ type: string; callId?: string; text?: string }> = [];
+      const unsubscribe = session.subscribe((event) => {
+        if (event.type === "timeline") items.push(event.item);
+      });
+      try {
+        await session.run("Run both");
+        const callIds = items
+          .filter((item) => item.type === "tool_call")
+          .map((item) => item.callId);
+        expect(callIds).toHaveLength(4);
+        expect(callIds[0]).toBe(callIds[1]);
+        expect(callIds[2]).toBe(callIds[3]);
+        expect(callIds[0]).not.toBe(callIds[2]);
+        expect(
+          items.filter((item) => item.type === "assistant_message").map((item) => item.text),
+        ).toEqual(["Working", "Done"]);
+      } finally {
+        unsubscribe();
+        await session.close();
+      }
+    },
+  );
+
   test("fails closed without an immutable role or caller-scoped tool catalog", async () => {
     const client = new AntigravityNativeAgentClient({
       logger: createTestLogger(),
