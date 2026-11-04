@@ -24,8 +24,10 @@ import type {
   AgentSession,
   AgentSessionConfig,
   AgentStreamEvent,
+  AgentTimelineItem,
   FetchCatalogOptions,
   ProviderCatalog,
+  ToolCallDetail,
 } from "../agent-sdk-types.js";
 import { appendOrReplaceGrowingAssistantMessage, runProviderTurn } from "./provider-runner.js";
 import {
@@ -78,21 +80,86 @@ interface AntigravityStreamUsage {
   total_tokens?: number;
 }
 
+interface AntigravityStreamStep {
+  step_index?: number;
+  state?: string;
+  step_type?: string;
+  text_delta?: string;
+  tool_name?: string;
+  tool_info?: {
+    name?: string;
+    parameters?: Record<string, unknown>;
+    output?: string;
+    error?: { message?: string };
+  };
+  usage?: AntigravityStreamUsage;
+}
+
 interface AntigravityStreamEvent {
   event?: string;
   conversation_id?: string;
   init?: { conversation_id?: string };
-  step_update?: {
-    step_type?: string;
-    text_delta?: string;
-    usage?: AntigravityStreamUsage;
-  };
+  step_update?: AntigravityStreamStep;
   result?: {
     conversation_id?: string;
     status?: string;
     response?: string;
     usage?: AntigravityStreamUsage;
   };
+}
+
+// agy reports each tool as a step: ACTIVE when it starts, then DONE or ERROR. Both frames of a
+// step share one callId, so the timeline updates the row in place.
+function toolTimelineItem(step: AntigravityStreamStep, callId: string): AgentTimelineItem {
+  const name = step.tool_name || step.tool_info?.name || "Antigravity tool";
+  const base = { type: "tool_call" as const, callId, name, detail: toolDetail(step) };
+  if (step.state === "ERROR") {
+    return {
+      ...base,
+      status: "failed",
+      error: step.tool_info?.error?.message ?? "Antigravity tool failed",
+    };
+  }
+  return { ...base, status: step.state === "ACTIVE" ? "running" : "completed", error: null };
+}
+
+function toolDetail(step: AntigravityStreamStep): ToolCallDetail {
+  const info = step.tool_info;
+  const params = info?.parameters ?? {};
+  return (
+    shellDetail(info?.name, params, info?.output) ??
+    fileDetail(info?.name, params, info?.output) ?? {
+      type: "unknown",
+      input: params,
+      output: info?.error?.message ?? info?.output ?? null,
+    }
+  );
+}
+
+function shellDetail(
+  name: string | undefined,
+  params: Record<string, unknown>,
+  output: string | undefined,
+): ToolCallDetail | null {
+  const command = params.CommandLine;
+  if (name !== "run_command" || typeof command !== "string") return null;
+  return { type: "shell", command, ...(output !== undefined ? { output } : {}) };
+}
+
+function fileDetail(
+  name: string | undefined,
+  params: Record<string, unknown>,
+  output: string | undefined,
+): ToolCallDetail | null {
+  const path = params.AbsolutePath ?? params.TargetFile;
+  if (typeof path !== "string") return null;
+  if (name === "view_file")
+    return { type: "read", filePath: path, ...(output ? { content: output } : {}) };
+  if (name === "write_to_file") return { type: "write", filePath: path };
+  if (name === "replace_file_content" || name === "multi_replace_file_content") {
+    return { type: "edit", filePath: path };
+  }
+  return null;
 }
 
 function sha256(value: string): string {
@@ -226,6 +293,7 @@ class AntigravityNativeAgentSession implements AgentSession {
   private closed = false;
   private currentModeId: string;
   private assistantText = "";
+  private responseStepIndex: number | null = null;
 
   constructor(
     readonly provider: AgentProvider,
@@ -265,11 +333,13 @@ class AntigravityNativeAgentSession implements AgentSession {
     const turnId = randomUUID();
     this.pendingOutcome = null;
     this.assistantText = "";
+    this.responseStepIndex = null;
+    const promptText = promptToText(prompt);
     const args = [
       "--agent",
       this.profile.name,
       "--print",
-      promptToText(prompt),
+      promptText,
       "--output-format",
       "stream-json",
       "--print-timeout",
@@ -342,6 +412,18 @@ class AntigravityNativeAgentSession implements AgentSession {
       }
     });
     this.emit({ type: "turn_started", provider: this.provider, turnId });
+    // agy never echoes the prompt. The manager records it only for prompts with a
+    // clientMessageId, so prompts from create_agent and MCP would otherwise leave no row.
+    this.emit({
+      type: "timeline",
+      provider: this.provider,
+      turnId,
+      item: {
+        type: "user_message",
+        text: promptText,
+        ...(options?.clientMessageId ? { clientMessageId: options.clientMessageId } : {}),
+      },
+    });
     return { turnId };
   }
 
@@ -359,19 +441,8 @@ class AntigravityNativeAgentSession implements AgentSession {
       this.conversationId = conversationId;
       this.emit({ type: "thread_started", sessionId: conversationId, provider: this.provider });
     }
-    if (event.event === "step_update" && event.step_update?.step_type === "agent_response") {
-      const text = event.step_update.text_delta;
-      if (text) {
-        this.assistantText = text.startsWith(this.assistantText)
-          ? text
-          : `${this.assistantText}${text}`;
-        this.emit({
-          type: "timeline",
-          provider: this.provider,
-          turnId,
-          item: { type: "assistant_message", text },
-        });
-      }
+    if (event.event === "step_update" && event.step_update) {
+      this.handleStep(event.step_update, turnId);
     }
     if (event.event === "result") {
       if (event.result?.status === "SUCCESS") {
@@ -396,6 +467,37 @@ class AntigravityNativeAgentSession implements AgentSession {
           error: `Antigravity result status: ${event.result?.status ?? "UNKNOWN"}`,
           turnId,
         };
+      }
+    }
+  }
+
+  private handleStep(step: AntigravityStreamStep, turnId: string): void {
+    if (step.step_type === "tool") {
+      this.emit({
+        type: "timeline",
+        provider: this.provider,
+        turnId,
+        item: toolTimelineItem(step, `${turnId}:${step.step_index ?? "tool"}`),
+      });
+    }
+    if (step.step_type === "agent_response") {
+      // Each response step is its own message; the result repeats only the last one.
+      const stepIndex = step.step_index ?? null;
+      if (stepIndex !== this.responseStepIndex) {
+        this.responseStepIndex = stepIndex;
+        this.assistantText = "";
+      }
+      const text = step.text_delta;
+      if (text) {
+        this.assistantText = text.startsWith(this.assistantText)
+          ? text
+          : `${this.assistantText}${text}`;
+        this.emit({
+          type: "timeline",
+          provider: this.provider,
+          turnId,
+          item: { type: "assistant_message", text },
+        });
       }
     }
   }

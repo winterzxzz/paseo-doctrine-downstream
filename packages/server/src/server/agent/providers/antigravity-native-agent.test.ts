@@ -25,9 +25,20 @@ function findTurnFailure(events: Array<{ type: string; diagnostic?: string }>) {
   return undefined;
 }
 
+function stepLines(options: { includeStepUpdate?: boolean; steps?: readonly object[] }): string {
+  if (options.includeStepUpdate === false) return "";
+  const steps = options.steps ?? [{ step_type: "agent_response", text_delta: "AGY_OK" }];
+  return steps
+    .map(
+      (step) =>
+        `cat <<'AGY_STEP'\n${JSON.stringify({ event: "step_update", step_update: step })}\nAGY_STEP`,
+    )
+    .join("\n");
+}
+
 async function createFakeAgy(
   root: string,
-  options: { includeStepUpdate?: boolean } = {},
+  options: { includeStepUpdate?: boolean; steps?: readonly object[]; response?: string } = {},
 ): Promise<{ binary: string; argvLog: string }> {
   const binary = join(root, "agy");
   const argvLog = join(root, "argv.log");
@@ -45,8 +56,8 @@ for argument do
   if [ "$argument" = existing-conversation ]; then conversation=existing-conversation; fi
 done
 printf '{"event":"init","conversation_id":"%s","init":{"permission_mode":"always-proceed"}}\n' "$conversation"
-${options.includeStepUpdate === false ? "" : `printf '{"event":"step_update","step_update":{"step_type":"agent_response","text_delta":"AGY_OK"}}\\n'`}
-printf '{"event":"result","result":{"conversation_id":"%s","status":"SUCCESS","response":"AGY_OK","usage":{"input_tokens":10,"output_tokens":2}}}\n' "$conversation"
+${stepLines(options)}
+printf '{"event":"result","result":{"conversation_id":"%s","status":"SUCCESS","response":"${options.response ?? "AGY_OK"}","usage":{"input_tokens":10,"output_tokens":2}}}\n' "$conversation"
 `,
     { encoding: "utf8", mode: 0o700 },
   );
@@ -147,6 +158,98 @@ describe("native Antigravity provider", () => {
           "--conversation\nexisting-conversation\n",
         );
       } finally {
+        await session.close();
+      }
+    },
+  );
+
+  test.skipIf(process.platform === "win32")(
+    "streams the prompt, tool steps and each response step to the timeline",
+    async () => {
+      const root = await mkdtemp(join(tmpdir(), "agy-native-timeline-test-"));
+      const command = { name: "run_command", parameters: { CommandLine: "echo canary" } };
+      const { binary, argvLog } = await createFakeAgy(root, {
+        response: "DONE",
+        steps: [
+          { step_index: 0, state: "DONE", step_type: "user_input" },
+          { step_index: 1, state: "ACTIVE", step_type: "agent_response", text_delta: "Running" },
+          {
+            step_index: 2,
+            state: "ACTIVE",
+            step_type: "tool",
+            tool_name: "run_command",
+            tool_info: command,
+          },
+          {
+            step_index: 2,
+            state: "DONE",
+            step_type: "tool",
+            tool_name: "run_command",
+            tool_info: { ...command, output: "canary" },
+          },
+          {
+            step_index: 3,
+            state: "ERROR",
+            step_type: "tool",
+            tool_name: "view_file",
+            tool_info: { name: "view_file", parameters: {}, error: { message: "missing" } },
+          },
+          { step_index: 4, state: "DONE", step_type: "agent_response", text_delta: "DONE" },
+        ],
+      });
+      const client = new AntigravityNativeAgentClient({
+        logger: createTestLogger(),
+        command: [binary],
+        env: { PASEO_TEST_AGY_ARGV: argvLog },
+        profileRoot: join(root, "profiles"),
+        temporaryRoot: root,
+        resolveExecutable: async () => binary,
+      });
+      const session = await client.createSession(
+        { provider: "gemini-antigravity", cwd: root, modeId: "full-access" },
+        {
+          agentId: "agent-native",
+          roleBinding: { roleId: "peer", instructions: "Immutable Peer instructions" },
+          paseoTools: catalog(),
+        },
+      );
+      const items: unknown[] = [];
+      const unsubscribe = session.subscribe((event) => {
+        if (event.type === "timeline") items.push(event.item);
+      });
+      try {
+        await session.run("Run the canary", { clientMessageId: "client-1" });
+        expect(items).toEqual([
+          { type: "user_message", text: "Run the canary", clientMessageId: "client-1" },
+          { type: "assistant_message", text: "Running" },
+          expect.objectContaining({
+            type: "tool_call",
+            name: "run_command",
+            status: "running",
+            detail: { type: "shell", command: "echo canary" },
+          }),
+          expect.objectContaining({
+            type: "tool_call",
+            name: "run_command",
+            status: "completed",
+            detail: { type: "shell", command: "echo canary", output: "canary" },
+          }),
+          expect.objectContaining({
+            type: "tool_call",
+            name: "view_file",
+            status: "failed",
+            error: "missing",
+          }),
+          { type: "assistant_message", text: "DONE" },
+        ]);
+        const toolCalls = items.filter(
+          (item): item is { callId: string; name: string } =>
+            (item as { type?: string }).type === "tool_call",
+        );
+        expect(toolCalls[0].callId).toBe(toolCalls[1].callId);
+        expect(toolCalls[2].callId).not.toBe(toolCalls[0].callId);
+      } finally {
+        unsubscribe();
         await session.close();
       }
     },
