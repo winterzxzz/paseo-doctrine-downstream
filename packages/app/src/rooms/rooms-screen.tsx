@@ -143,7 +143,6 @@ export function RoomsScreen({ serverId, selectedRoomId }: RoomsScreenProps) {
     () => (
       <Button
         variant="secondary"
-        size="sm"
         leftIcon={Plus}
         onPress={openCreateSheet}
         disabled={!roomsQuery.client || !roomsQuery.isConnected || !roomsQuery.supportsRooms}
@@ -240,7 +239,7 @@ function RoomUnavailable({
     <View style={styles.unavailable}>
       <Alert title={title} description={description} variant="warning">
         {onRetry ? (
-          <Button variant="outline" size="sm" onPress={onRetry}>
+          <Button variant="outline" onPress={onRetry}>
             Try again
           </Button>
         ) : null}
@@ -415,7 +414,7 @@ function RoomDetail({
     () => (
       <Button
         variant="outline"
-        size="xs"
+        size="sm"
         leftIcon={Trash2}
         onPress={handleDelete}
         loading={deleteMutation.isPending}
@@ -473,7 +472,7 @@ function RoomDetail({
             description={toErrorMessage(messagesQuery.error)}
             variant="error"
           >
-            <Button variant="outline" size="sm" onPress={handleMessagesRetry}>
+            <Button variant="outline" onPress={handleMessagesRetry}>
               Try again
             </Button>
           </Alert>
@@ -485,7 +484,7 @@ function RoomDetail({
       {liveMessages.error ? (
         <View style={styles.liveAlert}>
           <Alert title="Live updates paused" description={liveMessages.error} variant="warning">
-            <Button variant="outline" size="sm" onPress={liveMessages.retry}>
+            <Button variant="outline" onPress={liveMessages.retry}>
               Resume
             </Button>
           </Alert>
@@ -594,7 +593,7 @@ function RoomMessageRow({
               <Text style={styles.messageTime}>{formatMessageTime(message.createdAt)}</Text>
               <Button
                 variant="ghost"
-                size="xs"
+                size="sm"
                 leftIcon={Reply}
                 onPress={handleReply}
                 style={styles.replyButton}
@@ -617,7 +616,7 @@ function RoomMessageRow({
           </Text>
           <Button
             variant="ghost"
-            size="xs"
+            size="sm"
             leftIcon={Reply}
             onPress={handleReply}
             style={styles.replyButton}
@@ -754,7 +753,7 @@ function RoomComposer({
           </Text>
           <Button
             variant="ghost"
-            size="xs"
+            size="sm"
             leftIcon={X}
             onPress={handleCancelReply}
             accessibilityLabel="Cancel reply"

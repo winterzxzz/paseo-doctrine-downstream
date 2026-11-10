@@ -78,7 +78,6 @@ function LeadRouteRow({
       <View style={styles.routeActions}>
         <Button
           variant="ghost"
-          size="sm"
           leftIcon={moveUpIcon}
           onPress={handleMoveUp}
           disabled={disabled || isFirst}
@@ -87,7 +86,6 @@ function LeadRouteRow({
         />
         <Button
           variant="ghost"
-          size="sm"
           leftIcon={moveDownIcon}
           onPress={handleMoveDown}
           disabled={disabled || isLast}
@@ -96,7 +94,6 @@ function LeadRouteRow({
         />
         <Button
           variant="ghost"
-          size="sm"
           leftIcon={removeIcon}
           onPress={handleRemove}
           disabled={disabled}

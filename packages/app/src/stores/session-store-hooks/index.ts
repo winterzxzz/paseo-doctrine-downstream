@@ -11,6 +11,7 @@ import {
   selectHasWorkspaces,
   selectProjectOrder,
   selectProjectWorkspaceIds,
+  selectProjectRootPaths,
   selectRecommendedProjectPaths,
   selectWorkspace,
   selectWorkspaceDirectory,
@@ -155,6 +156,14 @@ export function useRecommendedProjectPaths(serverId: string | null): string[] {
   return useStoreWithEqualityFn(
     useSessionStore,
     (state) => selectRecommendedProjectPaths(state, serverId),
+    workspaceEqualityFns.deep,
+  );
+}
+
+export function useProjectRootPaths(serverId: string | null): string[] {
+  return useStoreWithEqualityFn(
+    useSessionStore,
+    (state) => selectProjectRootPaths(state, serverId),
     workspaceEqualityFns.deep,
   );
 }

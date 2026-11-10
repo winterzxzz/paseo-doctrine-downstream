@@ -303,7 +303,6 @@ export function RoleProfilesCard({ serverId }: { serverId: string }) {
         <View style={styles.headerActions}>
           <Button
             variant="ghost"
-            size="sm"
             leftIcon={RotateCcw}
             onPress={handleReset}
             disabled={isSaving || !descriptor || equal(descriptor.preferences, {})}
@@ -313,7 +312,6 @@ export function RoleProfilesCard({ serverId }: { serverId: string }) {
           </Button>
           <Button
             variant="default"
-            size="sm"
             leftIcon={Save}
             onPress={handleSave}
             disabled={isSaving || !isDirty}

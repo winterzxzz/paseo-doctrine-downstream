@@ -98,7 +98,7 @@ export function WorkspaceProtocolSettings({
           title={t("settings.project.workspaceProtocol.unreadableTitle")}
           description={t("settings.project.workspaceProtocol.unreadableDescription")}
         >
-          <Button onPress={handleReload} variant="outline" size="sm">
+          <Button onPress={handleReload} variant="outline">
             {t("settings.project.actions.reload")}
           </Button>
         </Alert>
@@ -203,7 +203,7 @@ function WorkspaceProtocolEditor({
             title={t("settings.project.workspaceProtocol.staleTitle")}
             description={t("settings.project.workspaceProtocol.staleDescription")}
           >
-            <Button onPress={reload} variant="outline" size="sm">
+            <Button onPress={reload} variant="outline">
               {t("settings.project.actions.reload")}
             </Button>
           </Alert>
@@ -232,7 +232,6 @@ function WorkspaceProtocolEditor({
             onPress={handleSave}
             disabled={mutation.isPending || isStale || (snapshot.status !== "missing" && !changed)}
             variant="default"
-            size="sm"
           >
             {actionLabel}
           </Button>
@@ -263,7 +262,7 @@ function WorkspaceProtocolLoadFailure({
         title={t("settings.project.workspaceProtocol.loadFailedTitle")}
         description={detail ?? t("settings.project.workspaceProtocol.loadFailedDescription")}
       >
-        <Button onPress={onReload} variant="outline" size="sm">
+        <Button onPress={onReload} variant="outline">
           {t("settings.project.actions.reload")}
         </Button>
       </Alert>

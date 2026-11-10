@@ -199,7 +199,6 @@ function ProviderPriorityRow({
       <View style={styles.priorityActions}>
         <Button
           variant="ghost"
-          size="sm"
           leftIcon={moveUpIcon}
           onPress={handleMoveUp}
           disabled={disabled || isFirst}
@@ -208,7 +207,6 @@ function ProviderPriorityRow({
         />
         <Button
           variant="ghost"
-          size="sm"
           leftIcon={moveDownIcon}
           onPress={handleMoveDown}
           disabled={disabled || isLast}

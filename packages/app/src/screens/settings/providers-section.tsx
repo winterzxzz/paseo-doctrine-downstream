@@ -29,6 +29,7 @@ import { PaseoToolsPolicySheet } from "@/screens/settings/paseo-tools-policy-she
 import { Alert as InlineAlert } from "@/components/ui/alert";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Button } from "@/components/ui/button";
+import { SkeletonPulse, useSkeletonPulse } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
   DropdownMenu,
@@ -265,6 +266,33 @@ function ProviderActionsMenu({
   );
 }
 
+const SKELETON_ROW_KEYS = [0, 1, 2, 3].map((index) => `provider-skeleton-row-${index}`);
+
+function ProviderRowsSkeleton() {
+  const { t } = useTranslation();
+  const pulse = useSkeletonPulse();
+  return (
+    <View
+      style={settingsStyles.card}
+      accessibilityLabel={t("settings.providers.loading")}
+      testID="providers-skeleton"
+    >
+      {SKELETON_ROW_KEYS.map((key, index) => (
+        <View
+          key={key}
+          style={[settingsStyles.row, index > 0 && settingsStyles.rowBorder, styles.row]}
+        >
+          <View style={styles.rowContent}>
+            <SkeletonPulse pulse={pulse} style={styles.skeletonIcon} />
+            <SkeletonPulse pulse={pulse} style={styles.skeletonTitle} />
+          </View>
+          <SkeletonPulse pulse={pulse} style={styles.skeletonSwitch} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 function ProviderRow({
   serverId,
   def,
@@ -371,7 +399,24 @@ function ProviderRow({
               ) : null}
             </View>
           </View>
+          {/* The menu leads the switch, so every switch sits on the row's right edge without
+              rows that have no menu reserving room for one. */}
           <View style={styles.trailingControls}>
+            {canConfigureTools || canRemove ? (
+              <ProviderActionsMenu
+                providerId={def.id}
+                providerLabel={def.label}
+                isRemoving={isRemoving}
+                canRemove={canRemove}
+                canConfigureTools={canConfigureTools}
+                iconSize={theme.iconSize.sm}
+                foregroundColor={theme.colors.foreground}
+                foregroundMutedColor={theme.colors.foregroundMuted}
+                dangerColor={theme.colors.statusDanger}
+                onConfigureTools={onConfigureTools}
+                onRemove={onRemove}
+              />
+            ) : null}
             <Switch
               value={enabled}
               onValueChange={handleToggleValueChange}
@@ -379,23 +424,6 @@ function ProviderRow({
               accessibilityLabel={t("settings.providers.enableProvider", { name: def.label })}
               testID={`provider-enabled-${def.id}`}
             />
-            {canConfigureTools || canRemove ? (
-              <View style={styles.menuSlot}>
-                <ProviderActionsMenu
-                  providerId={def.id}
-                  providerLabel={def.label}
-                  isRemoving={isRemoving}
-                  canRemove={canRemove}
-                  canConfigureTools={canConfigureTools}
-                  iconSize={theme.iconSize.sm}
-                  foregroundColor={theme.colors.foreground}
-                  foregroundMutedColor={theme.colors.foregroundMuted}
-                  dangerColor={theme.colors.statusDanger}
-                  onConfigureTools={onConfigureTools}
-                  onRemove={onRemove}
-                />
-              </View>
-            ) : null}
           </View>
         </>
       )}
@@ -473,7 +501,7 @@ function OpenAICompatibleProviderCard({
           {t("settings.providers.connection.openAICompatibleHint")}
         </Text>
       </View>
-      <Button variant="outline" size="sm" onPress={onOpen} testID="add-openai-compatible-provider">
+      <Button variant="outline" onPress={onOpen} testID="add-openai-compatible-provider">
         {t("settings.providers.connection.add")}
       </Button>
     </View>
@@ -652,11 +680,7 @@ export function ProvidersSection({ serverId }: ProvidersSectionProps) {
             <Text style={styles.emptyText}>{t("settings.providers.unavailable")}</Text>
           </View>
         ) : null}
-        {hasServer && isConnected && isLoading ? (
-          <View style={[settingsStyles.card, styles.emptyCard]}>
-            <Text style={styles.emptyText}>{t("settings.providers.loading")}</Text>
-          </View>
-        ) : null}
+        {hasServer && isConnected && isLoading ? <ProviderRowsSkeleton /> : null}
         {showProviderList ? (
           <View style={settingsStyles.card}>
             {providerDefinitions.map((def, index) => {
@@ -787,6 +811,25 @@ const styles = StyleSheet.create((theme) => ({
   rowHovered: {
     backgroundColor: theme.colors.surface2,
   },
+  skeletonIcon: {
+    width: 20,
+    height: 20,
+    marginLeft: theme.spacing[6],
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.surface2,
+  },
+  skeletonTitle: {
+    width: 160,
+    height: 12,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.surface2,
+  },
+  skeletonSwitch: {
+    width: 36,
+    height: 20,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.surface2,
+  },
   rowPressed: {
     backgroundColor: theme.colors.surface3,
   },
@@ -839,10 +882,6 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: theme.borderRadius.lg,
     alignItems: "center",
     justifyContent: "center",
-  },
-  menuSlot: {
-    width: 32,
-    height: 32,
   },
   menuButtonHovered: {
     backgroundColor: theme.colors.surface2,

@@ -5,8 +5,7 @@ import { StyleSheet } from "react-native-unistyles";
 import { AdaptiveModalSheet, type SheetHeader } from "@/components/adaptive-modal-sheet";
 import { Button } from "@/components/ui/button";
 import { Field, FormTextInput } from "@/components/ui/form-field";
-import { type FieldControlSize } from "@/components/ui/control-geometry";
-import { useIsCompactFormFactor } from "@/constants/layout";
+import { type ControlSize } from "@/components/ui/control-geometry";
 import { useDaemonConfig } from "@/hooks/use-daemon-config";
 import { useHostRuntimeClient } from "@/runtime/host-runtime";
 import {
@@ -132,7 +131,6 @@ function ProviderConnectionTestButton({
   return (
     <Button
       variant="outline"
-      size="sm"
       onPress={onPress}
       disabled={status === "testing" || !canRun}
       testID="provider-connection-test"
@@ -161,7 +159,7 @@ export function ProviderConnectionSheet({
   onSaved,
 }: ProviderConnectionSheetProps) {
   const { t } = useTranslation();
-  const controlSize: FieldControlSize = useIsCompactFormFactor() ? "md" : "sm";
+  const controlSize: ControlSize = "md";
   const model = useProviderConnectionForm({ mode, provider, providerLabel, baseUrl, modelId });
   const state = useSyncExternalStore(model.subscribe, model.getState, model.getState);
   const client = useHostRuntimeClient(serverId);
@@ -377,18 +375,12 @@ export function ProviderConnectionSheet({
             canRun={connectionTest.canRun}
             onPress={connectionTest.onPress}
           />
-          <Button
-            variant="secondary"
-            size="sm"
-            onPress={onClose}
-            disabled={state.status !== "idle"}
-          >
+          <Button variant="secondary" onPress={onClose} disabled={state.status !== "idle"}>
             {t("common.actions.cancel")}
           </Button>
           {mode === "edit" && credentialRef && state.credentialConfigured === true ? (
             <Button
               variant="destructive"
-              size="sm"
               onPress={handleDeleteCredentialPress}
               disabled={state.status !== "idle"}
               testID="provider-connection-delete-credential"
@@ -398,7 +390,7 @@ export function ProviderConnectionSheet({
                 : t("settings.providers.connection.deleteCredential")}
             </Button>
           ) : null}
-          <Button variant="default" size="sm" onPress={handleSavePress} disabled={!state.canSave}>
+          <Button variant="default" onPress={handleSavePress} disabled={!state.canSave}>
             {state.status === "saving"
               ? t("settings.providers.connection.saving")
               : t("settings.providers.connection.save")}

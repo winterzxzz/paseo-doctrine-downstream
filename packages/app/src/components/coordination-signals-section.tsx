@@ -147,7 +147,7 @@ function CoordinationSignalResolveButton({
 
   return (
     <Button
-      size="xs"
+      size="sm"
       variant="outline"
       loading={isLoading}
       disabled={isRowBusy}

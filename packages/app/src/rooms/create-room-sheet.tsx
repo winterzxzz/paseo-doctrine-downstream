@@ -149,7 +149,6 @@ export function CreateRoomSheet({
       <View style={styles.actions}>
         <Button
           variant="secondary"
-          size="sm"
           onPress={handleClose}
           disabled={createMutation.isPending}
           testID="create-room-cancel"
@@ -158,7 +157,6 @@ export function CreateRoomSheet({
         </Button>
         <Button
           variant="default"
-          size="sm"
           onPress={handleCreate}
           loading={createMutation.isPending}
           disabled={!supportsWorkspaceScoping || !draft.name.trim() || !draft.workspaceId}

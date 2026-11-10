@@ -113,7 +113,6 @@ export function IssuesScreen({ serverId, projectId, selectedIssueId }: IssuesScr
     () => (
       <View style={styles.headerActions}>
         <Button
-          size="sm"
           variant="default"
           leftIcon={Plus}
           onPress={handleCreate}
@@ -287,7 +286,7 @@ function IssuesList({
     return (
       <IssuesEmpty title="Issue graph unavailable" description={errorText(error)}>
         <View style={styles.errorActions}>
-          <Button size="sm" leftIcon={RotateCw} onPress={onRetry} testID="issues-retry-button">
+          <Button leftIcon={RotateCw} onPress={onRetry} testID="issues-retry-button">
             Retry
           </Button>
         </View>
@@ -328,7 +327,7 @@ function IssuesList({
           }
         >
           {filter === "all" ? (
-            <Button size="sm" variant="default" leftIcon={Plus} onPress={onCreate}>
+            <Button variant="default" leftIcon={Plus} onPress={onCreate}>
               New issue
             </Button>
           ) : null}
@@ -539,7 +538,7 @@ function IssueDetail({
             issueQuery.error ? errorText(issueQuery.error) : `Issue ${issueId} was not found`
           }
         >
-          <Button size="sm" leftIcon={RotateCw} onPress={handleRetry}>
+          <Button leftIcon={RotateCw} onPress={handleRetry}>
             Retry
           </Button>
         </IssuesEmpty>
@@ -571,7 +570,7 @@ function DetailHeader({ title = "Issue", onClose }: { title?: string; onClose: (
     () => (
       <Button
         variant="ghost"
-        size="xs"
+        size="sm"
         leftIcon={X}
         onPress={onClose}
         accessibilityLabel="Close issue panel"

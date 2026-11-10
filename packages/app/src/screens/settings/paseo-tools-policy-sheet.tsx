@@ -271,7 +271,6 @@ export function PaseoToolsPolicySheet({
       <View style={styles.bulkActions}>
         <Button
           variant="outline"
-          size="sm"
           onPress={handleEnableAll}
           disabled={controlsDisabled}
           testID="paseo-tools-enable-all"
@@ -280,7 +279,6 @@ export function PaseoToolsPolicySheet({
         </Button>
         <Button
           variant="outline"
-          size="sm"
           onPress={handleDisableAll}
           disabled={controlsDisabled}
           testID="paseo-tools-disable-all"

@@ -10,7 +10,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { DropdownTrigger } from "@/components/ui/dropdown-trigger";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
-import { useContributedThemes } from "@/appearance/provider";
+import { ThemePicker } from "@/appearance/theme-picker";
 import { Button } from "@/components/ui/button";
 import {
   EditingTextInput as TextInput,
@@ -28,11 +28,8 @@ import {
   sanitizeFontFamily,
   useAppSettings,
   type AppSettings,
-  DEFAULT_THEME_PREFERENCE,
 } from "@/hooks/use-settings";
-import { PLUGIN_THEME_PREFERENCE } from "@/styles/theme";
 import { isNative } from "@/constants/platform";
-import type { PluginThemeOption } from "@/plugins/themes";
 import { settingsStyles } from "@/styles/settings";
 import { Minus, Plus } from "lucide-react-native";
 import { inlineUnistylesStyle } from "@/styles/unistyles-inline-style";
@@ -45,7 +42,6 @@ import {
   resolveFontOptions,
   type FontOption,
 } from "./font-options";
-import { ThemePicker, type BuiltInThemePreference } from "./theme-picker";
 
 // ---------------------------------------------------------------------------
 // Fonts: a picker of installed faces and −/+ size steppers (commit immediately)
@@ -151,7 +147,6 @@ function FontSizeRow({
       <View style={styles.stepper} accessibilityLabel={`${accessibilityLabel}: ${value}px`}>
         <Button
           variant="outline"
-          size="sm"
           onPress={decrease}
           disabled={value <= min}
           accessibilityLabel={`${title} −1`}
@@ -160,7 +155,6 @@ function FontSizeRow({
         <Text style={styles.stepperValue}>{value}px</Text>
         <Button
           variant="outline"
-          size="sm"
           onPress={increase}
           disabled={value >= max}
           accessibilityLabel={`${title} +1`}
@@ -215,7 +209,6 @@ function ContentWidthRow({ value, onChange }: ContentWidthRowProps) {
         {value === null ? null : (
           <Button
             variant="ghost"
-            size="sm"
             onPress={reset}
             accessibilityLabel={t("settings.appearance.layout.resetAccessibility")}
           >
@@ -313,30 +306,7 @@ function SyntaxRow({ value, onChange }: SyntaxRowProps) {
 export function AppearanceSection() {
   const { t } = useTranslation();
   const { settings, updateSettings } = useAppSettings();
-  const {
-    options: pluginThemes,
-    selected: selectedPluginTheme,
-    select: selectPluginTheme,
-  } = useContributedThemes();
   const showInterfaceFontFamilyRow = !isNative;
-
-  // A selected contribution that is no longer installed shows the fallback the app renders.
-  const builtInThemeValue =
-    settings.theme === PLUGIN_THEME_PREFERENCE ? DEFAULT_THEME_PREFERENCE : settings.theme;
-
-  const handleThemeChange = useCallback(
-    (theme: BuiltInThemePreference) => {
-      void updateSettings({ theme });
-    },
-    [updateSettings],
-  );
-
-  const handlePluginThemeChange = useCallback(
-    (option: PluginThemeOption) => {
-      selectPluginTheme(option);
-    },
-    [selectPluginTheme],
-  );
 
   const handleContentMaxWidthChange = useCallback(
     (contentMaxWidth: AppSettings["contentMaxWidth"]) => {
@@ -398,13 +368,7 @@ export function AppearanceSection() {
     <View>
       <SettingsSection title={t("settings.appearance.theme.title")}>
         <View style={settingsStyles.card}>
-          <ThemePicker
-            value={builtInThemeValue}
-            pluginThemes={pluginThemes}
-            selectedPluginTheme={selectedPluginTheme}
-            onChange={handleThemeChange}
-            onSelectPluginTheme={handlePluginThemeChange}
-          />
+          <ThemePicker />
         </View>
       </SettingsSection>
       <SettingsSection title={t("settings.appearance.fonts.title")}>
