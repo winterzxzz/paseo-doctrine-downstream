@@ -9,11 +9,16 @@ import {
 import { useToast } from "@/contexts/toast-context";
 import { useCliInstall } from "@/desktop/hooks/use-install-status";
 import { useDaemonConfig } from "@/hooks/use-daemon-config";
+import {
+  pendingOrchestrationWrites,
+  resolveOrchestrationChoices,
+  type OrchestrationChoice,
+  type OrchestrationChoices as Choices,
+  type OrchestrationCurrent,
+  type OrchestrationOverrides,
+} from "./orchestration-choices";
 
-export type OrchestrationChoice = "tools" | "skills" | "cli";
-type Choices = Record<OrchestrationChoice, boolean>;
-
-const ALL_ON: Choices = { tools: true, skills: true, cli: true };
+export type { OrchestrationChoice } from "./orchestration-choices";
 
 export interface OrchestrationSetupController {
   choices: Choices;
@@ -31,8 +36,9 @@ export interface OrchestrationSetupController {
 }
 
 /**
- * The Orchestration step's choices. Everything starts on and nothing touches the host or this
- * computer until Continue applies them, the way checked projects are added.
+ * The Orchestration step's choices. Each switch starts from what the host and this computer have
+ * now, and nothing is touched until Continue applies the switches the user flipped, the way checked
+ * projects are added.
  */
 export function useOrchestrationSetup(serverId: string): OrchestrationSetupController {
   const { t } = useTranslation();
@@ -40,11 +46,12 @@ export function useOrchestrationSetup(serverId: string): OrchestrationSetupContr
   const skills = useAgentSkills(serverId);
   const cli = useCliInstall();
   const { config, patchConfig } = useDaemonConfig(serverId);
-  const [chosen, setChosen] = useState<Choices>(ALL_ON);
+  const [chosen, setChosen] = useState<OrchestrationOverrides>({});
   // With nothing picked there is nothing to install, so skills read as off, as they do in Settings.
   const skillsSelected = skills.status === null || hasSelectedSkills(skills.status);
-  const choices = useMemo<Choices>(
-    () => ({ ...chosen, skills: chosen.skills && skillsSelected }),
+  const overrides = useMemo<OrchestrationOverrides>(
+    () =>
+      chosen.skills === undefined ? chosen : { ...chosen, skills: chosen.skills && skillsSelected },
     [chosen, skillsSelected],
   );
   const [isApplying, setIsApplying] = useState(false);
@@ -58,11 +65,19 @@ export function useOrchestrationSetup(serverId: string): OrchestrationSetupContr
     setChosen((current) => ({ ...current, [choice]: on }));
   }, []);
 
-  // What the host and this computer have now, or null while it is still being read. A choice is
-  // skipped only when it is known to match; an unknown state is always written.
-  const toolsOn = config ? config.mcp.injectIntoAgents !== false : null;
-  const skillsInstalled = skills.status ? areSkillsInstalled(skills.status) : null;
-  const cliInstalled = cli.status ? cli.status.installed : null;
+  // What the host and this computer have now, or null while it is still being read.
+  const current = useMemo<OrchestrationCurrent>(
+    () => ({
+      tools: config ? config.mcp.injectIntoAgents === true : null,
+      skills: skills.status ? areSkillsInstalled(skills.status) : null,
+      cli: cli.status ? cli.status.installed : null,
+    }),
+    [config, skills.status, cli.status],
+  );
+  const choices = useMemo<Choices>(() => {
+    const resolved = resolveOrchestrationChoices(overrides, current);
+    return { ...resolved, skills: resolved.skills && skillsSelected };
+  }, [overrides, current, skillsSelected]);
   const { reconcile, uninstall } = skills;
   const { setInstalled: setCliInstalled } = cli;
   const offersSkills = offered.skills;
@@ -86,28 +101,17 @@ export function useOrchestrationSetup(serverId: string): OrchestrationSetupContr
   const apply = useCallback(async () => {
     setIsApplying(true);
     try {
+      const writes = pendingOrchestrationWrites(overrides, current);
       const results = await Promise.all([
-        choices.tools === toolsOn ? true : setTools(choices.tools),
-        !offersSkills || choices.skills === skillsInstalled
-          ? true
-          : setSkillsInstalled(choices.skills),
-        !offersCli || choices.cli === cliInstalled ? true : setCliInstalled(choices.cli),
+        writes.tools === undefined ? true : setTools(writes.tools),
+        !offersSkills || writes.skills === undefined ? true : setSkillsInstalled(writes.skills),
+        !offersCli || writes.cli === undefined ? true : setCliInstalled(writes.cli),
       ]);
       return results.every(Boolean);
     } finally {
       setIsApplying(false);
     }
-  }, [
-    choices,
-    toolsOn,
-    setTools,
-    offersSkills,
-    skillsInstalled,
-    setSkillsInstalled,
-    offersCli,
-    cliInstalled,
-    setCliInstalled,
-  ]);
+  }, [overrides, current, setTools, offersSkills, setSkillsInstalled, offersCli, setCliInstalled]);
 
   return { choices, setChoice, offered, skills, isApplying, apply };
 }

@@ -15,6 +15,8 @@
   cộng đồng, nhóm Default/Dark/Light/Plugins); font vẫn chọn từ font đã cài, cỡ chữ dùng −/+.
 - Nút ở các màn hình chỉ downstream có (role, room, issue, Workspace Protocol, provider connection)
   theo hệ hai cỡ mới của upstream.
+- Bước Orchestration của first-run setup mở với switch theo đúng trạng thái host thay vì bật hết, và
+  chỉ ghi những switch người dùng gạt; mở lại setup không còn tự bật Paseo tools cho mọi agent.
 
 ## 0.15.0-paseo.102 - 2026-11-04
 

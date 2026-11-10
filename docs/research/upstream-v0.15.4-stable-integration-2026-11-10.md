@@ -11,7 +11,7 @@
 - License upstream vẫn Apache-2.0; downstream giữ AGPL-3.0.
 
 Quy trình và resolution rules nằm ở [upstream-integration.md](../upstream-integration.md); rule mới của
-lần này đã vào đó (App: theme picker, Control sizes).
+lần này đã vào đó (App: theme picker, Control sizes, Setup orchestration).
 
 ## Upstream delta
 
@@ -47,10 +47,10 @@ Merge có 24 textual conflict: 13 manifest (chỉ version và dependency nội b
 - Caller của `streamAgent`/`steerOrReplaceActiveTurn`/`tryRunOutOfBand` giống `main`.
 - `operation-permissions.ts` chỉ thêm `project.suggestions.request/response` → `workspace.read`.
 - Bước Providers của setup render đúng `ProvidersSection`, nên nhận cùng gate `isPaseoSupportedProvider`.
-- Bước Orchestration của setup (`onboarding/internal/orchestration-setup.ts`) mở với mọi switch bật;
-  Continue ghi `mcp.injectIntoAgents: true` dù host đang tắt. Hành vi upstream nguyên trạng, Human thấy
-  switch; role check trong `paseo-tools.ts` vẫn áp dụng. Chờ Human quyết định có đổi về trạng thái
-  host hiện tại hay không.
+- Bước Orchestration của setup (`onboarding/internal/orchestration-setup.ts`) của upstream mở với mọi
+  switch bật; Continue ghi `mcp.injectIntoAgents: true` dù host đang tắt. Đã sửa theo quyết định của
+  Human: switch khởi đầu theo trạng thái host (chưa đọc được thì hiện tắt), Continue chỉ ghi switch
+  người dùng đã gạt (`orchestration-choices.ts`, có test).
 
 ## Source receipts
 
@@ -58,7 +58,7 @@ Merge có 24 textual conflict: 13 manifest (chỉ version và dependency nội b
 - `./scripts/upstream-integration.sh run-tests main` (10 file): app 78, server 289 pass.
 - Thêm 7 file app quanh vùng giải tay (`providers-section`, `paseo-tools-policy-sheet`, onboarding
   model, appearance apply, font options, rooms model, composer state): 94 pass.
-- Review độc lập trên hunk giải tay: không mất hành vi; một ghi nhận về bước Orchestration ở trên.
+- Review độc lập trên hunk giải tay: không mất hành vi; ghi nhận về bước Orchestration đã sửa (xem trên).
 
 ## Gates chưa chạy
 
