@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.15.4-paseo.103 - 2026-11-10
+
+### Changed
+
+- Nhận upstream Paseo v0.15.4: first-run setup đưa người dùng mới qua theme, provider, project,
+  orchestration và app điện thoại; control còn hai cỡ; gợi ý project từ các thư mục từng chạy agent;
+  Claude Fable 5.2 và Mythos 5.2; daemon vẫn khởi động khi terminal worker không chạy được; chat
+  không bị mờ khi mở bàn phím trên iOS 26+. Chi tiết ở các mục `Upstream 0.15.1`–`Upstream 0.15.4`.
+
+### Fork
+
+- Settings → Appearance và first-run setup dùng chung theme picker dạng lưới của downstream (theme
+  cộng đồng, nhóm Default/Dark/Light/Plugins); font vẫn chọn từ font đã cài, cỡ chữ dùng −/+.
+- Nút ở các màn hình chỉ downstream có (role, room, issue, Workspace Protocol, provider connection)
+  theo hệ hai cỡ mới của upstream.
+
 ## 0.15.0-paseo.102 - 2026-11-04
 
 ### Added
