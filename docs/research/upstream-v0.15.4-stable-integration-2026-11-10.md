@@ -11,7 +11,7 @@
 - License upstream vẫn Apache-2.0; downstream giữ AGPL-3.0.
 
 Quy trình và resolution rules nằm ở [upstream-integration.md](../upstream-integration.md); rule mới của
-lần này đã vào đó (App: theme picker, Control sizes, Setup orchestration).
+lần này đã vào đó (App: theme picker, Control sizes).
 
 ## Upstream delta
 
