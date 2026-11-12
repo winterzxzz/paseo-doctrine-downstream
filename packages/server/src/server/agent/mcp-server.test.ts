@@ -391,6 +391,7 @@ function buildSnapshotEntry(entry: ConfigureProviderEntry): ProviderSnapshotEntr
 // calling this helper.
 interface ConfigureOpenCodeProviderStubOptions {
   customOpenCodeProvider?: AgentProvider;
+  cursorProvider?: boolean;
 }
 
 function configureOpenCodeProviderStub(
@@ -458,6 +459,23 @@ function configureOpenCodeProviderStub(
   };
   if (options.customOpenCodeProvider) {
     modesByProvider[options.customOpenCodeProvider] = customOpenCodeModes;
+  }
+  if (options.cursorProvider) {
+    const cursorModes: AgentMode[] = [
+      { id: "agent", label: "Agent" },
+      { id: "plan", label: "Plan", colorTier: "planning" },
+      { id: "ask", label: "Ask" },
+    ];
+    entries.push({
+      ...buildSnapshotEntry({
+        provider: "cursor",
+        label: "Cursor",
+        defaultModeId: "agent",
+        modes: cursorModes,
+      }),
+      roleBinding: { status: "supported", injectionMethod: "cursor-project-rule-capsule" },
+    });
+    modesByProvider.cursor = cursorModes;
   }
 
   stub.listRegisteredProviderIds.mockReturnValue(entries.map((entry) => entry.provider));
@@ -2177,6 +2195,74 @@ describe("create_agent MCP tool", () => {
       expect.objectContaining({
         launchProfile: { id: "peer-scout", name: "Peer Scout" },
       }),
+    );
+  });
+
+  it("launches an unattended Cursor Peer in the agent mode its role capsule forces", async () => {
+    const { agentManager, agentStorage, spies } = createTestDeps();
+    const caller = createManagedAgent({
+      id: "lead-agent",
+      provider: "codex",
+      config: { model: "gpt-5.4" },
+      cwd: existingCwd,
+      workspaceId: "wks_lead",
+      roleBinding: createTestRoleBinding("lead"),
+    });
+    spies.agentManager.getAgent.mockImplementation((agentId: string) =>
+      agentId === caller.id ? caller : null,
+    );
+    mockStoredAgentRecords(spies.agentStorage.get, [
+      createActiveStoredRecord({
+        id: caller.id,
+        cwd: caller.cwd,
+        workspaceId: caller.workspaceId,
+        roleBinding: caller.roleBinding,
+      }),
+    ]);
+    spies.agentManager.createAgent.mockResolvedValue(
+      createManagedAgent({ id: "peer-agent", roleBinding: createTestRoleBinding("peer") }),
+    );
+    const server = await createAgentMcpServer({
+      agentManager,
+      agentStorage,
+      providerSnapshotManager: createOpenCodeManager({ cursorProvider: true }).manager,
+      daemonConfigStore: {
+        get: () =>
+          MutableDaemonConfigSchema.parse({
+            mcp: { injectIntoAgents: true },
+            peerDelegation: {
+              enabled: true,
+              runMode: "unattended",
+              allowedModels: [{ provider: "cursor", model: "grok-4.7" }],
+            },
+            peerDelegationProfileIds: ["peer-image-cursor"],
+            agentProfiles: [
+              {
+                id: "peer-image-cursor",
+                name: "Peer Image (Cursor)",
+                provider: "cursor",
+                model: "grok-4.7",
+                modeId: "agent",
+                thinkingOptionId: "high",
+              },
+            ],
+          }),
+      },
+      callerAgentId: caller.id,
+      logger,
+    });
+
+    await registeredTool(server, "create_agent").handler({
+      title: "Image Peer",
+      launchProfileId: "peer-image-cursor",
+      role: "peer",
+      initialPrompt: "Generate the preview images",
+    });
+
+    expect(spies.agentManager.createAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "cursor", model: "grok-4.7", modeId: "agent" }),
+      undefined,
+      expect.objectContaining({ roleId: "peer" }),
     );
   });
 

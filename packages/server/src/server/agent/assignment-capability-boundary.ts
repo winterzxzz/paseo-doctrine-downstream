@@ -132,6 +132,19 @@ const NO_WRITE_MODE_BY_INJECTION_METHOD: Partial<Record<RoleBindingInjectionMeth
   "mock-launch-context": "read-only",
 };
 
+// Role launches through these injection methods are unattended in this mode even though the
+// provider's catalog does not flag it: the Cursor role capsule adds `--force` and auto-accept
+// to every non-plan launch.
+const UNATTENDED_MODE_BY_INJECTION_METHOD: Partial<Record<RoleBindingInjectionMethod, string>> = {
+  "cursor-project-rule-capsule": "agent",
+};
+
+export function unattendedModeForInjectionMethod(
+  injectionMethod: RoleBindingInjectionMethod,
+): string | null {
+  return UNATTENDED_MODE_BY_INJECTION_METHOD[injectionMethod] ?? null;
+}
+
 /** The guarded provider mode used by both the `no-write` and `ask` policies. */
 export function noWriteModeForInjectionMethod(
   injectionMethod: RoleBindingInjectionMethod,

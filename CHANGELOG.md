@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.15.4-paseo.104 - 2026-11-12
+
+### Fork
+
+- Lead giao việc cho Peer chạy trên Cursor ở chế độ `unattended` không còn báo "has no qualified
+  unattended mode": Peer Cursor chạy mode `agent`, vốn đã được role capsule thêm `--force` và
+  auto-accept. Phiên Cursor bình thường không đổi.
+
 ## 0.15.4-paseo.103 - 2026-11-10
 
 ### Changed

@@ -180,11 +180,13 @@ import { toLaunchContractReceipt } from "../launch-contract.js";
 import {
   PaseoRoleIdSchema,
   RoleBindingReceiptSchema,
+  type ProviderRoleBindingSupport,
   type RoleBindingInjectionMethod,
   type PaseoRoleId,
 } from "@getpaseo/protocol/role-binding";
 import {
   noWriteModeForInjectionMethod,
+  unattendedModeForInjectionMethod,
   resolveRuntimePermissionPolicy,
 } from "../assignment-capability-boundary.js";
 import {
@@ -726,14 +728,25 @@ function resolvePeerPolicyMode(input: {
   modes: readonly AgentMode[];
   defaultModeId: string | null | undefined;
   runMode: PeerDelegationRunMode;
+  roleBinding: ProviderRoleBindingSupport | null | undefined;
 }): string {
-  const { provider, modes, defaultModeId, runMode } = input;
+  const { provider, modes, defaultModeId, runMode, roleBinding } = input;
   if (runMode === "unattended") {
     const unattendedMode = modes.find((mode) => mode.isUnattended === true);
     if (unattendedMode) return unattendedMode.id;
     const manifestUnattendedModeId = getUnattendedModeId(provider);
     if (manifestUnattendedModeId && modes.some((mode) => mode.id === manifestUnattendedModeId)) {
       return manifestUnattendedModeId;
+    }
+    const roleLaunchUnattendedModeId =
+      roleBinding?.status === "supported"
+        ? unattendedModeForInjectionMethod(roleBinding.injectionMethod)
+        : null;
+    if (
+      roleLaunchUnattendedModeId &&
+      modes.some((mode) => mode.id === roleLaunchUnattendedModeId)
+    ) {
+      return roleLaunchUnattendedModeId;
     }
     throw new Error(
       `Provider '${provider}' has no qualified unattended mode for Human-approved Peer delegation`,
@@ -1869,6 +1882,7 @@ function createToolCatalog(
       modes: providerEntry.modes ?? [],
       defaultModeId: providerEntry.defaultModeId,
       runMode,
+      roleBinding: providerEntry.roleBinding,
     });
     if (input.requestedMode !== undefined && input.requestedMode !== enforcedMode) {
       if (input.launchProfile) {
